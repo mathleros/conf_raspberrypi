@@ -11,3 +11,9 @@ wheels/
 
 # Artefacts de test
 micro_test.wav
+
+# Local secrets / environment
+.env
+.env.*
+!.env.example
+.env.local

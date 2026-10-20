@@ -17,6 +17,8 @@ balle-rouge = "camera_app.balle_rouge:main"
 micro-test = "camera_app.micro_test:main"
 led-test = "camera_app.led_test:main"
 voice-assistant = "camera_app.voice_assistant:main"
+smart-car = "camera_app.smart_car:main"
+gpio-test = "camera_app.gpio_test:main"
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]

@@ -30,19 +30,14 @@ apt-get update
 apt-get install -y python3-pip python3-dev build-essential
 
 echo "── Installation du module RPi.GPIO ──"
-python3 -m pip install --upgrade pip setuptools wheel
-if python3 - <<'PY'
-import RPi.GPIO as GPIO
-print(f"RPi.GPIO déjà présent : {GPIO.VERSION}")
-PY
-then
-    echo "  RPi.GPIO est déjà installé."
+if apt-cache policy python3-rpi.gpio >/dev/null 2>&1; then
+    apt-get install -y python3-rpi.gpio
 else
-    echo "  Installation du paquet Python RPi.GPIO…"
+    python3 -m pip install --upgrade pip setuptools wheel
     python3 -m pip install --break-system-packages RPi.GPIO
 fi
 
-echo "── Vérification ──"
+# Ensure the final import works even if installed via package manager or pip.
 python3 - <<'PY'
 import RPi.GPIO as GPIO
 print(f"Vérification OK : RPi.GPIO {GPIO.VERSION}")

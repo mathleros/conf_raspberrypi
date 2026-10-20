@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Installation du module Python RPi.GPIO pour Raspberry Pi.
+# Installation du module Python gpiozero pour Raspberry Pi.
 #
 # Usage :
 #   sudo ./install_rpigpio.sh
 #
-# Ce module est requis pour piloter les GPIO du Raspberry Pi 5
-# depuis un script Python (ex. voiture Smart Car 2WD, L298N, LEDs, etc.).
+# gpiozero est le pilote GPIO recommandé sur Raspberry Pi 5 / Debian 13.
+# Il remplace RPi.GPIO, qui n'est pas fiable sur cette plateforme.
 
 set -euo pipefail
 
@@ -27,26 +27,17 @@ echo "Raspberry Pi détecté : ${model}"
 echo "── Installation des dépendances système ──"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3-pip python3-dev build-essential
+apt-get install -y python3-pip python3-dev build-essential python3-gpiozero
 
-echo "── Installation du module RPi.GPIO ──"
-if apt-cache policy python3-rpi.gpio >/dev/null 2>&1; then
-    apt-get install -y python3-rpi.gpio
-else
-    python3 -m pip install --upgrade pip setuptools wheel
-    python3 -m pip install --break-system-packages RPi.GPIO
-fi
-
-# Ensure the final import works even if installed via package manager or pip.
+echo "── Vérification du module gpiozero ──"
 python3 - <<'PY'
-import RPi.GPIO as GPIO
-print(f"Vérification OK : RPi.GPIO {GPIO.VERSION}")
-GPIO.setmode(GPIO.BCM)
-GPIO.cleanup()
+import gpiozero
+print(f"Vérification OK : gpiozero {gpiozero.__version__}")
 PY
 
 echo ""
 echo "Installation terminée."
 echo "  Exemples :"
+echo "    uv sync --project ."
 echo "    uv run smart-car forward --duration 1"
 echo "    uv run smart-car left --duration 0.5"

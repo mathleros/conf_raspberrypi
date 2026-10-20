@@ -2,10 +2,10 @@ import argparse
 import time
 
 try:
-    import RPi.GPIO as GPIO
+    from gpiozero import DigitalOutputDevice
 except ModuleNotFoundError as exc:  # pragma: no cover - only relevant on non-Pi hosts
     raise SystemExit(
-        "Ce script nécessite le module RPi.GPIO sur un Raspberry Pi. "
+        "Ce script nécessite le module gpiozero sur un Raspberry Pi. "
         "Installez-le puis relancez le programme."
     ) from exc
 
@@ -14,23 +14,21 @@ class SmartCar2WD:
     """Pilote une voiture 2 roues motrices via un module L298N."""
 
     def __init__(self, in1=5, in2=6, in3=16, in4=24):
-        self.pins = {"in1": in1, "in2": in2, "in3": in3, "in4": in4}
-
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-
-        for pin in self.pins.values():
-            GPIO.setup(pin, GPIO.OUT)
-
+        self.pins = {
+            "in1": DigitalOutputDevice(in1),
+            "in2": DigitalOutputDevice(in2),
+            "in3": DigitalOutputDevice(in3),
+            "in4": DigitalOutputDevice(in4),
+        }
         self.stop()
 
     def _set_motor_a(self, forward: bool) -> None:
-        GPIO.output(self.pins["in1"], GPIO.HIGH if forward else GPIO.LOW)
-        GPIO.output(self.pins["in2"], GPIO.LOW if forward else GPIO.HIGH)
+        self.pins["in1"].value = 1 if forward else 0
+        self.pins["in2"].value = 0 if forward else 1
 
     def _set_motor_b(self, forward: bool) -> None:
-        GPIO.output(self.pins["in3"], GPIO.HIGH if forward else GPIO.LOW)
-        GPIO.output(self.pins["in4"], GPIO.LOW if forward else GPIO.HIGH)
+        self.pins["in3"].value = 1 if forward else 0
+        self.pins["in4"].value = 0 if forward else 1
 
     def forward(self) -> None:
         self._set_motor_a(True)
@@ -52,11 +50,12 @@ class SmartCar2WD:
 
     def stop(self) -> None:
         for pin in self.pins.values():
-            GPIO.output(pin, GPIO.LOW)
+            pin.off()
 
     def cleanup(self) -> None:
         self.stop()
-        GPIO.cleanup()
+        for pin in self.pins.values():
+            pin.close()
 
 
 def main() -> None:

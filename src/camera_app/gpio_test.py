@@ -3,24 +3,26 @@ import argparse
 import time
 
 try:
-    import RPi.GPIO as GPIO
+    from gpiozero import DigitalOutputDevice
 except ModuleNotFoundError as exc:
     raise SystemExit(
-        "Le module RPi.GPIO n'est pas installé. "
-        "Exécute d'abord : sudo ./install_rpigpio.sh"
+        "Le module gpiozero n'est pas installé. "
+        "Exécute d'abord : uv sync --project ."
     ) from exc
 
 
-def test_pin(pin: int, state: bool, duration: float) -> None:
-    print(f"Activation du GPIO{pin} ({'HIGH' if state else 'LOW'}) pendant {duration}s")
-    GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
+def test_pin(pin: int, duration: float) -> None:
+    output = DigitalOutputDevice(pin)
+    print(f"Activation du GPIO{pin} pendant {duration}s")
+    output.on()
     time.sleep(duration)
-    GPIO.output(pin, GPIO.LOW)
+    output.off()
+    output.close()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Teste les sorties GPIO du Raspberry Pi."
+        description="Teste les sorties GPIO du Raspberry Pi avec gpiozero."
     )
     parser.add_argument("pins", nargs="*", type=int, help="Liste des GPIO à tester (ex: 5 6 16 24)")
     parser.add_argument("--duration", type=float, default=0.5, help="Durée d'activation de chaque GPIO en secondes")
@@ -29,23 +31,21 @@ def main() -> None:
 
     pins = args.pins or ([5, 6, 16, 24] if args.all else [])
     if not pins:
-        parser.error("Aucun GPIO fourni. Exemple : python gpio_test.py 5 6 16 24 --duration 0.5")
-
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-
-    for pin in pins:
-        GPIO.setup(pin, GPIO.OUT)
+        parser.error("Aucun GPIO fourni. Exemple : uv run gpio-test 5 6 16 24 --duration 0.5")
 
     try:
         for pin in pins:
-            test_pin(pin, True, args.duration)
+            test_pin(pin, args.duration)
             time.sleep(0.1)
         print("Test terminé.")
+    except KeyboardInterrupt:
+        print("\nInterruption clavier : arrêt du test GPIO.")
     finally:
         for pin in pins:
-            GPIO.output(pin, GPIO.LOW)
-        GPIO.cleanup()
+            try:
+                DigitalOutputDevice(pin).close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

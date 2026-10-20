@@ -8,6 +8,7 @@ dependencies = [
     "opencv-python>=4.11.0",
     "requests>=2.34.2",
     "vosk>=0.3.45",
+    "RPi.GPIO>=0.7.1a4",
 ]
 
 [project.scripts]

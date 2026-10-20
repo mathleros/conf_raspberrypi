@@ -17,4 +17,4 @@ sudo reboot
 sudo ./install_llm.sh
 sudo systemctl start ministral.service
 curl http://127.0.0.1:8080/v1/models
-cd /home/rcollin/test && uv run voice-assistant --no-llm
+uv run --project . voice-assistant --no-llm

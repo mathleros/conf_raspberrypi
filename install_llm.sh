@@ -16,9 +16,22 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
-TOOLS_DIR="/home/rcollin/tools"
+TARGET_USER="${SUDO_USER:-}"
+if [[ -z "${TARGET_USER}" || "${TARGET_USER}" == root ]]; then
+    echo "Erreur : exécute ce script avec sudo depuis le compte utilisateur cible."
+    exit 1
+fi
+
+TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+if [[ -z "${TARGET_HOME}" || ! -d "${TARGET_HOME}" ]]; then
+    echo "Erreur : impossible de trouver le dossier personnel de ${TARGET_USER}."
+    exit 1
+fi
+
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR="${TARGET_HOME}/tools"
 LLAMA_DIR="${TOOLS_DIR}/llama.cpp"
-MODELS_DIR="/home/rcollin/models"
+MODELS_DIR="${TARGET_HOME}/models"
 MODEL_URL="https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
 MODEL_FILE="${MODELS_DIR}/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
 
@@ -37,10 +50,10 @@ fi
 cmake -S "${LLAMA_DIR}" -B "${LLAMA_DIR}/build" -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=ON
 cmake --build "${LLAMA_DIR}/build" -j"$(nproc)" --target llama-server
 
-cat > /usr/local/bin/ministral-server <<'SHELL'
+cat > /usr/local/bin/ministral-server <<SHELL
 #!/usr/bin/env bash
-exec /home/rcollin/tools/llama.cpp/build/bin/llama-server \
-    -m /home/rcollin/models/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf \
+exec ${LLAMA_DIR}/build/bin/llama-server \
+    -m ${MODEL_FILE} \
     --host 127.0.0.1 --port 8080 \
     --ctx-size 4096 --threads 4 --parallel 1
 SHELL
@@ -64,7 +77,7 @@ After=network.target
 [Service]
 ExecStart=/usr/local/bin/ministral-server
 Restart=on-failure
-User=rcollin
+User=${TARGET_USER}
 
 [Install]
 WantedBy=multi-user.target
@@ -73,7 +86,7 @@ systemctl daemon-reload
 systemctl enable ministral.service
 
 echo "── 5/6 Paquets Python (vosk, request) ──"
-HOME=/home/rcollin su - rcollin -c "cd /home/rcollin/test && uv add vosk requests"
+su - "${TARGET_USER}" -c "uv sync --project '${PROJECT_DIR}'"
 
 echo "── 6/6 Modèle Vosk français ──"
 VOSK_MODEL_DIR="${MODELS_DIR}/vosk-model-small-fr-0.22"
@@ -92,4 +105,4 @@ echo ""
 echo "Installation terminée."
 echo "  Démarre le serveur LLM :  sudo systemctl start ministral.service"
 echo "  Test de l'API :            curl http://127.0.0.1:8080/v1/models"
-echo "  Assistant vocal :          cd /home/rcollin/test && uv run voice-assistant"
+echo "  Assistant vocal :          cd '${PROJECT_DIR}' && uv run voice-assistant"

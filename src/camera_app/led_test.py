@@ -119,39 +119,44 @@ def main():
         )
         sys.exit(1)
 
-    if args.mode == "static":
-        if not args.colors:
-            colors = [(0xFF, 0x50, 0)] * NUM_LEDS
-        else:
-            try:
-                colors = [raw_to_colors(c) for c in args.colors]
-            except ValueError as exc:
-                print(f"Erreur : {exc}")
+    try:
+        if args.mode == "static":
+            if not args.colors:
+                colors = [(0xFF, 0x50, 0)] * NUM_LEDS
+            else:
+                try:
+                    colors = [raw_to_colors(c) for c in args.colors]
+                except ValueError as exc:
+                    print(f"Erreur : {exc}")
+                    sys.exit(1)
+            if len(colors) != NUM_LEDS:
+                print(f"Erreur : attendu {NUM_LEDS} couleurs, reçu {len(colors)}")
                 sys.exit(1)
-        if len(colors) != NUM_LEDS:
-            print(f"Erreur : attendu {NUM_LEDS} couleurs, reçu {len(colors)}")
-            sys.exit(1)
-        show(spi, colors)
-        details = ", ".join(f"LED{i + 1}=#{r:02x}{g:02x}{b:02x}" for i, (r, g, b) in enumerate(colors))
-        print(f"LEDs allumées : {details}")
-        print("Appuie sur Ctrl+C pour éteindre…")
-        while True:
-            time.sleep(1)
-    elif args.mode == "scan":
-        print("Balayage LED par LED (rouge, vert, bleu)…")
-        scan_pattern(spi)
-        show(spi, [(0, 0, 0)] * NUM_LEDS)
-        print("Terminé.")
-    elif args.mode == "rainbow":
-        print("Cycle arc-en-ciel…")
-        rainbow_cycle(spi)
-        show(spi, [(0, 0, 0)] * NUM_LEDS)
-        print("Terminé.")
-    elif args.mode == "off":
-        show(spi, [(0, 0, 0)] * NUM_LEDS)
-        print("LEDs éteintes.")
-    else:
-        parser.print_help()
+            show(spi, colors)
+            details = ", ".join(f"LED{i + 1}=#{r:02x}{g:02x}{b:02x}" for i, (r, g, b) in enumerate(colors))
+            print(f"LEDs allumées : {details}")
+            print("Appuie sur Ctrl+C pour éteindre…")
+            while True:
+                time.sleep(1)
+        elif args.mode == "scan":
+            print("Balayage LED par LED (rouge, vert, bleu)…")
+            scan_pattern(spi)
+            print("Terminé.")
+        elif args.mode == "rainbow":
+            print("Cycle arc-en-ciel…")
+            rainbow_cycle(spi)
+            print("Terminé.")
+        elif args.mode == "off":
+            print("Extinction des LEDs.")
+        else:
+            parser.print_help()
+    except KeyboardInterrupt:
+        print("\nInterruption : extinction des LEDs…")
+    finally:
+        try:
+            show(spi, [(0, 0, 0)] * NUM_LEDS)
+        finally:
+            spi.close()
 
 
 if __name__ == "__main__":

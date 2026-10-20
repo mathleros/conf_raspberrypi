@@ -10,6 +10,8 @@ chaque script vérifie qu'un composant fonctionne, de façon isolée.
 | `uv run balle-rouge` | test de traitement d'image (détection d'une balle rouge) |
 | `uv run micro-test` | test des micros du HAT ReSpeaker |
 | `uv run led-test` | test des LEDs du HAT ReSpeaker |
+| `uv run gpio-test` | test des sorties GPIO du Raspberry Pi |
+| `uv run smart-car forward --duration 1` | avance la voiture Smart Car 2WD pendant 1 seconde |
 | `uv run voice-assistant` | assistant vocal local (STT vosk + LLM Ministral 3 3B) |
 
 ## Prérequis
@@ -56,6 +58,59 @@ sudo apt install -y python3-picamera2 git      # picamera2 vient des dépôts De
 
 > La caméra OV5647 sans EEPROM n'est pas toujours auto-détectée : si `dmesg | grep ov5647`
 > est vide après boot, ajouter `dtoverlay=ov5647,cam1` dans `/boot/firmware/config.txt`.
+
+## Installation du projet
+
+### 4. Installer le support GPIO pour le Smart Car
+
+Pour piloter la voiture 2 roues motrices branchée sur un L298N, il faut installer
+la librairie GPIO compatible avec le Raspberry Pi 5 sous Debian 13 :
+
+```bash
+sudo ./install_rpigpio.sh
+uv sync --project .
+```
+
+> Sur Raspberry Pi 5 / Debian 13, `gpiozero` est préféré à `RPi.GPIO` car il est mieux supporté.
+
+### 5. Tester les GPIO
+
+```bash
+# ou tester seulement certains GPIO
+uv run gpio-test 5 6 16 24 --duration 0.5
+```
+
+### 6. Piloter la voiture Smart Car 2WD
+
+Le module L298N est branché comme suit :
+- IN1 → GPIO 5
+- IN2 → GPIO 6
+- IN3 → GPIO 16
+- IN4 → GPIO 24
+
+Exemples :
+
+```bash
+uv run smart-car forward --duration 1
+uv run smart-car backward --duration 1
+uv run smart-car left --duration 0.5
+uv run smart-car right --duration 0.5
+uv run smart-car stop
+```
+
+Le script `smart_car.py` pilote directement les deux moteurs via le L298N. La roue centrale est libre et non motorisée.
+
+### 7. Installation du projet
+
+Cloner le dépôt, créer l'environnement et installer les dépendances :
+
+```bash
+git clone https://github.com/mathleros/conf_raspberrypi.git
+cd conf_raspberrypi
+uv sync --project .
+```
+
+> `uv` s'installe via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 ## Installation du projet
 
@@ -115,6 +170,26 @@ Pilote les 3 LEDs sur `/dev/spidev0.1` (SPI0, CS1) : `static red green blue`,
 uv run led-test static red green blue
 ```
 
+### `gpio-test` — tests des GPIO
+Teste les sorties GPIO : chaque broche est activée brièvement puis remise à l'état
+bas. Utile pour valider le câblage du L298N ou d'autres modules.
+
+```bash
+uv run gpio-test 5 6 16 24 --duration 0.5
+```
+
+### `smart-car` — contrôle de la Smart Car 2WD
+Contrôle la voiture 2 roues motrices : `forward`, `backward`, `left`, `right`,
+`stop`. Le module L298N est branché sur les GPIO 5, 6, 16 et 24.
+
+```bash
+uv run smart-car forward --duration 1
+uv run smart-car backward --duration 1
+uv run smart-car left --duration 0.5
+uv run smart-car right --duration 0.5
+uv run smart-car stop
+```
+
 ### `voice-assistant` — assistant vocal local
 Micro → **vosk** (STT français) → `[texte]` sur stdout → **Ministral 3 3B**
 (llama.cpp local) → `[réponse]` sur stdout. Tout reste sur la machine (hors
@@ -144,6 +219,7 @@ uv run voice-assistant --once   # une phrase, idéal pour un test
 ```
 test/
 ├── pyproject.toml          # dépendances + commandes uv
+├── install_rpigpio.sh      # installation gpiozero pour Pi 5
 ├── install_respeaker.sh    # installation du HAT ReSpeaker
 ├── install_llm.sh          # installation llama.cpp + Ministral 3 3B + vosk
 ├── commandes.txt           # commandes sudo utiles
@@ -152,6 +228,8 @@ test/
     ├── balle_rouge.py      # détection balle rouge
     ├── micro_test.py       # test micros
     ├── led_test.py         # test LEDs
+    ├── gpio_test.py        # test GPIO
+    ├── smart_car.py        # pilotage Smart Car 2WD
     └── voice_assistant.py  # assistant vocal local
 ```
 

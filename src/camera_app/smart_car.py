@@ -1,9 +1,26 @@
+"""Pilote une voiture 2 roues via un module L298N sur Raspberry Pi.
+
+Le programme expose deux modes de commande :
+- une commande de direction : forward, backward, left, right, stop
+- un réglage de vitesse via --speed (0.0 à 1.0)
+
+Exemples :
+    uv run smart-car forward --speed 0.6 --duration 2
+    uv run smart-car left --speed 0.4
+    uv run smart-car stop
+
+Notes de câblage :
+- GPIO 5, 6, 16, 24 sont utilisés pour les entrées IN1, IN2, IN3, IN4
+- GPIO 12 et 13 pilotent ENA et ENB (PWM pour la vitesse)
+- le GND du Raspberry Pi doit être relié au GND du module L298N
+"""
+
 import argparse
 import time
 
 try:
-    from gpiozero import DigitalOutputDevice
-except ModuleNotFoundError as exc:  # pragma: no cover - only relevant on non-Pi hosts
+    from gpiozero import DigitalOutputDevice, PWMOutputDevice
+except ModuleNotFoundError as exc:  # pragma: no cover - relevant on non-Pi hosts only
     raise SystemExit(
         "Ce script nécessite le module gpiozero sur un Raspberry Pi. "
         "Installez-le puis relancez le programme."
@@ -11,90 +28,181 @@ except ModuleNotFoundError as exc:  # pragma: no cover - only relevant on non-Pi
 
 
 class SmartCar2WD:
-    """Pilote une voiture 2 roues motrices via un module L298N."""
+    """Contrôle une voiture 2 roues motrices (2WD) avec un L298N.
 
-    def __init__(self, in1=5, in2=6, in3=16, in4=24):
+    Les broches GPIO sont celles du mode BCM (Broadcom), pas les numéros de broches
+    physiques du connecteur 40 broches.
+    """
+
+    DEFAULT_PINS = {
+        "in1": 5,
+        "in2": 6,
+        "in3": 16,
+        "in4": 24,
+        "ena": 12,
+        "enb": 13,
+    }
+
+    def __init__(self, in1=DEFAULT_PINS["in1"], in2=DEFAULT_PINS["in2"], in3=DEFAULT_PINS["in3"], in4=DEFAULT_PINS["in4"], ena=DEFAULT_PINS["ena"], enb=DEFAULT_PINS["enb"]):
         self.pins = {
             "in1": DigitalOutputDevice(in1),
             "in2": DigitalOutputDevice(in2),
             "in3": DigitalOutputDevice(in3),
             "in4": DigitalOutputDevice(in4),
         }
+        self.ena = PWMOutputDevice(ena, frequency=100)
+        self.enb = PWMOutputDevice(enb, frequency=100)
+
+        self.speed = 1.0
         self.stop()
 
+    @staticmethod
+    def clamp_speed(speed: float) -> float:
+        """Limite la vitesse à l'intervalle [0.0, 1.0]."""
+        return max(0.0, min(1.0, speed))
+
+    def set_speed(self, speed: float) -> None:
+        """Applique une vitesse globale sur les deux moteurs."""
+        self.speed = self.clamp_speed(speed)
+        self.ena.value = self.speed
+        self.enb.value = self.speed
+
     def _set_motor_a(self, forward: bool) -> None:
+        """Configure le moteur A (roue gauche ou droite selon le schéma)."""
         self.pins["in1"].value = 1 if forward else 0
         self.pins["in2"].value = 0 if forward else 1
+        self.ena.value = self.speed
 
     def _set_motor_b(self, forward: bool) -> None:
+        """Configure le moteur B."""
         self.pins["in3"].value = 1 if forward else 0
         self.pins["in4"].value = 0 if forward else 1
+        self.enb.value = self.speed
 
     def forward(self) -> None:
+        """Avance en ligne droite."""
         self._set_motor_a(True)
         self._set_motor_b(True)
 
     def backward(self) -> None:
+        """Recule en ligne droite."""
         self._set_motor_a(False)
         self._set_motor_b(False)
 
     def left(self) -> None:
-        # Roue droite vers l'avant, roue gauche vers l'arrière.
+        """Tourne vers la gauche.
+
+        Le moteur A est inversé tandis que le moteur B avance.
+        """
         self._set_motor_a(False)
         self._set_motor_b(True)
 
     def right(self) -> None:
-        # Roue gauche vers l'avant, roue droite vers l'arrière.
+        """Tourne vers la droite.
+
+        Le moteur A avance tandis que le moteur B est inversé.
+        """
         self._set_motor_a(True)
         self._set_motor_b(False)
 
     def stop(self) -> None:
+        """Arrête les moteurs et met la vitesse PWM à zéro."""
         for pin in self.pins.values():
             pin.off()
+        self.ena.value = 0
+        self.enb.value = 0
 
     def cleanup(self) -> None:
+        """Libère proprement les ressources GPIO."""
         self.stop()
         for pin in self.pins.values():
             pin.close()
+        self.ena.close()
+        self.enb.close()
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Crée le parser de ligne de commande."""
     parser = argparse.ArgumentParser(
-        description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via L298N"
+        description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via un pont H-bridge L298N."
     )
     parser.add_argument(
         "command",
         choices=["forward", "backward", "left", "right", "stop"],
-        help="Commande à exécuter sur la voiture",
+        help="Commande à exécuter sur la voiture.",
     )
     parser.add_argument(
         "--duration",
         type=float,
-        default=0.0,
-        help="Durée d'exécution en secondes (0 = action immédiate puis arrêt)",
+        default=-1.0,
+        help="Durée en secondes. Par défaut, -1 = indéfinie jusqu'à Ctrl+C. 0 = arrêt immédiat.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=1.0,
+        help="Vitesse entre 0.0 (arrêt) et 1.0 (vitesse maximale).",
+    )
+    return parser
+
+
+def run_command(args: argparse.Namespace) -> None:
+    """Exécute la commande demandée."""
+    if args.duration < -1:
+        raise ValueError("La durée doit être >= -1. (-1 = indéfinie)")
+    if not 0.0 <= args.speed <= 1.0:
+        raise ValueError("La vitesse doit être comprise entre 0.0 et 1.0.")
 
     car = SmartCar2WD()
+    command_map = {
+        "forward": car.forward,
+        "backward": car.backward,
+        "left": car.left,
+        "right": car.right,
+        "stop": car.stop,
+    }
 
     try:
-        action = {
-            "forward": car.forward,
-            "backward": car.backward,
-            "left": car.left,
-            "right": car.right,
-            "stop": car.stop,
-        }[args.command]
+        car.set_speed(args.speed)
+        command = command_map[args.command]
+        command()
 
-        action()
+        if args.command == "stop":
+            print("Commande 'stop' exécutée.")
+            return
+
+        if args.duration == -1:
+            print(
+                f"Commande '{args.command}' en cours indéfiniment "
+                f"(vitesse {args.speed:.2f}). Appuie sur Ctrl+C pour stopper."
+            )
+            while True:
+                time.sleep(0.2)
+
         if args.duration > 0:
             time.sleep(args.duration)
             car.stop()
-        print(f"Commande '{args.command}' exécutée.")
+            print(f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}.")
+            return
+
+        car.stop()
+        print(f"Commande '{args.command}' arrêtée immédiatement.")
     except KeyboardInterrupt:
         print("\nInterruption clavier : arrêt des moteurs.")
     finally:
+        car.stop()
         car.cleanup()
+
+
+def main() -> None:
+    """Point d'entrée du script."""
+    parser = build_parser()
+    args = parser.parse_args()
+
+    try:
+        run_command(args)
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 import requests
 import vosk
 
+from irobot.smart_car.smart_car import SmartCar2WD
+
 RATE = 16000
 CARD_NAME = "wm8960"
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
@@ -22,6 +24,122 @@ SYSTEM_PROMPT = (
     "Tu es un assistant vocal embarqué sur un Raspberry Pi. "
     "Réponds de manière concise et en français."
 )
+
+
+class VoiceCarController:
+    """Contrôle d'une voiture à partir de commandes vocales, en français ou anglais."""
+
+    def __init__(self, default_speed: float = 0.5):
+        self.car = SmartCar2WD()
+        self.speed = max(0.0, min(1.0, default_speed))
+        self.current_direction = "stop"
+        self.car.set_speed(self.speed)
+
+    @staticmethod
+    def parse_duration(text: str) -> float:
+        """Extrait la durée d'exécution depuis une commande vocale.
+
+        Accepte des formules du type :
+        - 'pendant 2 seconde'
+        - 'for 2 seconds'
+        - '2s'
+        - '2.5 sec'
+        """
+        cleaned = text.lower().strip()
+
+        patterns = [
+            r"(?:pendant|pour|durant)\s*(\d+(?:[.,]\d+)?)\s*(?:seconde|secondes|sec|secs|s)\b",
+            r"(?:for|during)\s*(\d+(?:[.,]\d+)?)\s*(?:second|seconds|sec|secs|s)\b",
+            r"\b(\d+(?:[.,]\d+)?)\s*(?:s|sec|second|seconde|seconds|secondes)\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, cleaned)
+            if match:
+                value = float(match.group(1).replace(",", "."))
+                return max(0.1, value)
+        return 1.0
+
+    def _set_direction(self, direction: str) -> str:
+        if direction == "forward":
+            self.car.forward()
+            self.current_direction = "forward"
+            return f"Avance à {self.speed:.2f}."
+        if direction == "backward":
+            self.car.backward()
+            self.current_direction = "backward"
+            return f"Recule à {self.speed:.2f}."
+        if direction == "left":
+            self.car.left()
+            self.current_direction = "left"
+            return f"Tourne à gauche à {self.speed:.2f}."
+        if direction == "right":
+            self.car.right()
+            self.current_direction = "right"
+            return f"Tourne à droite à {self.speed:.2f}."
+        if direction == "stop":
+            self.car.stop()
+            self.current_direction = "stop"
+            return "Arrêt moteur."
+        return "Commande inconnue."
+
+    def _execute_direction(self, direction: str, duration: float = 1.0) -> str:
+        self.car.set_speed(self.speed)
+        self._set_direction(direction)
+        if duration > 0:
+            time.sleep(duration)
+            self.car.stop()
+            return f"Commande '{direction}' exécutée pendant {duration:.1f}s."
+        self.car.stop()
+        return f"Commande '{direction}' arrêtée immédiatement."
+
+    def handle_text(self, text: str) -> str:
+        cleaned = text.strip().lower()
+        if not cleaned:
+            return "Aucune commande reçue."
+
+        duration = self.parse_duration(cleaned)
+
+        if any(keyword in cleaned for keyword in ["plus vite", "go faster", "faster", "accelere", "accelerate", "augmente"]):
+            self.speed = max(0.0, min(1.0, self.speed + 0.1))
+            if self.current_direction != "stop":
+                self._set_direction(self.current_direction)
+            return f"Vitesse augmentée à {self.speed:.2f}."
+
+        if any(keyword in cleaned for keyword in ["moins vite", "go slower", "slower", "ralenti", "decelerate", "baisse"]):
+            self.speed = max(0.0, min(1.0, self.speed - 0.1))
+            if self.current_direction != "stop":
+                self._set_direction(self.current_direction)
+            return f"Vitesse réduite à {self.speed:.2f}."
+
+        if any(keyword in cleaned for keyword in ["stop", "arrêt", "arrete", "stop car", "halt", "pause"]):
+            return self._set_direction("stop")
+
+        if any(keyword in cleaned for keyword in ["avance", "avancer", "va tout droit", "go forward", "forward", "go", "move forward", "avant"]):
+            return self._execute_direction("forward", duration)
+
+        if any(keyword in cleaned for keyword in ["recule", "reculer", "go back", "backward", "back", "move backward", "arriere", "arrière"]):
+            return self._execute_direction("backward", duration)
+
+        if any(keyword in cleaned for keyword in ["gauche", "tourne a gauche", "turn left", "left", "left turn"]):
+            return self._execute_direction("left", duration)
+
+        if any(keyword in cleaned for keyword in ["droite", "tourne a droite", "turn right", "right", "right turn"]):
+            return self._execute_direction("right", duration)
+
+        for pattern in [r"vitesse\s*[:=]?\s*(0\.?\d+|1(?:\.0+)?)", r"speed\s*[:=]?\s*(0\.?\d+|1(?:\.0+)?)"]:
+            match = re.search(pattern, cleaned)
+            if match:
+                self.speed = max(0.0, min(1.0, float(match.group(1))))
+                self.car.set_speed(self.speed)
+                if self.current_direction != "stop":
+                    self._set_direction(self.current_direction)
+                return f"Vitesse réglée à {self.speed:.2f}."
+
+        return "Commande vocale non reconnue pour la voiture."
+
+    def cleanup(self) -> None:
+        self.car.stop()
+        self.car.cleanup()
 
 
 def _run_command(args):
@@ -48,11 +166,7 @@ def find_wm8960_card():
 
 
 def detect_bluetooth_input_device():
-    """Tente de trouver un périphérique audio Bluetooth comme source microphone.
-
-    La détection est volontairement tolérante : on vérifie d'abord les sources
-    PulseAudio/PipeWire, puis la liste ALSA. Si rien n'est trouvé, on retourne None.
-    """
+    """Tente de trouver un périphérique audio Bluetooth comme source microphone."""
     for cmd in (["pactl", "list", "short", "sources"], ["pacmd", "list-sources"], ["arecord", "-L"]):
         out = _run_command(cmd)
         if out is None:
@@ -65,14 +179,7 @@ def detect_bluetooth_input_device():
 
 
 def resolve_input_device(device_name: str | None):
-    """Résout le device d'entrée audio à utiliser.
-
-    - auto : privilégie le casque Bluetooth si détecté, sinon WM8960, sinon default
-    - wm8960 : force la carte ReSpeaker
-    - bluetooth : force le micro Bluetooth si disponible
-    - default : utilise la source audio par défaut du système
-    - sinon : on considère la chaîne comme un device ALSA explicite
-    """
+    """Résout le device d'entrée audio à utiliser."""
     if device_name and device_name != "auto":
         if device_name == "wm8960":
             card = find_wm8960_card()
@@ -171,6 +278,17 @@ def main():
         choices=["auto", "bluetooth", "wm8960", "default"],
         help="Source audio utilisée pour l'enregistrement. 'auto' = Bluetooth si disponible, sinon ReSpeaker, sinon par défaut.",
     )
+    parser.add_argument(
+        "--car",
+        action="store_true",
+        help="Contrôle la smart-car via commandes vocales en français ou anglais (avance, recule, gauche, droite, stop, vitesse).",
+    )
+    parser.add_argument(
+        "--car-speed",
+        type=float,
+        default=0.5,
+        help="Vitesse de base de la voiture en mode contrôle vocal, entre 0.0 et 1.0.",
+    )
     args = parser.parse_args()
 
     try:
@@ -179,11 +297,20 @@ def main():
         print(f"Erreur : {exc}")
         sys.exit(1)
 
-    if device == "default":
-        print(
-            "Aucun microphone matériel détecté (WM8960 ou Bluetooth). "
-            "Le système va tenter d'utiliser le périphérique audio par défaut."
-        )
+    if args.car:
+        controller = VoiceCarController(default_speed=args.car_speed)
+        try:
+            for text in transcribe_loop(device):
+                print(f"\n[VOIX] {text}", flush=True)
+                action = controller.handle_text(text)
+                print(f"[VOITURE] {action}", flush=True)
+                if args.once:
+                    return
+        except KeyboardInterrupt:
+            print("\nInterruption clavier : arrêt du contrôle vocal voiture.")
+        finally:
+            controller.cleanup()
+        return
 
     for text in transcribe_loop(device):
         print(f"\n[VOIX] {text}", flush=True)

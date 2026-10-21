@@ -201,6 +201,70 @@ uv run voice-assistant          # écoute continue
 uv run voice-assistant --once   # une phrase, idéal pour un test
 ```
 
+## Contrôle vocal de la voiture
+
+Le module `voice-assistant` peut désormais piloter la Smart Car par la voix en français ou en anglais.
+
+### Commandes vocales prises en charge
+
+- `avance`, `avancer`, `go forward`, `forward`
+- `recule`, `reculer`, `go back`, `backward`
+- `tourne à gauche`, `turn left`, `left`
+- `tourne à droite`, `turn right`, `right`
+- `stop`, `arrêt`, `stop car`
+- `va plus vite`, `go faster`, `faster`
+- `va moins vite`, `go slower`, `slower`
+
+### Durée
+
+La commande peut inclure une durée explicite, par exemple :
+
+- `avance pendant 2 secondes`
+- `tourne à gauche pendant 1.5 s`
+- `go for 3 seconds`
+- `turn right for 2 sec`
+
+Si aucune durée n’est donnée, le comportement par défaut est de 1 seconde.
+
+### Vitesse
+
+La voiture démarre par défaut à une vitesse moyenne :
+
+```bash
+--car-speed 0.5
+```
+
+Tu peux aussi demander de modifier la vitesse à la voix :
+
+- `va plus vite`
+- `go faster`
+- `va moins vite`
+- `slower`
+
+### Exemple d’utilisation
+
+```bash
+uv run voice-assistant --car --input-device bluetooth
+```
+
+Puis dire par exemple :
+
+- “avance”
+- “avance pendant 2 secondes”
+- “tourne à droite”
+- “tourne à gauche pendant 1 seconde”
+- “va plus vite”
+- “stop”
+
+### Comportement technique
+
+Le contrôleur vocal transforme le texte reconnu en commandes de la `SmartCar2WD` :
+- direction : avant / arrière / gauche / droite / stop
+- vitesse : gestion via PWM sur ENA / ENB
+- durée : exécution pendant la durée détectée, puis arrêt automatique
+
+Le mode vocal est particulièrement utile pour un robot autonome ou pour des démonstrations sans clavier.
+
 ## Dépannage
 
 | Problème | Cause probable | Solution |

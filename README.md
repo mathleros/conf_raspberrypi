@@ -117,7 +117,7 @@ uv sync --project .
 Cloner le dépôt, créer l'environnement et installer les dépendances :
 
 ```bash
-git clone git@github.com:rcolin/conf_raspberrypi.git test
+git clone git@github.com:mathleros/conf_raspberrypi.git test
 cd test
 uv venv --system-site-packages   # requis pour accéder à picamera2 (installé via apt)
 uv sync
@@ -180,13 +180,14 @@ uv run gpio-test 5 6 16 24 --duration 0.5
 
 ### `smart-car` — contrôle de la Smart Car 2WD
 Contrôle la voiture 2 roues motrices : `forward`, `backward`, `left`, `right`,
-`stop`. Le module L298N est branché sur les GPIO 5, 6, 16 et 24.
+`stop`. Le module L298N est branché sur les GPIO 5, 6, 16, 24 et les sorties
+PWM ENA/ENB sont sur 12/13.
 
 ```bash
-uv run smart-car forward --duration 1
-uv run smart-car backward --duration 1
-uv run smart-car left --duration 0.5
-uv run smart-car right --duration 0.5
+uv run smart-car forward --speed 0.7 --duration 1
+uv run smart-car backward --speed 0.6 --duration 1
+uv run smart-car left --speed 0.4 --duration 0.5
+uv run smart-car right --speed 0.4 --duration 0.5
 uv run smart-car stop
 ```
 
@@ -217,20 +218,33 @@ uv run voice-assistant --once   # une phrase, idéal pour un test
 ## Structure
 
 ```
-test/
-├── pyproject.toml          # dépendances + commandes uv
-├── install_rpigpio.sh      # installation gpiozero pour Pi 5
-├── install_respeaker.sh    # installation du HAT ReSpeaker
-├── install_llm.sh          # installation llama.cpp + Ministral 3 3B + vosk
-├── commandes.txt           # commandes sudo utiles
-└── src/camera_app/
-    ├── camera_live.py      # test caméra
-    ├── balle_rouge.py      # détection balle rouge
-    ├── micro_test.py       # test micros
-    ├── led_test.py         # test LEDs
-    ├── gpio_test.py        # test GPIO
-    ├── smart_car.py        # pilotage Smart Car 2WD
-    └── voice_assistant.py  # assistant vocal local
+.
+├── pyproject.toml             # dépendances + commandes uv
+├── README.md                  # documentation du projet
+├── install_rpigpio.sh         # installation gpiozero pour Pi 5
+├── install_respeaker.sh       # installation du HAT ReSpeaker
+├── install_llm.sh             # installation llama.cpp + Ministral 3 3B + vosk
+├── commandes.txt              # commandes sudo utiles
+├── docs/                     # guides techniques et documentation
+├── src/
+│   └── irobot/
+│       ├── __init__.py
+│       ├── camera/
+│       │   ├── __init__.py
+│       │   ├── camera_live.py
+│       │   └── balle_rouge.py
+│       ├── smart_car/
+│       │   ├── __init__.py
+│       │   ├── README.md
+│       │   └── smart_car.py
+│       └── voice_assistant/
+│           ├── __init__.py
+│           └── voice_assistant.py
+└── tests/
+    ├── __init__.py
+    ├── gpio_test.py
+    ├── micro_test.py
+    └── led_test.py
 ```
 
 Modèles et outils volumineux (hors dépôt) : `~/models/` (Ministral 3 3B GGUF

@@ -1,7 +1,7 @@
 [project]
-name = "camera-app"
+name = "irobot"
 version = "0.1.0"
-description = "Banc d'essai matériel Raspberry Pi 5 (caméra, audio, LEDs, GPS, assistant vocal)"
+description = "Banc d'essai matériel Raspberry Pi 5 (caméra, audio, moteur, assistant vocal)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,14 +12,15 @@ dependencies = [
 ]
 
 [project.scripts]
-test = "camera_app:main"
-camera-live = "camera_app.camera_live:main"
-balle-rouge = "camera_app.balle_rouge:main"
-micro-test = "camera_app.micro_test:main"
-led-test = "camera_app.led_test:main"
-voice-assistant = "camera_app.voice_assistant:main"
-smart-car = "camera_app.smart_car:main"
-gpio-test = "camera_app.gpio_test:main"
+test = "irobot:main"
+camera-live = "irobot.camera.camera_live:main"
+balle-rouge = "irobot.camera.balle_rouge:main"
+voice-assistant = "irobot.voice_assistant.voice_assistant:main"
+smart-car = "irobot.smart_car.smart_car:main"
+
+# Les scripts de test sont désormais dans le dossier tests/ et s'exécutent via
+# python3 tests/<nom>.py ; ils ne sont pas exposés via uv run car ils ne font
+# pas partie du package installé.
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]

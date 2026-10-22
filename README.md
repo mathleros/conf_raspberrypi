@@ -341,3 +341,21 @@ uv run hc-sr04 --once
 ```
 
 Le but du test est de mesurer la distance du premier objet détecté devant le capteur.
+
+### Règle de robustesse GPIO
+
+Pour tous les scripts qui utilisent `gpiozero` sur Raspberry Pi, on applique la règle suivante :
+- fermer proprement les dispositifs GPIO (`close()`)
+- puis terminer le programme avec `os._exit(0)` après le nettoyage
+
+Cette précaution est nécessaire sur certains Raspberry Pi où le backend GPIO (`lgpio`/`gpiozero`) peut provoquer un crash Python au moment du shutdown, même lorsque le code a bien fonctionné.
+
+Exemple de principe à appliquer dans les scripts de capteur ou de pilotage moteur :
+
+```python
+try:
+    ...
+finally:
+    sensor.cleanup()
+    os._exit(0)
+```

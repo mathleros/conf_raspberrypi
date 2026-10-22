@@ -16,6 +16,7 @@ Notes de câblage :
 """
 
 import argparse
+import os
 import time
 
 try:
@@ -25,6 +26,11 @@ except ModuleNotFoundError as exc:  # pragma: no cover - relevant on non-Pi host
         "Ce script nécessite le module gpiozero sur un Raspberry Pi. "
         "Installez-le puis relancez le programme."
     ) from exc
+
+try:
+    from irobot.sensors.hc_sr04 import HC_SR04
+except ModuleNotFoundError:  # pragma: no cover
+    HC_SR04 = None
 
 
 class SmartCar2WD:
@@ -43,7 +49,18 @@ class SmartCar2WD:
         "enb": 13,
     }
 
-    def __init__(self, in1=DEFAULT_PINS["in1"], in2=DEFAULT_PINS["in2"], in3=DEFAULT_PINS["in3"], in4=DEFAULT_PINS["in4"], ena=DEFAULT_PINS["ena"], enb=DEFAULT_PINS["enb"]):
+    def __init__(
+        self,
+        in1=DEFAULT_PINS["in1"],
+        in2=DEFAULT_PINS["in2"],
+        in3=DEFAULT_PINS["in3"],
+        in4=DEFAULT_PINS["in4"],
+        ena=DEFAULT_PINS["ena"],
+        enb=DEFAULT_PINS["enb"],
+        obstacle_threshold_cm: float = 20.0,
+        sensor_trigger_pin: int = 17,
+        sensor_echo_pin: int = 27,
+    ):
         self.pins = {
             "in1": DigitalOutputDevice(in1),
             "in2": DigitalOutputDevice(in2),
@@ -55,6 +72,16 @@ class SmartCar2WD:
 
         self.speed = 1.0
         self.stop()
+
+        self.obstacle_threshold_cm = obstacle_threshold_cm
+        self.distance_sensor = (
+            HC_SR04(
+                trigger_pin=sensor_trigger_pin,
+                echo_pin=sensor_echo_pin,
+            )
+            if HC_SR04 is not None
+            else None
+        )
 
     @staticmethod
     def clamp_speed(speed: float) -> float:
@@ -119,6 +146,18 @@ class SmartCar2WD:
             pin.close()
         self.ena.close()
         self.enb.close()
+        if self.distance_sensor is not None:
+            self.distance_sensor.cleanup()
+
+    def check_obstacle(self) -> bool:
+        """Retourne True si un objet est détecté à moins de l seuil configuré."""
+        if self.distance_sensor is None:
+            return False
+
+        distance_cm = self.distance_sensor.read_distance_cm()
+        if distance_cm is None:
+            return False
+        return distance_cm < self.obstacle_threshold_cm
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -143,6 +182,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.0,
         help="Vitesse entre 0.0 (arrêt) et 1.0 (vitesse maximale).",
     )
+    parser.add_argument(
+        "--obstacle-threshold-cm",
+        type=float,
+        default=20.0,
+        help="Arrête la voiture si le capteur HC-SR04 détecte un objet à moins de X cm.",
+    )
+    parser.add_argument(
+        "--obstacle-check-interval",
+        type=float,
+        default=0.2,
+        help="Intervalle de vérification du capteur en secondes pendant un déplacement.",
+    )
     return parser
 
 
@@ -152,8 +203,10 @@ def run_command(args: argparse.Namespace) -> None:
         raise ValueError("La durée doit être >= -1. (-1 = indéfinie)")
     if not 0.0 <= args.speed <= 1.0:
         raise ValueError("La vitesse doit être comprise entre 0.0 et 1.0.")
+    if args.obstacle_threshold_cm < 0:
+        raise ValueError("Le seuil d'obstacle doit être positif.")
 
-    car = SmartCar2WD()
+    car = SmartCar2WD(obstacle_threshold_cm=args.obstacle_threshold_cm)
     command_map = {
         "forward": car.forward,
         "backward": car.backward,
@@ -165,24 +218,41 @@ def run_command(args: argparse.Namespace) -> None:
     try:
         car.set_speed(args.speed)
         command = command_map[args.command]
-        command()
 
         if args.command == "stop":
+            command()
             print("Commande 'stop' exécutée.")
             return
+
+        command()
 
         if args.duration == -1:
             print(
                 f"Commande '{args.command}' en cours indéfiniment "
-                f"(vitesse {args.speed:.2f}). Appuie sur Ctrl+C pour stopper."
+                f"(vitesse {args.speed:.2f}, seuil obstacle {args.obstacle_threshold_cm:.1f} cm). "
+                "Appuie sur Ctrl+C pour stopper."
             )
             while True:
-                time.sleep(0.2)
+                if car.check_obstacle():
+                    print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
+                    car.stop()
+                    break
+                time.sleep(args.obstacle_check_interval)
+            return
 
         if args.duration > 0:
-            time.sleep(args.duration)
+            deadline = time.monotonic() + args.duration
+            while time.monotonic() < deadline:
+                if car.check_obstacle():
+                    print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
+                    car.stop()
+                    return
+                time.sleep(args.obstacle_check_interval)
+
             car.stop()
-            print(f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}.")
+            print(
+                f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}."
+            )
             return
 
         car.stop()
@@ -203,6 +273,11 @@ def main() -> None:
         run_command(args)
     except ValueError as exc:
         parser.error(str(exc))
+    finally:
+        # gpiozero peut provoquer un crash de finalisation sur certains Raspberry Pi
+        # (threads du backend GPIO) au moment du shutdown. On quitte immédiatement
+        # après le nettoyage afin d'éviter ce bug de fermeture Python.
+        os._exit(0)
 
 
 if __name__ == "__main__":

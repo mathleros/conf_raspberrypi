@@ -111,6 +111,14 @@ Le module Python associé est :
 Le test prévu est :
 - afficher la distance du premier objet détecté devant le capteur
 
+### Règle de robustesse GPIO
+
+Pour tous les scripts utilisant `gpiozero` sur Raspberry Pi, il faut appliquer cette règle systématiquement :
+- fermer proprement les périphériques GPIO (`close()`)
+- puis quitter immédiatement avec `os._exit(0)` après le nettoyage
+
+Cela évite un crash Python au moment du shutdown sur certains Raspberry Pi, même quand la logique métier a bien fonctionné.
+
 ## 5. Architecture logicielle
 
 ### 5.1 Module caméra

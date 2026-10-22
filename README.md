@@ -329,10 +329,10 @@ sudo ./scripts/install_rpigpio.sh
 ```
 
 Ensuite, câbler le capteur selon le schéma GPIO standard :
-- TRIG -> GPIO 17
-- ECHO -> GPIO 27
-- GND -> GND du Pi
-- VCC -> 5V adapté au capteur
+- TRIG -> GPIO 17 (broche physique 11)
+- ECHO -> GPIO 27 (broche physique 13)
+- GND -> broche physique 6 (masse du Raspberry Pi)
+- VCC -> broche physique 4 (5V du Raspberry Pi)
 
 Le test du capteur est réalisé via le module :
 

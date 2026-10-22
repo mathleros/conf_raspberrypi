@@ -11,6 +11,7 @@ capteur.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 try:
@@ -32,8 +33,9 @@ class HC_SR04:
         max_distance_cm: float = 400.0,
     ) -> None:
         self.trigger = DigitalOutputDevice(trigger_pin)
-        self.echo = DigitalInputDevice(echo_pin, pull_up=False, pull_down=False)
+        self.echo = DigitalInputDevice(echo_pin, pull_up=False)
         self.max_distance_cm = max_distance_cm
+        self._closed = False
 
     def _trigger_pulse(self) -> None:
         self.trigger.on()
@@ -70,8 +72,13 @@ class HC_SR04:
         return distance_cm
 
     def cleanup(self) -> None:
-        self.trigger.close()
-        self.echo.close()
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.trigger.close()
+        finally:
+            self.echo.close()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -136,6 +143,10 @@ def main() -> None:
         print("\nInterruption clavier : arrêt du capteur.")
     finally:
         sensor.cleanup()
+        if args.once:
+            print("Fermeture propre du capteur...")
+            print("", end="", flush=True)
+            os._exit(0)
 
 
 if __name__ == "__main__":

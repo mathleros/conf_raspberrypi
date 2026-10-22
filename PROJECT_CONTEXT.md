@@ -100,10 +100,10 @@ Donc, pour ce capteur :
 - le vrai point de configuration est le câblage GPIO, pas un script dédié d’installation
 
 GPIO recommandés :
-- TRIG -> GPIO 17
-- ECHO -> GPIO 27
-- GND -> masse du Raspberry Pi
-- VCC -> 5V adapté au capteur
+- TRIG -> GPIO 17 (broche physique 11)
+- ECHO -> GPIO 27 (broche physique 13)
+- GND -> broche physique 6 (masse du Raspberry Pi)
+- VCC -> broche physique 4 (5V du Raspberry Pi)
 
 Le module Python associé est :
 - `src/irobot/sensors/hc_sr04.py`

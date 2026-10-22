@@ -6,14 +6,19 @@ rouges ou jaunes dans le flux vidéo. Il classe les candidats en :
 - objet : couleur détectée mais forme trop irrégulière pour être une balle
 - rien : aucune zone suffisamment compatible détectée
 
+Modes disponibles :
+- standard : messages lisibles pour un humain
+- robotique : sorties compactes comme `BALL_RED_CENTER`, `OBJECT_YELLOW_LEFT`, `NONE`
+
 Usage :
     uv run balle-rouge
     uv run balle-rouge --color red
     uv run balle-rouge --color yellow
     uv run balle-rouge --debug
+    uv run balle-rouge --robotic
 
-Les sorties sont des messages texte simples, utiles pour un robot ou un test
-manuel en mode headless.
+Le mode robotique est pensé pour un usage embarqué : il retourne un verdict en
+une seule ligne sans logs de debug ni détails inutiles.
 """
 
 import argparse
@@ -215,13 +220,19 @@ def parse_args():
         default="both",
         help="couleur à détecter (par défaut: both)",
     )
+    parser.add_argument(
+        "--robotic",
+        action="store_true",
+        help="sortie compacte pour le robot: BALL_RED_CENTER / OBJECT_YELLOW_LEFT / NONE",
+    )
     return parser.parse_args()
 
 
-def choose_best_result(candidates, color_name):
+def choose_best_result(candidates, color_name, frame_shape, robotic=False):
     """Extrait le meilleur résultat parmi les candidats détectés.
 
     La logique privilégie en premier lieu les balles puis les objets.
+    En mode robotique, la sortie est réduite à un verdict compact.
     """
     if not candidates:
         return None
@@ -230,31 +241,82 @@ def choose_best_result(candidates, color_name):
     if ball_candidates:
         ball = max(ball_candidates, key=lambda c: c["area"])
         x, y, w, h = ball["bbox"]
-        return f"RESULTAT: BALLE_{color_name.upper()} bbox=({x},{y},{w},{h}) area={ball['area']}"
+        position = get_object_position(ball["bbox"], frame_shape)
+        if robotic:
+            return f"BALL_{color_name.upper()}_{position}"
+        return f"RESULTAT: BALLE_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) area={ball['area']}"
 
     object_candidates = [c for c in candidates if c["kind"] == "object"]
     if object_candidates:
         obj = max(object_candidates, key=lambda c: c["area"])
         x, y, w, h = obj["bbox"]
-        return f"RESULTAT: OBJET_{color_name.upper()} bbox=({x},{y},{w},{h}) area={obj['area']} -> pas une balle"
+        position = get_object_position(obj["bbox"], frame_shape)
+        if robotic:
+            return f"OBJECT_{color_name.upper()}_{position}"
+        return f"RESULTAT: OBJET_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) area={obj['area']} -> pas une balle"
 
     return None
+
+
+def get_object_position(bbox, frame_shape):
+    """Retourne la zone approximative où se trouve l'objet dans l'image.
+
+    Les positions supportées sont :
+    - CENTRE
+    - EN_HAUT
+    - EN_BAS
+    - A_GAUCHE
+    - A_DROITE
+    - EN_HAUT_A_GAUCHE
+    - EN_HAUT_A_DROITE
+    - EN_BAS_A_GAUCHE
+    - EN_BAS_A_DROITE
+
+    La logique est basée sur le centre du rectangle détecté. On découpe l'image
+    en trois zones verticales et horizontales, puis on combine les deux axes.
+    """
+    x, y, w, h = bbox
+    frame_h, frame_w = frame_shape[:2]
+
+    cx = x + w / 2.0
+    cy = y + h / 2.0
+
+    vertical = "EN_HAUT" if cy < frame_h / 3.0 else "EN_BAS" if cy > (2.0 * frame_h) / 3.0 else "CENTRE"
+    horizontal = "A_GAUCHE" if cx < frame_w / 3.0 else "A_DROITE" if cx > (2.0 * frame_w) / 3.0 else "CENTRE"
+
+    if vertical == "CENTRE" and horizontal == "CENTRE":
+        return "CENTRE"
+    if vertical == "CENTRE":
+        return horizontal
+    if horizontal == "CENTRE":
+        return vertical
+
+    if vertical == "EN_HAUT" and horizontal == "A_GAUCHE":
+        return "EN_HAUT_A_GAUCHE"
+    if vertical == "EN_HAUT" and horizontal == "A_DROITE":
+        return "EN_HAUT_A_DROITE"
+    if vertical == "EN_BAS" and horizontal == "A_GAUCHE":
+        return "EN_BAS_A_GAUCHE"
+    if vertical == "EN_BAS" and horizontal == "A_DROITE":
+        return "EN_BAS_A_DROITE"
+
+    return "CENTRE"
 
 
 def main():
     """Boucle principale de détection.
 
-    - détecte les objets rouge/jaune dans le flux caméra
-    - classe les objets en balle / objet / rien
-    - affiche le verdict terminal et, si besoin, la fenêtre OpenCV
+    En mode robotique, le script renvoie un verdict compact pour la logique du robot.
     """
     args = parse_args()
     debug = args.debug
+    robotic = args.robotic
     requested_color = args.color
     colors_to_check = ["red", "yellow"] if requested_color == "both" else [requested_color]
 
     info = Picamera2.global_camera_info()
-    safe_print(f"{len(info)} camera(s) détectée(s)")
+    if not robotic:
+        safe_print(f"{len(info)} camera(s) détectée(s)")
     if not info:
         safe_print("Erreur: aucune caméra détectée. Vérifiez le câble CSI et l'alimentation.")
         return
@@ -262,15 +324,16 @@ def main():
         safe_print(f"Erreur: index de caméra {CAMERA_INDEX} invalide (0 à {len(info)-1})")
         return
 
-    safe_print(f"Utilisation de la caméra: {info[CAMERA_INDEX]['Model']}")
+    if not robotic:
+        safe_print(f"Utilisation de la caméra: {info[CAMERA_INDEX]['Model']}")
     picam2 = Picamera2(CAMERA_INDEX)
     config = picam2.create_preview_configuration()
     picam2.configure(config)
     picam2.start()
 
-    if not HAS_GUI:
+    if not HAS_GUI and not robotic:
         safe_print("Mode headless: détection uniquement via logs.")
-    if debug:
+    if debug and not robotic:
         safe_print(f"Mode DEBUG activé pour la couleur: {requested_color}")
 
     try:
@@ -281,7 +344,7 @@ def main():
             best_result = None
             for color_name in colors_to_check:
                 candidates = detect_colored_objects(frame, color_name=color_name, debug=debug)
-                result = choose_best_result(candidates, color_name)
+                result = choose_best_result(candidates, color_name, frame.shape, robotic=robotic)
                 if result is not None and best_result is None:
                     best_result = result
 
@@ -292,8 +355,10 @@ def main():
                     cv2.waitKey(250)
                 break
 
-            if debug:
+            if debug and not robotic:
                 safe_print(f"[DEBUG] RESULTAT: RIEN_DETECTE ({requested_color})")
+            elif robotic:
+                safe_print("NONE")
 
             if HAS_GUI:
                 cv2.imshow("Camera 1 - Live", frame)

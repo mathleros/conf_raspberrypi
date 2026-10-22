@@ -158,6 +158,40 @@ rouge), nettoyage morphologique, extraction de contours. La plus grosse zone
 rouge est encadrée en vert (« BALLE ROUGE DETECTEE »). Simple scénario de test
 d'image, pas une finalité en soi.
 
+Le script supporte maintenant plusieurs couleurs et une sortie robotique plus
+compacte :
+
+```bash
+uv run balle-rouge
+uv run balle-rouge --color red
+uv run balle-rouge --color yellow
+uv run balle-rouge --debug
+uv run balle-rouge --robotic
+```
+
+Le verdict indique si l'objet détecté est une balle ou un simple objet rouge/jaune,
+et donne aussi sa position approximative dans l'image :
+
+- `CENTRE`
+- `EN_HAUT`
+- `EN_BAS`
+- `A_GAUCHE`
+- `A_DROITE`
+- `EN_HAUT_A_GAUCHE`
+- `EN_HAUT_A_DROITE`
+- `EN_BAS_A_GAUCHE`
+- `EN_BAS_A_DROITE`
+
+Exemples de sortie :
+
+```text
+RESULTAT: BALLE_RED position=EN_HAUT_A_DROITE bbox=(592,49,34,78) area=967.0
+RESULTAT: OBJET_YELLOW position=A_GAUCHE bbox=(90,120,40,55) area=456.0 -> pas une balle
+BALL_RED_CENTER
+OBJECT_YELLOW_LEFT
+NONE
+```
+
 ### `micro-test` — micros ReSpeaker
 Détecte la carte WM8960, affiche les **niveaux L/R en temps réel**, enregistre
 5 s en WAV (16 kHz, stéréo) puis rejoue le fichier.

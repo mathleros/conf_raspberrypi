@@ -28,7 +28,7 @@ Le dépôt est donc plus proche d'un environnement de laboratoire / prototype em
 ### Arborescence utile
 
 - `src/irobot/camera/camera_live.py` : flux vidéo en direct
-- `src/irobot/camera/balle_rouge.py` : détection d'une balle rouge par OpenCV
+- `src/irobot/camera/color_detector.py` : détecteur de couleur par OpenCV (rouge/jaune)
 - `src/irobot/smart_car/smart_car.py` : contrôle de la voiture 2WD
 - `src/irobot/voice_assistant/voice_assistant.py` : transcribe la voix + contrôle vocal de la voiture + appel LLM local
 - `tests/gpio_test.py` : activation des GPIO
@@ -128,6 +128,12 @@ Cela évite un crash Python au moment du shutdown sur certains Raspberry Pi, mê
 - affiche la fenêtre OpenCV `Camera 1 - Live`
 - boucle jusqu’à appui sur `q`
 
+`color_detector.py`
+- utilise `Picamera2.global_camera_info()` pour détecter les caméras
+- classe les objets en balle / objet / rien
+- ajoute la position approximative dans l'image (`CENTRE`, `EN_HAUT`, etc.)
+- supporte le mode robotique via `--robotic`
+
 `balle_rouge.py`
 - transforme le flux en HSV
 - applique un masque rouge (deux plages autour du rouge)
@@ -187,7 +193,7 @@ Le système supporte également :
 
 Les scripts exposés via `pyproject.toml` sont :
 - `camera-live`
-- `balle-rouge`
+- `color-detector` (alias historique : `balle-rouge`)
 - `voice-assistant`
 - `smart-car`
 
@@ -195,7 +201,8 @@ Exemples :
 
 ```bash
 uv run camera-live
-uv run balle-rouge
+uv run color-detector
+uv run color-detector --color yellow
 uv run micro-test
 uv run led-test static red green blue
 uv run gpio-test 5 6 16 24 --duration 0.5

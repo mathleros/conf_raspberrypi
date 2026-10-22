@@ -7,7 +7,7 @@ chaque script vérifie qu'un composant fonctionne, de façon isolée.
 | Commande | Rôle |
 |---|---|
 | `uv run camera-live` | affiche le flux de la caméra |
-| `uv run balle-rouge` | test de traitement d'image (détection d'une balle rouge) |
+| `uv run color-detector` | détection d'objets/balles rouges ou jaunes + position dans l'image |
 | `uv run micro-test` | test des micros du HAT ReSpeaker |
 | `uv run led-test` | test des LEDs du HAT ReSpeaker |
 | `uv run gpio-test` | test des sorties GPIO du Raspberry Pi |
@@ -152,45 +152,21 @@ OpenAI), modèle **Ministral 3 3B** (le plus petit LLM de chez Mistral, Apache
 Affiche le flux en direct (fenêtre « Camera 1 - Live », touche `q` pour
 quitter). Messages explicites si la caméra n'est pas détectée ou l'index invalide.
 
-### `balle-rouge` — détection d'une balle rouge
-Analyse le flux en direct : seuillage HSV (deux plages autour de la teinte du
-rouge), nettoyage morphologique, extraction de contours. La plus grosse zone
-rouge est encadrée en vert (« BALLE ROUGE DETECTEE »). Simple scénario de test
-d'image, pas une finalité en soi.
-
-Le script supporte maintenant plusieurs couleurs et une sortie robotique plus
-compacte :
+### `color-detector` — détection de couleur
+Analyse le flux en direct : seuillage HSV pour les couleurs rouge/jaune,
+nettoyage morphologique, extraction de contours et classification en balle ou
+objet. Le script retourne aussi la position approximative dans l'image :
+`CENTRE`, `EN_HAUT`, `EN_BAS`, `A_GAUCHE`, `A_DROITE`, etc.
 
 ```bash
-uv run balle-rouge
-uv run balle-rouge --color red
-uv run balle-rouge --color yellow
-uv run balle-rouge --debug
-uv run balle-rouge --robotic
+uv run color-detector
+uv run color-detector --color red
+uv run color-detector --color yellow
+uv run color-detector --debug
+uv run color-detector --robotic
 ```
 
-Le verdict indique si l'objet détecté est une balle ou un simple objet rouge/jaune,
-et donne aussi sa position approximative dans l'image :
-
-- `CENTRE`
-- `EN_HAUT`
-- `EN_BAS`
-- `A_GAUCHE`
-- `A_DROITE`
-- `EN_HAUT_A_GAUCHE`
-- `EN_HAUT_A_DROITE`
-- `EN_BAS_A_GAUCHE`
-- `EN_BAS_A_DROITE`
-
-Exemples de sortie :
-
-```text
-RESULTAT: BALLE_RED position=EN_HAUT_A_DROITE bbox=(592,49,34,78) area=967.0
-RESULTAT: OBJET_YELLOW position=A_GAUCHE bbox=(90,120,40,55) area=456.0 -> pas une balle
-BALL_RED_CENTER
-OBJECT_YELLOW_LEFT
-NONE
-```
+L'ancien alias `balle-rouge` reste disponible pour compatibilité.
 
 ### `micro-test` — micros ReSpeaker
 Détecte la carte WM8960, affiche les **niveaux L/R en temps réel**, enregistre

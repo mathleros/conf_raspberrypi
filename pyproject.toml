@@ -14,7 +14,9 @@ dependencies = [
 [project.scripts]
 test = "irobot:main"
 camera-live = "irobot.camera.camera_live:main"
-balle-rouge = "irobot.camera.balle_rouge:main"
+color-detector = "irobot.camera.color_detector:main"
+# Alias conservé pour compatibilité avec l'ancien nom
+balle-rouge = "irobot.camera.color_detector:main"
 voice-assistant = "irobot.voice_assistant.voice_assistant:main"
 smart-car = "irobot.smart_car.smart_car:main"
 hc-sr04 = "irobot.sensors.hc_sr04:main"

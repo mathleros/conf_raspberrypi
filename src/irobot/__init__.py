@@ -8,6 +8,7 @@ __all__ = [
     "camera",
     "smart_car",
     "voice_assistant",
+    "sensors",
 ]
 
 def main() -> None:

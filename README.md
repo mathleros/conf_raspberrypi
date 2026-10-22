@@ -317,3 +317,27 @@ Q4_K_M, vosk-fr) et `~/tools/llama.cpp/`.
 Les commandes de test sont déclarées dans `pyproject.toml`, section
 `[project.scripts]`, et s'invoquent avec `uv run <commande>` depuis la racine du
 projet.
+
+### Capteur ultrason HC-SR04
+
+Le capteur HC-SR04 est compatible avec le projet, mais il n’a pas de script d’installation dédié.
+
+Il dépend de la configuration GPIO déjà fournie par le projet :
+
+```bash
+sudo ./scripts/install_rpigpio.sh
+```
+
+Ensuite, câbler le capteur selon le schéma GPIO standard :
+- TRIG -> GPIO 17
+- ECHO -> GPIO 27
+- GND -> GND du Pi
+- VCC -> 5V adapté au capteur
+
+Le test du capteur est réalisé via le module :
+
+```bash
+uv run hc-sr04 --once
+```
+
+Le but du test est de mesurer la distance du premier objet détecté devant le capteur.

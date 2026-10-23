@@ -1,0 +1,1923 @@
+versions pytest-9.1.1, python-3.13.11.final.0
+invocation_dir=/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
+cwd=/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
+args=('-q', 'tests/unit', '--debug')
+
+  pytest_cmdline_main [hook]
+      config: <_pytest.config.Config object at 0x104127e00>
+    pytest_plugin_registered [hook]
+        plugin: <Session  exitstatus='<UNSET>' testsfailed=0 testscollected=0>
+        plugin_name: session
+        manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+    finish pytest_plugin_registered --> [] [hook]
+    pytest_configure [hook]
+        config: <_pytest.config.Config object at 0x104127e00>
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x104447cb0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x10451c830>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+    early skip of rewriting module: faulthandler [assertion]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+    early skip of rewriting module: pdb [assertion]
+    early skip of rewriting module: cmd [assertion]
+    early skip of rewriting module: code [assertion]
+    early skip of rewriting module: codeop [assertion]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.PytestPluginManager object at 0x103736f90>
+          plugin_name: 4352864144
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.Config object at 0x104127e00>
+          plugin_name: pytestconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.mark' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/mark/__init__.py'>
+          plugin_name: mark
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.main' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/main.py'>
+          plugin_name: main
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.runner' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/runner.py'>
+          plugin_name: runner
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.fixtures' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/fixtures.py'>
+          plugin_name: fixtures
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.helpconfig' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/helpconfig.py'>
+          plugin_name: helpconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.python' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/python.py'>
+          plugin_name: python
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.terminal' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/terminal.py'>
+          plugin_name: terminal
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.debugging' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/debugging.py'>
+          plugin_name: debugging
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unittest' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/unittest.py'>
+          plugin_name: unittest
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.capture' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/capture.py'>
+          plugin_name: capture
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.skipping' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/skipping.py'>
+          plugin_name: skipping
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.legacypath' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/legacypath.py'>
+          plugin_name: legacypath
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.tmpdir' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/tmpdir.py'>
+          plugin_name: tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.monkeypatch' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/monkeypatch.py'>
+          plugin_name: monkeypatch
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.recwarn' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/recwarn.py'>
+          plugin_name: recwarn
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.pastebin' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/pastebin.py'>
+          plugin_name: pastebin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.assertion' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/assertion/__init__.py'>
+          plugin_name: assertion
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.junitxml' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/junitxml.py'>
+          plugin_name: junitxml
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.doctest' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/doctest.py'>
+          plugin_name: doctest
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.cacheprovider' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/cacheprovider.py'>
+          plugin_name: cacheprovider
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setuponly' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/setuponly.py'>
+          plugin_name: setuponly
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setupplan' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/setupplan.py'>
+          plugin_name: setupplan
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.stepwise' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/stepwise.py'>
+          plugin_name: stepwise
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unraisableexception' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/unraisableexception.py'>
+          plugin_name: unraisableexception
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.threadexception' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/threadexception.py'>
+          plugin_name: threadexception
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.warnings' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/warnings.py'>
+          plugin_name: warnings
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.logging' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/logging.py'>
+          plugin_name: logging
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.reports' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/reports.py'>
+          plugin_name: reports
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.faulthandler' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/faulthandler.py'>
+          plugin_name: faulthandler
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.subtests' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/subtests.py'>
+          plugin_name: subtests
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=6 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=7 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=8 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=3 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+          plugin_name: capturemanager
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+          plugin_name: session
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x104447cb0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x10451c830>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.terminal.TerminalReporter object at 0x10451cc20>
+          plugin_name: terminalreporter
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.logging.LoggingPlugin object at 0x10451dfd0>
+          plugin_name: logging-plugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+    finish pytest_configure --> [] [hook]
+    pytest_sessionstart [hook]
+        session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.PytestPluginManager object at 0x103736f90>
+          plugin_name: 4352864144
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.Config object at 0x104127e00>
+          plugin_name: pytestconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.mark' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/mark/__init__.py'>
+          plugin_name: mark
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.main' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/main.py'>
+          plugin_name: main
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.runner' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/runner.py'>
+          plugin_name: runner
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.fixtures' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/fixtures.py'>
+          plugin_name: fixtures
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.helpconfig' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/helpconfig.py'>
+          plugin_name: helpconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.python' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/python.py'>
+          plugin_name: python
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.terminal' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/terminal.py'>
+          plugin_name: terminal
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.debugging' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/debugging.py'>
+          plugin_name: debugging
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unittest' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/unittest.py'>
+          plugin_name: unittest
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.capture' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/capture.py'>
+          plugin_name: capture
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.skipping' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/skipping.py'>
+          plugin_name: skipping
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.legacypath' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/legacypath.py'>
+          plugin_name: legacypath
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.tmpdir' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/tmpdir.py'>
+          plugin_name: tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.monkeypatch' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/monkeypatch.py'>
+          plugin_name: monkeypatch
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.recwarn' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/recwarn.py'>
+          plugin_name: recwarn
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.pastebin' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/pastebin.py'>
+          plugin_name: pastebin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.assertion' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/assertion/__init__.py'>
+          plugin_name: assertion
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.junitxml' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/junitxml.py'>
+          plugin_name: junitxml
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.doctest' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/doctest.py'>
+          plugin_name: doctest
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.cacheprovider' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/cacheprovider.py'>
+          plugin_name: cacheprovider
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setuponly' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/setuponly.py'>
+          plugin_name: setuponly
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setupplan' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/setupplan.py'>
+          plugin_name: setupplan
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.stepwise' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/stepwise.py'>
+          plugin_name: stepwise
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unraisableexception' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/unraisableexception.py'>
+          plugin_name: unraisableexception
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.threadexception' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/threadexception.py'>
+          plugin_name: threadexception
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.warnings' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/warnings.py'>
+          plugin_name: warnings
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.logging' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/logging.py'>
+          plugin_name: logging
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.reports' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/reports.py'>
+          plugin_name: reports
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.faulthandler' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/faulthandler.py'>
+          plugin_name: faulthandler
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.subtests' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/subtests.py'>
+          plugin_name: subtests
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=6 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=7 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=8 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=3 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+          plugin_name: capturemanager
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+          plugin_name: session
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x104447cb0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x10451c830>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.terminal.TerminalReporter object at 0x10451cc20>
+          plugin_name: terminalreporter
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.logging.LoggingPlugin object at 0x10451dfd0>
+          plugin_name: logging-plugin
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.fixtures.FixtureManager object at 0x10451e900>
+          plugin_name: funcmanage
+          manager: <_pytest.config.PytestPluginManager object at 0x103736f90>
+      finish pytest_plugin_registered --> [] [hook]
+    finish pytest_sessionstart --> [] [hook]
+    pytest_collection [hook]
+        session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+    perform_collect <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0> ['tests/unit'] [collection]
+        pytest_collectstart [hook]
+            collector: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        finish pytest_collectstart --> [] [hook]
+        pytest_make_collect_report [hook]
+            collector: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        processing argument CollectionArgument(path=PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit'), parts=[], parametrization=None, module_name=None, original_index=0) [collection]
+            pytest_collect_directory [hook]
+                path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi')
+                parent: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+            finish pytest_collect_directory --> <Dir conf_raspberrypi> [hook]
+            pytest_collectstart [hook]
+                collector: <Dir conf_raspberrypi>
+            finish pytest_collectstart --> [] [hook]
+            pytest_make_collect_report [hook]
+                collector: <Dir conf_raspberrypi>
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.env.local')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.env.local')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.git')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.gitignore')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.gitignore')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.pytest_cache')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.python-version')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.python-version')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/PROJECT_CONTEXT.md')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/PROJECT_CONTEXT.md')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/README.md')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/README.md')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/commandes.txt')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/commandes.txt')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/docs')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/docs')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Dir docs> [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/images')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/images')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Dir images> [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/pyproject.toml')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/pyproject.toml')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/pytestdebug.log')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/pytestdebug.log')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/respeaker_v1_urls.txt')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/respeaker_v1_urls.txt')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/scripts')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/scripts')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Dir scripts> [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/specs')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/specs')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Dir specs> [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/src')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/src')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Dir src> [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_directory --> <Package tests> [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/uv.lock')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/uv.lock')
+                  parent: <Dir conf_raspberrypi>
+              finish pytest_collect_file --> [] [hook]
+            finish pytest_make_collect_report --> <CollectReport '.' lenresult=6 outcome='passed'> [hook]
+            pytest_collectstart [hook]
+                collector: <Package tests>
+            finish pytest_collectstart --> [] [hook]
+            pytest_make_collect_report [hook]
+                collector: <Package tests>
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/__init__.py')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/__init__.py')
+                  parent: <Package tests>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/README.md')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/README.md')
+                  parent: <Package tests>
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/__pycache__')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/hardware')
+                  config: <_pytest.config.Config object at 0x104127e00>
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/hardware')
+                  parent: <Package tests>
+              finish pytest_collect_directory --> <Dir hardware> [hook]
+              pytest_collect_directory [hook]
+                  path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit')
+                  parent: <Package tests>
+              finish pytest_collect_directory --> <Package unit> [hook]
+            finish pytest_make_collect_report --> <CollectReport 'tests' lenresult=2 outcome='passed'> [hook]
+        finish pytest_make_collect_report --> <CollectReport '' lenresult=1 outcome='passed'> [hook]
+        pytest_collectreport [hook]
+            report: <CollectReport '' lenresult=1 outcome='passed'>
+        finish pytest_collectreport --> [] [hook]
+    genitems <Package unit> [collection]
+      pytest_collectstart [hook]
+          collector: <Package unit>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Package unit>
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/__init__.py')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/__init__.py')
+            parent: <Package unit>
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/README.md')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/README.md')
+            parent: <Package unit>
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/__pycache__')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> True [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/fake_robot.py')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/fake_robot.py')
+            parent: <Package unit>
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_behaviors.py')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_behaviors.py')
+            parent: <Package unit>
+          pytest_pycollect_makemodule [hook]
+              module_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_behaviors.py')
+              parent: <Package unit>
+          finish pytest_pycollect_makemodule --> <Module test_skills_behaviors.py> [hook]
+        finish pytest_collect_file --> [<Module test_skills_behaviors.py>] [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_perception.py')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_perception.py')
+            parent: <Package unit>
+          pytest_pycollect_makemodule [hook]
+              module_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_perception.py')
+              parent: <Package unit>
+          finish pytest_pycollect_makemodule --> <Module test_skills_perception.py> [hook]
+        finish pytest_collect_file --> [<Module test_skills_perception.py>] [hook]
+        pytest_ignore_collect [hook]
+            collection_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_primitives.py')
+            config: <_pytest.config.Config object at 0x104127e00>
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            file_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_primitives.py')
+            parent: <Package unit>
+          pytest_pycollect_makemodule [hook]
+              module_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_primitives.py')
+              parent: <Package unit>
+          finish pytest_pycollect_makemodule --> <Module test_skills_primitives.py> [hook]
+        finish pytest_collect_file --> [<Module test_skills_primitives.py>] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/unit' lenresult=3 outcome='passed'> [hook]
+    genitems <Module test_skills_behaviors.py> [collection]
+      pytest_collectstart [hook]
+          collector: <Module test_skills_behaviors.py>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Module test_skills_behaviors.py>
+      early skip of rewriting module: tests [assertion]
+      find_module called for: tests.unit [assertion]
+      find_module called for: tests.unit.test_skills_behaviors [assertion]
+      matched test file '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_behaviors.py' [assertion]
+      found cached rewritten pyc for /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_behaviors.py [assertion]
+      early skip of rewriting module: irobot [assertion]
+      early skip of rewriting module: irobot.interfaces [assertion]
+      early skip of rewriting module: irobot.interfaces.robot_controller [assertion]
+      early skip of rewriting module: irobot.domain [assertion]
+      early skip of rewriting module: irobot.domain.skills [assertion]
+      early skip of rewriting module: irobot.domain.skills.base_skill [assertion]
+      early skip of rewriting module: irobot.domain.skills.behaviors [assertion]
+      early skip of rewriting module: irobot.domain.skills.behaviors.follow_target [assertion]
+      early skip of rewriting module: irobot.domain.skills.behaviors.move_circle [assertion]
+      early skip of rewriting module: irobot.domain.skills.perception [assertion]
+      early skip of rewriting module: irobot.domain.skills.perception.detect_obstacle [assertion]
+      early skip of rewriting module: irobot.domain.skills.perception.detect_red_ball [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives.move_forward [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives.move_backward [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives.turn_left [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives.turn_right [assertion]
+      early skip of rewriting module: irobot.domain.skills.primitives.stop_motion [assertion]
+      early skip of rewriting module: tests.unit.fake_robot [assertion]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: annotations
+            obj: _Feature((3, 7, 0, 'beta', 1), None, 16777216)
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: @py_builtins
+            obj: <module 'builtins' (built-in)>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: @pytest_ar
+            obj: <module '_pytest.assertion.rewrite' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/assertion/rewrite.py'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: RobotController
+            obj: <class 'irobot.interfaces.robot_controller.RobotController'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: SkillContext
+            obj: <class 'irobot.domain.skills.base_skill.SkillContext'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: FollowTargetSkill
+            obj: <class 'irobot.domain.skills.behaviors.follow_target.FollowTargetSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: MoveCircleSkill
+            obj: <class 'irobot.domain.skills.behaviors.move_circle.MoveCircleSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: FakeRobot
+            obj: <class 'tests.unit.fake_robot.FakeRobot'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: build_context
+            obj: <function build_context at 0x10455ea20>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: test_follow_target_skill_success_when_target_visible
+            obj: <function test_follow_target_skill_success_when_target_visible at 0x10455eb60>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10451fb60>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_follow_target_skill_success_when_target_visible>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: test_follow_target_skill_stops_when_obstacle_detected
+            obj: <function test_follow_target_skill_stops_when_obstacle_detected at 0x1045a53a0>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10453df90>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_follow_target_skill_stops_when_obstacle_detected>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: test_follow_target_skill_fails_when_target_missing
+            obj: <function test_follow_target_skill_fails_when_target_missing at 0x1045a6160>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10453df90>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_follow_target_skill_fails_when_target_missing>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_behaviors.py>
+            name: test_move_circle_skill_executes_compound_motion
+            obj: <function test_move_circle_skill_executes_compound_motion at 0x1045a6200>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x1044d29e0>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_move_circle_skill_executes_compound_motion>] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/unit/test_skills_behaviors.py' lenresult=4 outcome='passed'> [hook]
+    genitems <Function test_follow_target_skill_success_when_target_visible> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_follow_target_skill_success_when_target_visible>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_follow_target_skill_stops_when_obstacle_detected> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_follow_target_skill_fails_when_target_missing> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_follow_target_skill_fails_when_target_missing>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_move_circle_skill_executes_compound_motion> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_move_circle_skill_executes_compound_motion>
+      finish pytest_itemcollected --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/unit/test_skills_behaviors.py' lenresult=4 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+    genitems <Module test_skills_perception.py> [collection]
+      pytest_collectstart [hook]
+          collector: <Module test_skills_perception.py>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Module test_skills_perception.py>
+      find_module called for: tests.unit.test_skills_perception [assertion]
+      matched test file '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_perception.py' [assertion]
+      found cached rewritten pyc for /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_perception.py [assertion]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: annotations
+            obj: _Feature((3, 7, 0, 'beta', 1), None, 16777216)
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: @py_builtins
+            obj: <module 'builtins' (built-in)>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: @pytest_ar
+            obj: <module '_pytest.assertion.rewrite' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/assertion/rewrite.py'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: RobotController
+            obj: <class 'irobot.interfaces.robot_controller.RobotController'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: SkillContext
+            obj: <class 'irobot.domain.skills.base_skill.SkillContext'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: DetectObstacleSkill
+            obj: <class 'irobot.domain.skills.perception.detect_obstacle.DetectObstacleSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: DetectRedBallSkill
+            obj: <class 'irobot.domain.skills.perception.detect_red_ball.DetectRedBallSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: FakeRobot
+            obj: <class 'tests.unit.fake_robot.FakeRobot'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: build_context
+            obj: <function build_context at 0x1045a6c00>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: test_detect_red_ball_skill_success_when_target_present
+            obj: <function test_detect_red_ball_skill_success_when_target_present at 0x1045a6ca0>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x1044d2b10>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_detect_red_ball_skill_success_when_target_present>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: test_detect_red_ball_skill_failed_when_target_missing
+            obj: <function test_detect_red_ball_skill_failed_when_target_missing at 0x1045a6d40>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10452b1d0>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_detect_red_ball_skill_failed_when_target_missing>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: test_detect_obstacle_skill_success_when_no_obstacle
+            obj: <function test_detect_obstacle_skill_success_when_no_obstacle at 0x1045a6de0>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10454c8d0>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_detect_obstacle_skill_success_when_no_obstacle>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_perception.py>
+            name: test_detect_obstacle_skill_success_when_obstacle_detected
+            obj: <function test_detect_obstacle_skill_success_when_obstacle_detected at 0x1045a6e80>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10454c8d0>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_detect_obstacle_skill_success_when_obstacle_detected>] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/unit/test_skills_perception.py' lenresult=4 outcome='passed'> [hook]
+    genitems <Function test_detect_red_ball_skill_success_when_target_present> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_detect_red_ball_skill_success_when_target_present>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_detect_red_ball_skill_failed_when_target_missing> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_detect_obstacle_skill_success_when_no_obstacle> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_detect_obstacle_skill_success_when_obstacle_detected> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+      finish pytest_itemcollected --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/unit/test_skills_perception.py' lenresult=4 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+    genitems <Module test_skills_primitives.py> [collection]
+      pytest_collectstart [hook]
+          collector: <Module test_skills_primitives.py>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Module test_skills_primitives.py>
+      find_module called for: tests.unit.test_skills_primitives [assertion]
+      matched test file '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_primitives.py' [assertion]
+      found cached rewritten pyc for /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/tests/unit/test_skills_primitives.py [assertion]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: annotations
+            obj: _Feature((3, 7, 0, 'beta', 1), None, 16777216)
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: @py_builtins
+            obj: <module 'builtins' (built-in)>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: @pytest_ar
+            obj: <module '_pytest.assertion.rewrite' from '/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi/.venv/lib/python3.13/site-packages/_pytest/assertion/rewrite.py'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: RobotController
+            obj: <class 'irobot.interfaces.robot_controller.RobotController'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: SkillContext
+            obj: <class 'irobot.domain.skills.base_skill.SkillContext'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: MoveBackwardSkill
+            obj: <class 'irobot.domain.skills.primitives.move_backward.MoveBackwardSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: MoveForwardSkill
+            obj: <class 'irobot.domain.skills.primitives.move_forward.MoveForwardSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: StopMotionSkill
+            obj: <class 'irobot.domain.skills.primitives.stop_motion.StopMotionSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: TurnLeftSkill
+            obj: <class 'irobot.domain.skills.primitives.turn_left.TurnLeftSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: TurnRightSkill
+            obj: <class 'irobot.domain.skills.primitives.turn_right.TurnRightSkill'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: FakeRobot
+            obj: <class 'tests.unit.fake_robot.FakeRobot'>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: build_context
+            obj: <function build_context at 0x1045a76a0>
+        finish pytest_pycollect_makeitem --> None [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_move_forward_skill_executes_forward_command
+            obj: <function test_move_forward_skill_executes_forward_command at 0x1045a7880>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10457cd50>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_move_forward_skill_executes_forward_command>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_move_backward_skill_executes_backward_command
+            obj: <function test_move_backward_skill_executes_backward_command at 0x1045a7a60>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10457cd50>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_move_backward_skill_executes_backward_command>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_turn_left_skill_executes_turn_left_command
+            obj: <function test_turn_left_skill_executes_turn_left_command at 0x1045a7b00>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x1045a0d70>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_turn_left_skill_executes_turn_left_command>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_turn_right_skill_executes_turn_right_command
+            obj: <function test_turn_right_skill_executes_turn_right_command at 0x1045a7ba0>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x1045a0d70>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_turn_right_skill_executes_turn_right_command>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_stop_motion_skill_executes_stop_command
+            obj: <function test_stop_motion_skill_executes_stop_command at 0x1045a7c40>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10456fe70>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_stop_motion_skill_executes_stop_command>] [hook]
+        pytest_pycollect_makeitem [hook]
+            collector: <Module test_skills_primitives.py>
+            name: test_skill_validation_requires_robot_context
+            obj: <function test_skill_validation_requires_robot_context at 0x1045a7ce0>
+          pytest_generate_tests [hook]
+              metafunc: <_pytest.python.Metafunc object at 0x10456f5b0>
+          finish pytest_generate_tests --> [] [hook]
+        finish pytest_pycollect_makeitem --> [<Function test_skill_validation_requires_robot_context>] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/unit/test_skills_primitives.py' lenresult=6 outcome='passed'> [hook]
+    genitems <Function test_move_forward_skill_executes_forward_command> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_move_forward_skill_executes_forward_command>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_move_backward_skill_executes_backward_command> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_move_backward_skill_executes_backward_command>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_turn_left_skill_executes_turn_left_command> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_turn_left_skill_executes_turn_left_command>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_turn_right_skill_executes_turn_right_command> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_turn_right_skill_executes_turn_right_command>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_stop_motion_skill_executes_stop_command> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_stop_motion_skill_executes_stop_command>
+      finish pytest_itemcollected --> [] [hook]
+    genitems <Function test_skill_validation_requires_robot_context> [collection]
+      pytest_itemcollected [hook]
+          item: <Function test_skill_validation_requires_robot_context>
+      finish pytest_itemcollected --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/unit/test_skills_primitives.py' lenresult=6 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/unit' lenresult=3 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+      pytest_collection_modifyitems [hook]
+          session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+          config: <_pytest.config.Config object at 0x104127e00>
+          items: [<Function test_follow_target_skill_success_when_target_visible>, <Function test_follow_target_skill_stops_when_obstacle_detected>, <Function test_follow_target_skill_fails_when_target_missing>, <Function test_move_circle_skill_executes_compound_motion>, <Function test_detect_red_ball_skill_success_when_target_present>, <Function test_detect_red_ball_skill_failed_when_target_missing>, <Function test_detect_obstacle_skill_success_when_no_obstacle>, <Function test_detect_obstacle_skill_success_when_obstacle_detected>, <Function test_move_forward_skill_executes_forward_command>, <Function test_move_backward_skill_executes_backward_command>, <Function test_turn_left_skill_executes_turn_left_command>, <Function test_turn_right_skill_executes_turn_right_command>, <Function test_stop_motion_skill_executes_stop_command>, <Function test_skill_validation_requires_robot_context>]
+      finish pytest_collection_modifyitems --> [] [hook]
+      pytest_collection_finish [hook]
+          session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        pytest_report_collectionfinish [hook]
+            config: <_pytest.config.Config object at 0x104127e00>
+            start_path: PosixPath('/Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi')
+            items: [<Function test_follow_target_skill_success_when_target_visible>, <Function test_follow_target_skill_stops_when_obstacle_detected>, <Function test_follow_target_skill_fails_when_target_missing>, <Function test_move_circle_skill_executes_compound_motion>, <Function test_detect_red_ball_skill_success_when_target_present>, <Function test_detect_red_ball_skill_failed_when_target_missing>, <Function test_detect_obstacle_skill_success_when_no_obstacle>, <Function test_detect_obstacle_skill_success_when_obstacle_detected>, <Function test_move_forward_skill_executes_forward_command>, <Function test_move_backward_skill_executes_backward_command>, <Function test_turn_left_skill_executes_turn_left_command>, <Function test_turn_right_skill_executes_turn_right_command>, <Function test_stop_motion_skill_executes_stop_command>, <Function test_skill_validation_requires_robot_context>]
+        finish pytest_report_collectionfinish --> [] [hook]
+      finish pytest_collection_finish --> [] [hook]
+    finish pytest_collection --> None [hook]
+    pytest_runtestloop [hook]
+        session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=14>
+      pytest_runtest_protocol [hook]
+          item: <Function test_follow_target_skill_success_when_target_visible>
+          nextitem: <Function test_follow_target_skill_stops_when_obstacle_detected>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible
+            location: ('tests/unit/test_skills_behaviors.py', 14, 'test_follow_target_skill_success_when_target_visible')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_follow_target_skill_success_when_target_visible>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+            nextitem: <Function test_follow_target_skill_stops_when_obstacle_detected>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_success_when_target_visible>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_success_when_target_visible
+            location: ('tests/unit/test_skills_behaviors.py', 14, 'test_follow_target_skill_success_when_target_visible')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+          nextitem: <Function test_follow_target_skill_fails_when_target_missing>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected
+            location: ('tests/unit/test_skills_behaviors.py', 25, 'test_follow_target_skill_stops_when_obstacle_detected')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_follow_target_skill_stops_when_obstacle_detected>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+            nextitem: <Function test_follow_target_skill_fails_when_target_missing>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_stops_when_obstacle_detected>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_stops_when_obstacle_detected
+            location: ('tests/unit/test_skills_behaviors.py', 25, 'test_follow_target_skill_stops_when_obstacle_detected')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_follow_target_skill_fails_when_target_missing>
+          nextitem: <Function test_move_circle_skill_executes_compound_motion>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing
+            location: ('tests/unit/test_skills_behaviors.py', 36, 'test_follow_target_skill_fails_when_target_missing')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_follow_target_skill_fails_when_target_missing>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+            nextitem: <Function test_move_circle_skill_executes_compound_motion>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_follow_target_skill_fails_when_target_missing>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_follow_target_skill_fails_when_target_missing
+            location: ('tests/unit/test_skills_behaviors.py', 36, 'test_follow_target_skill_fails_when_target_missing')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_move_circle_skill_executes_compound_motion>
+          nextitem: <Function test_detect_red_ball_skill_success_when_target_present>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion
+            location: ('tests/unit/test_skills_behaviors.py', 47, 'test_move_circle_skill_executes_compound_motion')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_move_circle_skill_executes_compound_motion>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+            nextitem: <Function test_detect_red_ball_skill_success_when_target_present>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_circle_skill_executes_compound_motion>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_behaviors.py::test_move_circle_skill_executes_compound_motion
+            location: ('tests/unit/test_skills_behaviors.py', 47, 'test_move_circle_skill_executes_compound_motion')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_detect_red_ball_skill_success_when_target_present>
+          nextitem: <Function test_detect_red_ball_skill_failed_when_target_missing>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present
+            location: ('tests/unit/test_skills_perception.py', 14, 'test_detect_red_ball_skill_success_when_target_present')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_detect_red_ball_skill_success_when_target_present>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+            nextitem: <Function test_detect_red_ball_skill_failed_when_target_missing>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_success_when_target_present>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_red_ball_skill_success_when_target_present
+            location: ('tests/unit/test_skills_perception.py', 14, 'test_detect_red_ball_skill_success_when_target_present')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+          nextitem: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing
+            location: ('tests/unit/test_skills_perception.py', 24, 'test_detect_red_ball_skill_failed_when_target_missing')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_detect_red_ball_skill_failed_when_target_missing>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+            nextitem: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_red_ball_skill_failed_when_target_missing>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_red_ball_skill_failed_when_target_missing
+            location: ('tests/unit/test_skills_perception.py', 24, 'test_detect_red_ball_skill_failed_when_target_missing')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+          nextitem: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle
+            location: ('tests/unit/test_skills_perception.py', 34, 'test_detect_obstacle_skill_success_when_no_obstacle')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+            nextitem: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_no_obstacle>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_no_obstacle
+            location: ('tests/unit/test_skills_perception.py', 34, 'test_detect_obstacle_skill_success_when_no_obstacle')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+          nextitem: <Function test_move_forward_skill_executes_forward_command>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected
+            location: ('tests/unit/test_skills_perception.py', 46, 'test_detect_obstacle_skill_success_when_obstacle_detected')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+            nextitem: <Function test_move_forward_skill_executes_forward_command>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_detect_obstacle_skill_success_when_obstacle_detected>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_perception.py::test_detect_obstacle_skill_success_when_obstacle_detected
+            location: ('tests/unit/test_skills_perception.py', 46, 'test_detect_obstacle_skill_success_when_obstacle_detected')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_move_forward_skill_executes_forward_command>
+          nextitem: <Function test_move_backward_skill_executes_backward_command>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command
+            location: ('tests/unit/test_skills_primitives.py', 17, 'test_move_forward_skill_executes_forward_command')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_move_forward_skill_executes_forward_command>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+            nextitem: <Function test_move_backward_skill_executes_backward_command>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_forward_skill_executes_forward_command>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_move_forward_skill_executes_forward_command
+            location: ('tests/unit/test_skills_primitives.py', 17, 'test_move_forward_skill_executes_forward_command')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_move_backward_skill_executes_backward_command>
+          nextitem: <Function test_turn_left_skill_executes_turn_left_command>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command
+            location: ('tests/unit/test_skills_primitives.py', 28, 'test_move_backward_skill_executes_backward_command')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_move_backward_skill_executes_backward_command>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+            nextitem: <Function test_turn_left_skill_executes_turn_left_command>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_move_backward_skill_executes_backward_command>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_move_backward_skill_executes_backward_command
+            location: ('tests/unit/test_skills_primitives.py', 28, 'test_move_backward_skill_executes_backward_command')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_turn_left_skill_executes_turn_left_command>
+          nextitem: <Function test_turn_right_skill_executes_turn_right_command>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command
+            location: ('tests/unit/test_skills_primitives.py', 39, 'test_turn_left_skill_executes_turn_left_command')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_turn_left_skill_executes_turn_left_command>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+            nextitem: <Function test_turn_right_skill_executes_turn_right_command>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_left_skill_executes_turn_left_command>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_turn_left_skill_executes_turn_left_command
+            location: ('tests/unit/test_skills_primitives.py', 39, 'test_turn_left_skill_executes_turn_left_command')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_turn_right_skill_executes_turn_right_command>
+          nextitem: <Function test_stop_motion_skill_executes_stop_command>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command
+            location: ('tests/unit/test_skills_primitives.py', 50, 'test_turn_right_skill_executes_turn_right_command')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_turn_right_skill_executes_turn_right_command>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+            nextitem: <Function test_stop_motion_skill_executes_stop_command>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_turn_right_skill_executes_turn_right_command>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_turn_right_skill_executes_turn_right_command
+            location: ('tests/unit/test_skills_primitives.py', 50, 'test_turn_right_skill_executes_turn_right_command')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_stop_motion_skill_executes_stop_command>
+          nextitem: <Function test_skill_validation_requires_robot_context>
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command
+            location: ('tests/unit/test_skills_primitives.py', 61, 'test_stop_motion_skill_executes_stop_command')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_stop_motion_skill_executes_stop_command>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+            nextitem: <Function test_skill_validation_requires_robot_context>
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_stop_motion_skill_executes_stop_command>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_stop_motion_skill_executes_stop_command
+            location: ('tests/unit/test_skills_primitives.py', 61, 'test_stop_motion_skill_executes_stop_command')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+      pytest_runtest_protocol [hook]
+          item: <Function test_skill_validation_requires_robot_context>
+          nextitem: None
+        pytest_runtest_logstart [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context
+            location: ('tests/unit/test_skills_primitives.py', 72, 'test_skill_validation_requires_robot_context')
+        finish pytest_runtest_logstart --> [] [hook]
+        pytest_runtest_setup [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+        finish pytest_runtest_setup --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+            call: <CallInfo when='setup' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='setup' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='setup' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='setup' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_call [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+          pytest_pyfunc_call [hook]
+              pyfuncitem: <Function test_skill_validation_requires_robot_context>
+          finish pytest_pyfunc_call --> True [hook]
+        finish pytest_runtest_call --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+            call: <CallInfo when='call' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='call' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='call' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='call' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('passed', '.', 'PASSED') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_teardown [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+            nextitem: None
+        finish pytest_runtest_teardown --> None [hook]
+        pytest_runtest_makereport [hook]
+            item: <Function test_skill_validation_requires_robot_context>
+            call: <CallInfo when='teardown' result: None>
+        finish pytest_runtest_makereport --> <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='teardown' outcome='passed'> [hook]
+        pytest_runtest_logreport [hook]
+            report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='teardown' outcome='passed'>
+          pytest_report_teststatus [hook]
+              report: <TestReport 'tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context' when='teardown' outcome='passed'>
+              config: <_pytest.config.Config object at 0x104127e00>
+          finish pytest_report_teststatus --> ('', '', '') [hook]
+        finish pytest_runtest_logreport --> [] [hook]
+        pytest_runtest_logfinish [hook]
+            nodeid: tests/unit/test_skills_primitives.py::test_skill_validation_requires_robot_context
+            location: ('tests/unit/test_skills_primitives.py', 72, 'test_skill_validation_requires_robot_context')
+        finish pytest_runtest_logfinish --> [] [hook]
+      finish pytest_runtest_protocol --> True [hook]
+    finish pytest_runtestloop --> True [hook]
+    pytest_sessionfinish [hook]
+        session: <Session  exitstatus=0 testsfailed=0 testscollected=14>
+        exitstatus: 0
+      pytest_terminal_summary [hook]
+          terminalreporter: <_pytest.terminal.TerminalReporter object at 0x10451cc20>
+          exitstatus: 0
+          config: <_pytest.config.Config object at 0x104127e00>
+      finish pytest_terminal_summary --> [] [hook]
+    finish pytest_sessionfinish --> [] [hook]
+    pytest_unconfigure [hook]
+        config: <_pytest.config.Config object at 0x104127e00>
+    finish pytest_unconfigure --> [] [hook]

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from irobot.robot_controller import RobotController
-from irobot.skills import SkillContext
-from irobot.skills.behaviors.follow_target import FollowTargetSkill
-from irobot.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.interfaces import RobotController
+from irobot.domain.skills import SkillContext
+from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
+from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
 from tests.unit.fake_robot import FakeRobot
 
 

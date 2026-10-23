@@ -21,7 +21,9 @@ Le dépôt est donc plus proche d'un environnement de laboratoire / prototype em
 - `pyproject.toml` : configuration Python / scripts `uv run`
 - `scripts/` : scripts d'installation système + Bluetooth + LLM
 - `src/irobot/` : modules Python du projet
-- `tests/` : scripts de test matériel
+- `tests/` : scripts de test matériel et unitaires
+- `tests/unit/` : tests unitaires de logique métier
+- `tests/hardware/` : scripts de validation sur le matériel réel
 - `docs/` : guides complémentaires
 - `commandes.txt` : commandes utiles / dépannage
 
@@ -31,9 +33,10 @@ Le dépôt est donc plus proche d'un environnement de laboratoire / prototype em
 - `src/irobot/camera/color_detector.py` : détecteur de couleur par OpenCV (rouge/jaune)
 - `src/irobot/smart_car/smart_car.py` : contrôle de la voiture 2WD
 - `src/irobot/voice_assistant/voice_assistant.py` : transcribe la voix + contrôle vocal de la voiture + appel LLM local
-- `tests/gpio_test.py` : activation des GPIO
-- `tests/led_test.py` : test des LEDs APA102 du HAT ReSpeaker
-- `tests/micro_test.py` : test des micros WM8960 et enregistrement WAV
+- `tests/hardware/test_hardware_gpio.py` : activation des GPIO
+- `tests/hardware/test_hardware_led.py` : test des LEDs APA102 du HAT ReSpeaker
+- `tests/hardware/test_hardware_micro.py` : test des micros WM8960 et enregistrement WAV
+- `tests/hardware/test_hardware_distance.py` : test du capteur ultrason HC-SR04
 
 ## 3. Stack logicielle
 
@@ -213,11 +216,11 @@ uv run voice-assistant --car --input-device bluetooth
 
 ## 7. Scripts de test matériels
 
-### `tests/gpio_test.py`
+### `tests/hardware/test_hardware_gpio.py`
 - active des GPIO précis
 - sert à valider le câblage du pont H-bridge / moteur
 
-### `tests/led_test.py`
+### `tests/hardware/test_hardware_led.py`
 - utilise SPI sur `/dev/spidev0.1`
 - prend les modes :
   - `static`
@@ -225,20 +228,20 @@ uv run voice-assistant --car --input-device bluetooth
   - `rainbow`
   - `off`
 
-### `tests/micro_test.py`
+### `tests/hardware/test_hardware_micro.py`
 - détecte la carte WM8960 via `arecord -l`
 - enregistre 5 secondes d’audio en WAV
 - affiche niveaux L/R en temps réel
 - rejoue le fichier avec `aplay`
 
-### `tests/distance_test.py`
-Un test de mesure de distance a été ajouté dans le dossier `tests/`.
+### `tests/hardware/test_hardware_distance.py`
+Un test de mesure de distance a été ajouté dans le dossier `tests/hardware/`.
 
-- fichier : `tests/distance_test.py`
+- fichier : `tests/hardware/test_hardware_distance.py`
 - objectif : afficher la distance du premier objet détecté devant le capteur
 - GPIO par défaut : TRIG=17, ECHO=27
 - durée par défaut : 5 secondes
-- comportement similaire à `tests/micro_test.py` : affichage en direct avec mesure et statistiques finales
+- comportement similaire à `tests/hardware/test_hardware_micro.py` : affichage en direct avec mesure et statistiques finales
 
 ## 8. Scripts d'installation système
 

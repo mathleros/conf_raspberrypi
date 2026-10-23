@@ -316,9 +316,18 @@ Le mode vocal est particulièrement utile pour un robot autonome ou pour des dé
 │           └── voice_assistant.py
 └── tests/
     ├── __init__.py
-    ├── gpio_test.py
-    ├── micro_test.py
-    └── led_test.py
+    ├── README.md
+    ├── unit/
+    │   ├── README.md
+    │   ├── fake_robot.py
+    │   ├── test_skills_primitives.py
+    │   ├── test_skills_perception.py
+    │   └── test_skills_behaviors.py
+    └── hardware/
+        ├── test_hardware_gpio.py
+        ├── test_hardware_micro.py
+        ├── test_hardware_led.py
+        └── test_hardware_distance.py
 ```
 
 Modèles et outils volumineux (hors dépôt) : `~/models/` (Ministral 3 3B GGUF

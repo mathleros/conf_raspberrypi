@@ -1,9 +1,9 @@
 """Skills du robot.
 
-Organisation claire et visible :
-- primitives : actions atomiques du robot
-- perception : détection et lecture de capteurs
-- behaviors : tâches composites construites à partir des primitives
+Organisation claire :
+- primitives : actions atomiques sur les actionneurs
+- perception : détection sensorielle
+- behaviors : tâches composites
 """
 
 from irobot.skills.base_skill import Skill, SkillContext, SkillResult

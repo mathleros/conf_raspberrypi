@@ -1,7 +1,7 @@
 """Package principal du projet irobot.
 
 Ce package regroupe les fonctionnalités du robot : vision, navigation,
-assistant vocal et scripts de test matériel.
+assistant vocal et orchestration des skills.
 """
 
 __all__ = [
@@ -9,7 +9,10 @@ __all__ = [
     "smart_car",
     "voice_assistant",
     "sensors",
+    "skills",
+    "orchestrator",
 ]
+
 
 def main() -> None:
     print("Hello from camera_app!")

@@ -9,8 +9,8 @@ Organisation claire :
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.domain.skills.perception.detect_object import DetectObjectSkill
 from irobot.domain.skills.perception.detect_obstacle import DetectObstacleSkill
-from irobot.domain.skills.perception.detect_red_ball import DetectRedBallSkill
 from irobot.domain.skills.primitives.move_backward import MoveBackwardSkill
 from irobot.domain.skills.primitives.move_forward import MoveForwardSkill
 from irobot.domain.skills.primitives.stop_motion import StopMotionSkill
@@ -26,7 +26,7 @@ __all__ = [
     "TurnLeftSkill",
     "TurnRightSkill",
     "StopMotionSkill",
-    "DetectRedBallSkill",
+    "DetectObjectSkill",
     "DetectObstacleSkill",
     "FollowTargetSkill",
     "MoveCircleSkill",

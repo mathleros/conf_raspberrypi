@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from irobot.domain.skills import (
     DetectObstacleSkill,
-    DetectRedBallSkill,
+    DetectObjectSkill,
     FollowTargetSkill,
     MoveBackwardSkill,
     MoveCircleSkill,
@@ -68,7 +68,7 @@ class SkillRegistry:
                 TurnLeftSkill(),
                 TurnRightSkill(),
                 StopMotionSkill(),
-                DetectRedBallSkill(),
+                DetectObjectSkill(),
                 DetectObstacleSkill(),
                 FollowTargetSkill(),
                 MoveCircleSkill(),

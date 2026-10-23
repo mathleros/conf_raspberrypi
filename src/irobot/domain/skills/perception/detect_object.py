@@ -3,11 +3,11 @@ from __future__ import annotations
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
 
-class DetectRedBallSkill(Skill):
-    """Skill de perception : détecte une balle rouge dans le champ visuel."""
+class DetectObjectSkill(Skill):
+    """Skill de perception : détecte un objet cible dans le champ visuel."""
 
-    name = "detect_red_ball"
-    description = "Retourne la position d'une balle rouge si elle est visible"
+    name = "detect_object"
+    description = "Retourne la position d'un objet cible si elle est visible"
 
     def validate(self, context: SkillContext) -> bool:
         return context.camera is not None or context.state.get("camera_ready") is True
@@ -19,7 +19,7 @@ class DetectRedBallSkill(Skill):
             if position == "UNKNOWN":
                 return SkillResult(
                     status="failed",
-                    message="Aucune balle rouge détectée.",
+                    message="Aucun objet détecté.",
                     data={"position": None},
                     confidence=0.0,
                     next_action="scan_for_target",
@@ -27,7 +27,7 @@ class DetectRedBallSkill(Skill):
 
             return SkillResult(
                 status="success",
-                message="Balle rouge détectée.",
+                message="Objet détecté.",
                 data={"position": position},
                 confidence=0.8,
                 next_action="align_to_target",

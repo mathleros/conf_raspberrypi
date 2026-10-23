@@ -13,9 +13,71 @@ Les résultats sont homogènes et ne doivent jamais dépendre d'un texte libre
 improvisé. Cela permet à un orchestrateur de décider de manière fiable de la
 suite à exécuter.
 
+## Adapter matériel / skills
+
+Les skills n'interagissent pas directement avec les GPIO ni avec la classe
+concrète `SmartCar2WD`.
+
+Elles utilisent le contexte partagé qui contient un adaptateur :
+- `RobotController`
+
+Exemple de contexte :
+
+```python
+from irobot.robot_controller import RobotController
+from irobot.skills import SkillContext
+from irobot.smart_car.smart_car import SmartCar2WD
+
+car = SmartCar2WD()
+context = SkillContext(
+    robot=RobotController(car),
+    state={},
+)
+```
+
+Dans ce schéma, la skill appelle :
+- `context.robot.forward()`
+- `context.robot.left()`
+- `context.robot.stop()`
+
+et non pas directement les broches GPIO.
+
+## Hiérarchie recommandée des skills
+
+### 1. Skills primitives (atomiques)
+
+Ce sont les actions de base du robot :
+
+- `MoveForwardSkill`
+- `MoveBackwardSkill`
+- `TurnLeftSkill`
+- `TurnRightSkill`
+- `StopMotionSkill`
+
+Ces skills doivent être simples, deterministes et sécurisées.
+
+### 2. Skills de perception
+
+- `DetectRedBallSkill`
+- `DetectObstacleSkill`
+
+### 3. Behaviors / tâches composites
+
+Ce sont des séquences de skills primitives, généralement orchestration + observation + boucle de contrôle :
+
+- `FollowTargetSkill`
+- `MoveCircleSkill`
+
+Important : `MoveCircleSkill` ne doit pas être considéré comme une primitive. Il s'agit d'une composition de mouvements, typiquement :
+
+- `turn_left` pendant X secondes
+- éventuellement `move_forward` pendant un petit intervalle pour tracer un arc
+- `stop_motion` quand le cercle est terminé
+
 ## Skills disponibles
 
 - `MoveForwardSkill`
+- `MoveBackwardSkill`
 - `TurnLeftSkill`
 - `TurnRightSkill`
 - `StopMotionSkill`
@@ -48,9 +110,12 @@ SkillResult(
 ## Exemple d'utilisation
 
 ```python
+from irobot.robot_controller import RobotController
 from irobot.skills import MoveForwardSkill, SkillContext
+from irobot.smart_car.smart_car import SmartCar2WD
 
-context = SkillContext(robot=car, state={})
+car = SmartCar2WD()
+context = SkillContext(robot=RobotController(car), state={})
 skill = MoveForwardSkill()
 result = skill.execute(context)
 print(result)

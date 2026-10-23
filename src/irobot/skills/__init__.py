@@ -1,24 +1,28 @@
 """Skills du robot.
 
-Ce package expose le contrat de base pour toutes les compétences unitaires du
-robot, ainsi que quelques skills de référence à intégrer progressivement.
+Organisation claire et visible :
+- primitives : actions atomiques du robot
+- perception : détection et lecture de capteurs
+- behaviors : tâches composites construites à partir des primitives
 """
 
 from irobot.skills.base_skill import Skill, SkillContext, SkillResult
-from irobot.skills.detect_obstacle import DetectObstacleSkill
-from irobot.skills.detect_red_ball import DetectRedBallSkill
-from irobot.skills.follow_target import FollowTargetSkill
-from irobot.skills.move_circle import MoveCircleSkill
-from irobot.skills.move_forward import MoveForwardSkill
-from irobot.skills.stop_motion import StopMotionSkill
-from irobot.skills.turn_left import TurnLeftSkill
-from irobot.skills.turn_right import TurnRightSkill
+from irobot.skills.behaviors.follow_target import FollowTargetSkill
+from irobot.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.skills.perception.detect_obstacle import DetectObstacleSkill
+from irobot.skills.perception.detect_red_ball import DetectRedBallSkill
+from irobot.skills.primitives.move_backward import MoveBackwardSkill
+from irobot.skills.primitives.move_forward import MoveForwardSkill
+from irobot.skills.primitives.stop_motion import StopMotionSkill
+from irobot.skills.primitives.turn_left import TurnLeftSkill
+from irobot.skills.primitives.turn_right import TurnRightSkill
 
 __all__ = [
     "Skill",
     "SkillContext",
     "SkillResult",
     "MoveForwardSkill",
+    "MoveBackwardSkill",
     "TurnLeftSkill",
     "TurnRightSkill",
     "StopMotionSkill",

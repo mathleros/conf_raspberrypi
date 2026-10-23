@@ -276,3 +276,59 @@ Plan type :
 ## 2.9 Conclusion
 
 Le projet est prêt pour un saut d'abstraction : il faut un layer orchestration, un planner déterministe, et une représentation explicite des skills. C'est ce qui permettra de passer d'une base de tests matériels à un robot réellement guidé par une instruction vocale complexe.
+
+## 2.10 Hiérarchie des skills : primitives et comportements
+
+La bonne structuration du système repose sur une séparation explicite entre :
+
+### A. Skills primitives
+
+Actions atomiques directement utilisables par l'orchestrateur :
+- `move_forward`
+- `move_backward`
+- `turn_left`
+- `turn_right`
+- `stop_motion`
+
+Ces skills sont simples, courtes et directement reliées aux actionneurs.
+
+### B. Skills de perception
+
+- `detect_red_ball`
+- `detect_obstacle`
+- `read_distance`
+
+### C. Behaviors / tâches composites
+
+Des tâches d'ordres plus haut niveau, construites à partir de primitives :
+- `follow_target`
+- `align_to_target`
+- `approach_target`
+- `move_circle`
+- `avoid_obstacle`
+
+#### Exemple : `move_circle`
+
+`move_circle` ne doit pas être une primitive. Il s'agit d'un comportement composite que l'orchestrateur décompose en séquence de primitives, par exemple :
+
+```text
+turn_left(0.5s)
+move_forward(0.2s)
+turn_left(0.5s)
+move_forward(0.2s)
+stop_motion
+```
+
+Cette logique permet de former une trajectoire circulaire contrôlée sans introduire de sur-couplage dans la hiérarchie.
+
+### 2.11 Règle d'orchestration
+
+La séquence d'exécution doit toujours suivre ce schéma :
+
+1. une intention est formulée par le système / LLM ;
+2. le planner choisit une combinaison de skills et de comportements ;
+3. l'orchestrateur mappe les comportements sur des primitives ;
+4. les primitives sont exécutées sur le robot via le `RobotController` ;
+5. la sécurité et les conditions d'arrêt sont vérifiées à chaque étape.
+
+Cette règle évite que le système soit trop “LLM-driven” et insuffisamment déterministe.

@@ -46,3 +46,62 @@ Le projet est en phase de transition :
 ## Conclusion rapide
 
 Le projet a une bonne base technique, mais il manque un niveau d'abstraction supplémentaire : le "planner" / "orchestrateur" qui décide quelles skills appeler, dans quel ordre, avec quels paramètres, selon l'état du robot et les conditions de sécurité.
+
+## Règles de conception validées
+
+Le cadrage a été ajusté pour aligner la hiérarchie des skills sur le besoin robotique réel :
+
+- les skills primitives sont les actions atomiques du robot ;
+- les comportements composites sont des séquences de primitives ;
+- le LLM ne doit pas piloter directement les moteurs ni les GPIO ;
+- l'orchestrateur est responsable de transformer une intention de haut niveau en séquence de skills primitives ;
+- les règles de sécurité doivent être appliquées avant, pendant et après toutes les exécutions.
+
+### Taxonomie recommandée
+
+#### A. Skills primitives
+- `move_forward`
+- `move_backward`
+- `turn_left`
+- `turn_right`
+- `stop_motion`
+
+#### B. Skills de perception
+- `detect_red_ball`
+- `detect_obstacle`
+- `read_distance`
+
+#### C. Behaviors composites
+- `follow_target`
+- `align_to_target`
+- `approach_target`
+- `move_circle`
+- `avoid_obstacle`
+
+### Règle importante
+
+`move_circle` n'est pas une skill primitive. C'est un comportement composite qui doit être décomposé en une séquence de primitives telles que :
+- `turn_left`
+- `move_forward`
+- `stop_motion`
+
+sur une durée et/ou une trajectoire paramétrées.
+
+### Bonnes pratiques de conception
+
+1. Garder les skills primitives petites, déterministes et facilement testables.
+2. Ne pas exposer de logique métier complexe dans les primitives.
+3. Toujours renvoyer un résultat standardisé (`SkillResult`) avec statut, message, données et confiance.
+4. Validations de préconditions avant exécution.
+5. Conditions de sécurité et d'arrêt d'urgence centrées sur l'orchestrateur.
+6. Le comportement de haut niveau est décrit par l'intention, pas par un ensemble de commandes libres.
+
+## Ce que le projet doit viser
+
+Le robot doit être capable de :
+- comprendre une instruction vocale en français ;
+- extraire l'intention ;
+- choisir un comportement pertinent ;
+- transformer ce comportement en séquence de skills primitives ;
+- exécuter la séquence avec sécurité ;
+- accomplir la mission ou s'arrêter avec un diagnostic clair.

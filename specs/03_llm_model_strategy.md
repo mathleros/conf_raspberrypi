@@ -155,3 +155,39 @@ Le modèle actuel est bien adapté comme couche d'analyse linguistique et de pla
 - sécurité = règles de garde-fou et validation
 
 C'est cette architecture qui permettra de réaliser les tâches complexes décrites par le client sans perdre la robustesse du système embarqué.
+
+## 3.9 Règle de hiérarchie entre LLM, behaviors et skills primitives
+
+Le LLM ne doit pas choisir les commandes bas niveau du robot de manière libre.
+
+Le bon flux est :
+
+1. le texte vocal est transcrit ;
+2. le LLM détermine l'intention de haut niveau ;
+3. le planner transforme cette intention en un comportement ou un plan de tâches ;
+4. le planner décompose ensuite ce comportement en skills primitives ;
+5. les skills primitives exécutent le mouvement réel via le `RobotController`.
+
+Exemple :
+
+- Entrée : "fait un rond"
+- Intention LLM : `move_circle`
+- Plan : `turn_left + move_forward + repeat + stop_motion`
+- Exécution : `TurnLeftSkill`, `MoveForwardSkill`, `StopMotionSkill`
+
+Autre exemple :
+
+- Entrée : "suit la balle rouge"
+- Intention LLM : `follow_target`
+- Plan : `detect_red_ball -> align_to_target -> move_forward -> stop_on_loss_or_obstacle`
+- Exécution : primitives du mouvement combinées aux skills de perception
+
+### Règles de bonnes pratiques
+
+- le LLM ne doit pas décider directement des GPIO ;
+- le LLM ne doit pas produire des ordres mécanistes non validés ;
+- le planner doit toujours vérifier le plan avant exécution ;
+- les périmètres de sécurité restent dans le moteur de contrôle, pas dans le modèle linguistique ;
+- les compétences complexes doivent être décomposées dans un orchestrateur, pas laissées “flottantes” dans le modèle.
+
+Cette hiérarchie est la clé pour conserver à la fois flexibilité du langage naturel et robustesse robotique.

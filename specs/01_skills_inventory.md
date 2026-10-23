@@ -117,64 +117,53 @@ L'inventaire a été réalisé à partir des modules du dépôt :
 - Fonction : pilote le robot selon des commandes vocales simples
 - État : disponible
 
-## 1.3 Compétences manquantes ou insuffisamment formalisées
+## 1.3 Corrections de conception sur la hiérarchie des skills
 
-Voici les skills nécessaires pour réaliser les cas d'usage complexes décrits par le client.
+Après validation du besoin et du principe d'orchestration, la taxonomie des skills doit être clarifiée :
 
-### 1. `skill_registry`
-- Description : système qui liste toutes les skills disponibles, leurs paramètres, leurs préconditions et leur contrat de sortie.
-- État : absent
-- Pourquoi c'est nécessaire : le LLM doit savoir exactement quelles actions sont disponibles et sous quel format il peut les utiliser.
+### A. Skills primitives (atomiques)
 
-### 2. `intent_parser`
-- Description : transformer une consigne vocale en structure interne : objectif, cible, paramètres, conditions d'arrêt.
-- État : incomplet
-- Exemples :
-  - objectif = follow_target
-  - cible = red_ball
-  - mode = continuous
-  - stop_condition = target_lost_for_3s OR manual_stop
+Ces skills représentent les actions directement exécutables par le robot sur ses actionneurs.
 
-### 3. `plan_generator`
-- Description : sélection d'un ensemble de skills dans un ordre logique.
-- État : absent
-- Exemple : `detect_red_ball -> align_with_target -> approach -> track`
+- `move_forward`
+- `move_backward`
+- `turn_left`
+- `turn_right`
+- `stop_motion`
 
-### 4. `target_tracking_red_ball`
-- Description : lire en continu la position de la balle rouge dans le champ visuel, calculer un écart horizontal / vertical et maintenir la cible au centre.
-- État : partiellement présent au niveau de détection, mais pas sous forme de tracking boucle fermée
+Elles sont simples, courtes et déterministes, et servent de briques de base pour les tâches complexes.
 
-### 5. `target_approach_controller`
-- Description : piloter le robot pour s'approcher de la cible sans collision.
-- État : absent
+### B. Skills de perception et de mesure
 
-### 6. `follow_target_loop`
-- Description : boucle de suivi en temps réel : détecte la cible, décale le robot, corrige l'orientation, vérifie la présence de la cible, continue ou stoppe.
-- État : absent
+- `detect_red_ball`
+- `detect_obstacle`
+- `read_distance`
+- `localize_target` (à ajouter si nécessaire)
 
-### 7. `trajectory_circle_controller`
-- Description : génère un mouvement circulaire / rond, en maîtrisant vitesse et angle.
-- État : absent
+### C. Behaviors composites (tâches complexes)
 
-### 8. `state_machine_orchestrator`
-- Description : machine d'états de mission : `idle -> planning -> executing -> success / failed / aborted`.
-- État : absent
+Ce sont des séquences de skills primitives couplées à de la perception, par exemple :
 
-### 9. `safety_guard`
-- Description : règle de sécurité permanente sur les obstacles et le moteur.
-- État : partiellement présent via `check_obstacle`, mais pas encore intégré dans une logique globale d'évitement et d'urgence.
+- `follow_target`
+- `align_to_target`
+- `approach_target`
+- `avoid_obstacle`
+- `move_circle`
 
-### 10. `mission_result_evaluator`
-- Description : détermine si une tâche est réussie, en échec ou interrompue.
-- État : absent
+Le comportement `move_circle` n'est pas une primitive. Il doit être composé par l'orchestrateur à partir de `turn_left` + `move_forward` + `stop_motion` avec durée et vitesse paramétrées.
 
-### 11. `execution_feedback_loop`
-- Description : permet au système de mettre à jour l'état de la mission en fonction des observations du capteur et de la progression.
-- État : absent
+### Règle de conception
 
-### 12. `structured_skill_output_contract`
-- Description : chaque skill doit retourner une structure JSON ou un objet avec évaluation, action, diagnostic, confidence.
-- État : absent
+Le LLM doit produire un comportement ou une intention de haut niveau, jamais un ordre moteur brute. L'orchestrateur transforme ensuite cette intention en séquence de skills primitives.
+
+### Impact sur l'architecture
+
+Cette clarification a plusieurs effets positifs :
+- cohérence entre la logique des skills et la réalité du robot ;
+- meilleur testabilité unitaire ;
+- meilleure lisibilité du code ;
+- plus de robustesse sur les tâches composées ;
+- meilleure séparation entre prise de décision et exécution robotique.
 
 ## 1.4 Synthèse du niveau de maturité
 

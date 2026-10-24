@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from irobot.config.settings import load_runtime_settings
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
+
+SETTINGS = load_runtime_settings()
 
 
 class TurnRightSkill(Skill):
@@ -31,7 +34,7 @@ class TurnRightSkill(Skill):
             angle_value = _to_float(angle)
             duration_value = _to_float(duration)
             if duration_value is None and angle_value is not None:
-                duration_value = max(0.1, angle_value / 180.0)
+                duration_value = max(0.1, angle_value / SETTINGS.deg_per_second)
 
             if hasattr(context.robot, "right"):
                 if duration_value is not None and hasattr(context.robot, "right_for"):

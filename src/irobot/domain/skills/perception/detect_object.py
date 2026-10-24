@@ -20,6 +20,8 @@ class DetectObjectSkill(Skill):
             position = context.state.get("last_object_position")
             if position is None:
                 position = context.state.get("last_ball_position", "UNKNOWN")
+            distance_cm = context.state.get("last_object_distance_cm")
+            approach_threshold_cm = float(params.get("approach_threshold_cm", 20.0))
 
             if position in {None, "UNKNOWN"}:
                 return SkillResult(
@@ -31,13 +33,26 @@ class DetectObjectSkill(Skill):
                 )
 
             context.state["last_object_position"] = position
+            close_enough = False
+            if distance_cm is not None:
+                try:
+                    close_enough = float(distance_cm) <= max(1.0, approach_threshold_cm)
+                except (TypeError, ValueError):
+                    close_enough = False
+            context.state["close_enough"] = close_enough
 
             return SkillResult(
                 status="success",
                 message=f"Objet détecté ({target_object}).",
-                data={"position": position, "target_object": target_object},
+                data={
+                    "position": position,
+                    "target_object": target_object,
+                    "distance_cm": distance_cm,
+                    "close_enough": close_enough,
+                    "approach_threshold_cm": max(1.0, approach_threshold_cm),
+                },
                 confidence=0.8,
-                next_action="align_to_target",
+                next_action="stop_motion" if close_enough else "align_to_target",
             )
         except Exception as exc:  # pragma: no cover - logique métier
             return SkillResult(

@@ -32,6 +32,16 @@ def test_detect_object_skill_failed_when_target_missing():
     assert result.next_action == "scan_for_target"
 
 
+def test_detect_object_skill_marks_close_enough_when_distance_below_threshold():
+    context = build_context(last_ball_position="centre", last_object_distance_cm=12.0, active_intent_parameters={"approach_threshold_cm": 20.0})
+
+    result = DetectObjectSkill().execute(context)
+
+    assert result.status == "success"
+    assert result.data["close_enough"] is True
+    assert result.next_action == "stop_motion"
+
+
 def test_detect_obstacle_skill_success_when_no_obstacle():
     fake = FakeRobot()
     fake.obstacle_detected = False

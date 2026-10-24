@@ -126,5 +126,8 @@ runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
 print(f"\nTexte saisi : {text}")
 if mock_object_position:
     print(f"Mode mock objet actif: position={mock_object_position}")
-print(runtime.handle_text_as_plan(text))
+result = runtime.handle_text_as_plan(text)
+print(result)
+if isinstance(result, dict) and result.get("trace_path"):
+    print(f"TRACE_PATH={result['trace_path']}")
 PY

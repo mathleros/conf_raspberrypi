@@ -9,8 +9,10 @@ validée par le système.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -24,9 +26,12 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - macOS/tests
     vosk = None
 
+from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
+from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 
 RATE = 16000
 CARD_NAME = "wm8960"
@@ -34,10 +39,11 @@ MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_MODEL = "ministral-3-3b"
 LLM_TIMEOUT = 120
-MAX_PLAN_STEPS = 20
-MAX_DISTANCE_CM = 300.0
-MAX_ANGLE_DEG = 360.0
-MAX_DURATION_SEC = 12.0
+RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
+MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
+MAX_DISTANCE_CM = RUNTIME_SETTINGS.max_distance_cm
+MAX_ANGLE_DEG = RUNTIME_SETTINGS.max_angle_deg
+MAX_DURATION_SEC = RUNTIME_SETTINGS.max_duration_sec
 SYSTEM_PROMPT = (
     "Tu es un interprète de commande robotique. "
     "Réponds UNIQUEMENT en JSON valide avec les clés suivantes : "
@@ -212,8 +218,8 @@ def ask_llm_for_intent(text: str) -> Intent:
         return IntentParser().parse(text)
 
 
-def ask_llm_for_intent_plan(text: str) -> list[Intent]:
-    """Demande au LLM un plan ordonné d'intentions atomiques pour une consigne complète."""
+def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
+    """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace."""
     payload = {
         "model": LLM_MODEL,
         "messages": [
@@ -231,11 +237,21 @@ def ask_llm_for_intent_plan(text: str) -> list[Intent]:
         content = data["choices"][0]["message"]["content"].strip()
         parsed = _parse_llm_json_payload(content)
         if not parsed:
-            return [ask_llm_for_intent(text)]
+            fallback = ask_llm_for_intent(text)
+            return [fallback], {
+                "source": "llm_fallback_single_intent",
+                "llm_content": content,
+                "llm_json": None,
+            }
 
         raw_steps = parsed.get("steps")
         if not isinstance(raw_steps, list) or not raw_steps:
-            return [ask_llm_for_intent(text)]
+            fallback = ask_llm_for_intent(text)
+            return [fallback], {
+                "source": "llm_fallback_missing_steps",
+                "llm_content": content,
+                "llm_json": parsed,
+            }
 
         intents: list[Intent] = []
         for step in raw_steps:
@@ -255,9 +271,32 @@ def ask_llm_for_intent_plan(text: str) -> list[Intent]:
                 )
             )
 
-        return intents or [ask_llm_for_intent(text)]
+        if not intents:
+            fallback = ask_llm_for_intent(text)
+            return [fallback], {
+                "source": "llm_fallback_empty_intents",
+                "llm_content": content,
+                "llm_json": parsed,
+            }
+
+        return intents, {
+            "source": "llm_plan",
+            "llm_content": content,
+            "llm_json": parsed,
+        }
     except Exception:
-        return [ask_llm_for_intent(text)]
+        fallback = ask_llm_for_intent(text)
+        return [fallback], {
+            "source": "llm_error_fallback_single_intent",
+            "llm_content": None,
+            "llm_json": None,
+        }
+
+
+def ask_llm_for_intent_plan(text: str) -> list[Intent]:
+    """Compatibilité : retourne uniquement la liste d'intents planifiées."""
+    intents, _ = ask_llm_for_intent_plan_with_trace(text)
+    return intents
 
 
 class VoiceRuntime:
@@ -269,23 +308,127 @@ class VoiceRuntime:
         robot=None,
         camera=None,
         sensor=None,
+        perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
         input_device: str = "auto",
         use_llm: bool = True,
+        trace_dir: str | None = None,
     ):
         self.robot = robot
         self.camera = camera
         self.sensor = sensor
+        self.perception = perception
         self.input_device = input_device
         self.use_llm = use_llm
+        self.settings = load_runtime_settings()
+        self.trace_dir = Path(trace_dir) if trace_dir else Path.cwd() / "target" / "logs"
+        self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.controller = LanguageController(
             robot=robot,
             camera=camera,
             sensor=sensor,
+            perception=perception,
             registry=registry or SkillRegistry.default(),
         )
         self.parser = IntentParser()
         self.validator = IntentValidator()
+        self.mission = MissionStateMachine()
+
+    def _trace_path(self) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        return self.trace_dir / f"runtime_trace_{stamp}.jsonl"
+
+    def _write_trace_event(self, trace_path: Path, event: dict[str, Any]) -> None:
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        }
+        trace_path.parent.mkdir(parents=True, exist_ok=True)
+        with trace_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    def _intent_to_dict(self, intent: Intent) -> dict[str, Any]:
+        return {
+            "name": intent.name,
+            "target": intent.target,
+            "parameters": dict(intent.parameters),
+            "confidence": intent.confidence,
+            "raw_text": intent.raw_text,
+        }
+
+    def _validate_intent_plan(self, intents: list[Intent]) -> tuple[list[Intent], list[dict[str, Any]]]:
+        sanitized: list[Intent] = []
+        errors: list[dict[str, Any]] = []
+        for index, intent in enumerate(intents):
+            if not self.validator.validate(intent):
+                errors.append(
+                    {
+                        "index": index,
+                        "reason": "intent not allowed",
+                        "intent": self._intent_to_dict(intent),
+                    }
+                )
+                continue
+            if intent.name in {"move_forward", "move_backward", "turn_left", "turn_right"}:
+                intent = self._sanitize_primitive_intent(intent)
+            sanitized.append(intent)
+
+        return sanitized, errors
+
+    def _step_has_failure(self, step_result: dict[str, Any]) -> bool:
+        results = step_result.get("results") or []
+        for result in results:
+            status = getattr(result, "status", None)
+            if status == "failed":
+                return True
+        return False
+
+    def _step_in_progress(self, step_result: dict[str, Any]) -> bool:
+        results = step_result.get("results") or []
+        for result in results:
+            status = getattr(result, "status", None)
+            if status == "in_progress":
+                return True
+        return False
+
+    def _execute_intent_with_retry(self, intent: Intent, trace_path: Path) -> dict[str, Any]:
+        max_retries = max(0, int(self.settings.max_step_retries))
+        attempt = 0
+        last_result: dict[str, Any] | None = None
+        while attempt <= max_retries:
+            step_started = time.time()
+            result = self.controller.handle_intent(intent)
+            duration = time.time() - step_started
+            result["attempt"] = attempt + 1
+            result["step_duration_seconds"] = round(duration, 4)
+            self._write_trace_event(
+                trace_path,
+                {
+                    "event": "step_result",
+                    "attempt": attempt + 1,
+                    "intent": self._intent_to_dict(intent),
+                    "status": result.get("status"),
+                    "duration_seconds": round(duration, 4),
+                },
+            )
+
+            if duration > float(self.settings.step_timeout_seconds):
+                result["status"] = "aborted"
+                result["reason"] = "step timeout"
+                return result
+
+            if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
+                return result
+
+            last_result = result
+            attempt += 1
+
+        if last_result is None:
+            return {"intent": intent, "status": "failed", "reason": "unknown execution error"}
+
+        last_result["status"] = "incomplete"
+        last_result["reason"] = last_result.get("reason") or "max retries reached"
+        return last_result
 
     def _resolve_intent(self, text: str) -> Intent:
         if not self.use_llm:
@@ -381,24 +524,24 @@ class VoiceRuntime:
 
             if distance is not None:
                 if unit == "m":
-                    distance = max(0.01, min(distance, MAX_DISTANCE_CM / 100.0))
+                    distance = max(0.01, min(distance, self.settings.max_distance_cm / 100.0))
                 else:
                     unit = "cm"
-                    distance = max(0.1, min(distance, MAX_DISTANCE_CM))
+                    distance = max(0.1, min(distance, self.settings.max_distance_cm))
                 params["distance"] = distance
                 params["unit"] = unit
 
             if duration is not None:
-                params["duration"] = max(0.1, min(duration, MAX_DURATION_SEC))
+                params["duration"] = max(0.1, min(duration, self.settings.max_duration_sec))
 
         if intent.name in {"turn_left", "turn_right"}:
             angle = self._to_float(params.get("angle"), None)
             duration = self._to_float(params.get("duration"), None)
             if angle is not None:
-                params["angle"] = max(1.0, min(angle, MAX_ANGLE_DEG))
+                params["angle"] = max(1.0, min(angle, self.settings.max_angle_deg))
                 params["unit"] = "degrees"
             if duration is not None:
-                params["duration"] = max(0.1, min(duration, MAX_DURATION_SEC))
+                params["duration"] = max(0.1, min(duration, self.settings.max_duration_sec))
 
         return Intent(
             name=intent.name,
@@ -582,37 +725,123 @@ class VoiceRuntime:
 
     def handle_text_as_plan(self, text: str):
         """Traite une consigne complète en une fois via le LLM, puis exécute les étapes."""
+        trace_path = self._trace_path()
+        started_at = time.time()
+        self._write_trace_event(trace_path, {"event": "input", "text": text})
+        self.mission.reset()
+
         if self.use_llm:
-            intents = ask_llm_for_intent_plan(text)
+            intents, plan_trace = ask_llm_for_intent_plan_with_trace(text)
         else:
             intents = [self.parser.parse(text)]
+            plan_trace = {"source": "local_parser", "llm_content": None, "llm_json": None}
+
+        self._write_trace_event(
+            trace_path,
+            {
+                "event": "plan_raw",
+                "source": plan_trace.get("source"),
+                "intents": [self._intent_to_dict(it) for it in intents],
+                "llm_json": plan_trace.get("llm_json"),
+            },
+        )
 
         intents = self._normalize_plan_intent_names(intents)
         intents = self._expand_execute_path(intents)
         intents = self._expand_high_level_intents(intents)
         intents = self._expand_return_to_start(intents)
-        if len(intents) > MAX_PLAN_STEPS:
-            intents = intents[:MAX_PLAN_STEPS]
+
+        if len(intents) > int(self.settings.max_plan_steps):
+            intents = intents[: int(self.settings.max_plan_steps)]
             intents.append(Intent(name="stop", raw_text=text, confidence=1.0))
+
+        validated_intents, validation_errors = self._validate_intent_plan(intents)
+        self._write_trace_event(
+            trace_path,
+            {
+                "event": "plan_validated",
+                "intents": [self._intent_to_dict(it) for it in validated_intents],
+                "validation_errors": validation_errors,
+            },
+        )
+
+        if validation_errors and not validated_intents:
+            self.mission.fail("no valid plan step")
+            return {
+                "input": text,
+                "status": "rejected",
+                "reason": "no valid plan step",
+                "validation_errors": validation_errors,
+                "trace_path": str(trace_path),
+                "source": plan_trace.get("source"),
+                "mission": self.mission.as_dict(),
+            }
+
+        intents = validated_intents
         if not intents:
-            return {"status": "rejected", "reason": "empty plan", "input": text}
+            self.mission.fail("empty plan")
+            return {
+                "status": "rejected",
+                "reason": "empty plan",
+                "input": text,
+                "trace_path": str(trace_path),
+                "source": plan_trace.get("source"),
+                "mission": self.mission.as_dict(),
+            }
+
+        self.mission.start(intents[0].name, intents[0].target, metadata={"steps_total": len(intents)})
+        self.mission.begin_execution()
+        execution_started_at = time.time()
 
         steps = []
         global_status = "accepted"
         for intent in intents:
-            if not self.validator.validate(intent):
-                step_result = {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
-                global_status = "incomplete"
-            else:
-                step_result = self.controller.handle_intent(intent)
-                if step_result.get("status") != "accepted":
-                    global_status = "incomplete"
+            self.mission.state.metadata["step_index"] = len(steps)
+            if (time.time() - execution_started_at) > float(self.settings.mission_timeout_seconds):
+                global_status = "aborted"
+                step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
+                steps.append(step_result)
+                self.mission.abort("mission timeout")
+                self._write_trace_event(trace_path, {"event": "mission_timeout", "intent": self._intent_to_dict(intent)})
+                break
+
+            step_result = self._execute_intent_with_retry(intent, trace_path)
+            if step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}:
+                global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"
+                if global_status == "aborted":
+                    self.mission.abort(step_result.get("reason", "aborted"))
+                else:
+                    self.mission.fail(step_result.get("reason", "step failed"))
             steps.append(step_result)
+
+        if self.mission.state.phase == "executing":
+            if global_status == "accepted":
+                self.mission.succeed()
+            elif global_status == "aborted":
+                self.mission.abort("aborted")
+            else:
+                self.mission.fail("incomplete")
+
+        duration = round(time.time() - started_at, 4)
+        self._write_trace_event(
+            trace_path,
+            {
+                "event": "mission_result",
+                "status": global_status,
+                "duration_seconds": duration,
+                "steps_count": len(steps),
+            },
+        )
 
         return {
             "input": text,
             "status": global_status,
             "steps": steps,
+            "validation_errors": validation_errors,
+            "source": plan_trace.get("source"),
+            "trace_path": str(trace_path),
+            "duration_seconds": duration,
+            "mission": self.mission.as_dict(),
         }
 
     def listen_once(self):

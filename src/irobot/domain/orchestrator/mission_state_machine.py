@@ -31,7 +31,7 @@ class MissionStateMachine:
         self.state = MissionState()
 
     def start(self, intent: str, target: str | None = None, metadata: dict[str, Any] | None = None) -> None:
-        if intent not in {"follow_red_ball", "move_circle", "stop"}:
+        if not intent or not intent.strip():
             self.state.phase = "failed"
             self.state.last_error = f"Intent inconnue : {intent}"
             return
@@ -50,10 +50,12 @@ class MissionStateMachine:
     def fail(self, error: str) -> None:
         self.state.phase = "failed"
         self.state.last_error = error
+        self.state.metadata["failed_at"] = self.state.metadata.get("step_index")
 
     def abort(self, reason: str) -> None:
         self.state.phase = "aborted"
         self.state.last_error = reason
+        self.state.metadata["aborted_at"] = self.state.metadata.get("step_index")
 
     def reset(self) -> None:
         self.state = MissionState()

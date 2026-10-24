@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from irobot.config.settings import load_runtime_settings
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
+
+SETTINGS = load_runtime_settings()
 
 
 class MoveBackwardSkill(Skill):
@@ -31,7 +34,7 @@ class MoveBackwardSkill(Skill):
             duration_value = _to_float(duration)
             if duration_value is None and distance_value is not None:
                 distance_cm = distance_value * 100.0 if unit == "m" else distance_value
-                duration_value = max(0.1, distance_cm / 25.0)
+                duration_value = max(0.1, distance_cm / SETTINGS.cm_per_second)
 
             if hasattr(context.robot, "backward"):
                 if duration_value is not None and hasattr(context.robot, "backward_for"):

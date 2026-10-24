@@ -196,13 +196,13 @@ def test_voice_runtime_uses_parser_fallback_when_llm_plan_invalid(monkeypatch):
     monkeypatch.setattr(
         runtime_module,
         "ask_llm_for_intent_plan_with_trace",
-        lambda _text: ([Intent(name="unknown", raw_text="bad")], {"source": "llm_error_fallback_single_intent"}),
+        lambda _text: ([Intent(name="unknown", raw_text="bad")], {"source": "local_parser_fast_fallback"}),
     )
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
     result = runtime.handle_text_as_plan("avance")
 
-    assert result["source"] == "llm_error_fallback_single_intent"
+    assert result["source"] == "local_parser_fast_fallback"
 
 
 def test_voice_runtime_writes_trace_log(tmp_path, monkeypatch):

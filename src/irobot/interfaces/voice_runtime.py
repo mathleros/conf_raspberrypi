@@ -220,6 +220,8 @@ def ask_llm_for_intent(text: str) -> Intent:
 
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
     """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace."""
+    local_fallback = IntentParser().parse(text)
+
     payload = {
         "model": LLM_MODEL,
         "messages": [
@@ -237,18 +239,16 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         content = data["choices"][0]["message"]["content"].strip()
         parsed = _parse_llm_json_payload(content)
         if not parsed:
-            fallback = ask_llm_for_intent(text)
-            return [fallback], {
-                "source": "llm_fallback_single_intent",
+            return [local_fallback], {
+                "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": None,
             }
 
         raw_steps = parsed.get("steps")
         if not isinstance(raw_steps, list) or not raw_steps:
-            fallback = ask_llm_for_intent(text)
-            return [fallback], {
-                "source": "llm_fallback_missing_steps",
+            return [local_fallback], {
+                "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": parsed,
             }
@@ -272,9 +272,8 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
             )
 
         if not intents:
-            fallback = ask_llm_for_intent(text)
-            return [fallback], {
-                "source": "llm_fallback_empty_intents",
+            return [local_fallback], {
+                "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": parsed,
             }
@@ -285,9 +284,8 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
             "llm_json": parsed,
         }
     except Exception:
-        fallback = ask_llm_for_intent(text)
-        return [fallback], {
-            "source": "llm_error_fallback_single_intent",
+        return [local_fallback], {
+            "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
         }

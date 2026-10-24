@@ -21,14 +21,12 @@ import time
 
 try:
     from gpiozero import DigitalOutputDevice, PWMOutputDevice
-except ModuleNotFoundError as exc:  # pragma: no cover - relevant on non-Pi hosts only
-    raise SystemExit(
-        "Ce script nécessite le module gpiozero sur un Raspberry Pi. "
-        "Installez-le puis relancez le programme."
-    ) from exc
+except ModuleNotFoundError:  # pragma: no cover - relevant on non-Pi hosts only
+    DigitalOutputDevice = None
+    PWMOutputDevice = None
 
 try:
-    from irobot.sensors.hc_sr04 import HC_SR04
+    from irobot.hardware.sensors.hc_sr04 import HC_SR04
 except ModuleNotFoundError:  # pragma: no cover
     HC_SR04 = None
 

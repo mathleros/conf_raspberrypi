@@ -9,9 +9,13 @@ import time
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 import requests
-import vosk
 
-from irobot.smart_car.smart_car import SmartCar2WD
+try:
+    import vosk
+except ModuleNotFoundError:  # pragma: no cover - tests/macOS
+    vosk = None
+
+from irobot.hardware.smart_car.smart_car import SmartCar2WD
 
 RATE = 16000
 CARD_NAME = "wm8960"

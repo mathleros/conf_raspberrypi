@@ -7,9 +7,13 @@ requires-python = ">=3.12"
 dependencies = [
     "opencv-python>=4.11.0",
     "requests>=2.34.2",
-    "vosk>=0.3.45",
-    "gpiozero>=2.0.1",
+    "gpiozero>=2.0.1; platform_system == 'Linux'",
+    "vosk>=0.3.45; platform_system == 'Linux'",
+    "pytest>=8.3.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [project.scripts]
 test = "irobot:main"
@@ -18,6 +22,7 @@ color-detector = "irobot.camera.color_detector:main"
 # Alias conservé pour compatibilité avec l'ancien nom
 balle-rouge = "irobot.camera.color_detector:main"
 voice-assistant = "irobot.voice_assistant.voice_assistant:main"
+voice-runtime = "irobot.interfaces.voice_runtime:main"
 smart-car = "irobot.smart_car.smart_car:main"
 hc-sr04 = "irobot.sensors.hc_sr04:main"
 

@@ -1,14 +1,12 @@
-# Banc d'essai matériel Raspberry Pi
+# Raspberry Pi / iRobot playground
 
-Dépôt de **tests unitaires du matériel** autour d'un Raspberry Pi (caméra,
-audio, LEDs, GPS, assistant vocal). Le but final du projet n'est pas fixé :
-chaque script vérifie qu'un composant fonctionne, de façon isolée.
+Ce dépôt est un banc d'essai robotique autour d'un Raspberry Pi : caméra, audio, capteurs, Smart Car 2WD, assistant vocal local et orchestration de skills.
 
-Le projet a évolué vers une architecture plus robuste : le robot reçoit des
-instructions en français ou par commande vocale, transforme le texte en une
-**intention métier** (`Intent`), puis exécute un **plan de skills** validé par
-un orchestrateur. Les GPIO et le matériel ne sont plus pilotés directement par
-le LLM : ils sont appelés via des skills construites sur la couche `domain`.
+Le projet a évolué vers une architecture plus claire :
+- l'entrée texte / voix est transformée en `Intent`
+- l'`Intent` est validée puis convertie en plan de `Skill`s
+- le plan est exécuté par un orchestrateur
+- le matériel n'est pas piloté directement par le LLM, mais via des skills et un adaptateur robot
 
 ## Architecture actuelle
 
@@ -20,135 +18,119 @@ src/irobot/
 │   │   ├── perception/
 │   │   ├── behaviors/
 │   │   └── base_skill.py
-│   ├── orchestrator/
-│   │   ├── planner.py
-│   │   ├── registry.py
-│   │   ├── executor.py
-│   │   └── mission_state_machine.py
+│   └── orchestrator/
+│       ├── planner.py
+│       ├── registry.py
+│       ├── executor.py
+│       └── mission_state_machine.py
 ├── interfaces/
 │   ├── intent_parser.py
 │   ├── language_controller.py
-│   └── robot_controller.py
+│   ├── robot_controller.py
+│   └── voice_runtime.py
 ├── hardware/
+│   ├── audio/
 │   ├── camera/
-│   ├── smart_car/
 │   ├── sensors/
-│   └── audio/
-└── config/
+│   ├── smart_car/
+│   └── ...
+├── config/
+└── __init__.py
 ```
 
-### Flux de commande
+Flux principal :
 
 ```text
 Texte / voix
-   ↓
+  ↓
 IntentParser
-   ↓
+  ↓
 IntentValidator
-   ↓
+  ↓
 SkillPlanner
-   ↓
+  ↓
 SkillExecutor
-   ↓
-Skills (primitives / perception / behaviours)
-   ↓
-RobotController -> hardware concret
+  ↓
+Skills / RobotController / hardware
 ```
 
-Les principaux concepts sont :
-- `Intent` : intention structurée issue d'une phrase naturelle
-- `Skill` : contrat abstrait pour une action robotique
-- `SkillPlanner` : mapping intention → plan de skills
-- `SkillExecutor` : exécution sécurisée d'un plan
-- `RobotController` : adaptateur entre la logique métier et le matériel
+## Structure du dépôt
 
-## Commandes utiles
-
-| Commande | Rôle |
-|---|---|
-| `uv run camera-live` | affiche le flux de la caméra |
-| `uv run color-detector` | détection d'objets/balles rouges ou jaunes + position dans l'image |
-| `uv run micro-test` | test des micros du HAT ReSpeaker |
-| `uv run led-test` | test des LEDs du HAT ReSpeaker |
-| `uv run gpio-test` | test des sorties GPIO du Raspberry Pi |
-| `uv run smart-car forward --duration 1` | avance la voiture Smart Car 2WD pendant 1 seconde |
-| `uv run voice-assistant` | assistant vocal local (STT vosk + LLM Ministral 3 3B) |
+```text
+.
+├── README.md
+├── PROJECT_CONTEXT.md
+├── pyproject.toml
+├── docs/
+│   ├── guide-installation-llm-local-pi5.md
+│   └── guide-installation-llm-mac-portable.md
+├── scripts/
+│   ├── README.md
+│   ├── install/
+│   │   ├── install_llm_mac_portable.sh
+│   │   ├── install_llm.sh
+│   │   ├── install_respeaker.sh
+│   │   ├── install_rpigpio.sh
+│   │   ├── install_bluetooth_audio.sh
+│   │   └── connect_jabra_bt.sh
+│   └── test/
+│       └── run_llm_runtime_mac.sh
+├── src/
+│   └── irobot/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── hardware/
+└── target/
+```
 
 ## Prérequis
 
-Tout se fait sur un **Raspberry Pi 4 ou 5** (ou CM4/CM5) sous **Raspberry Pi OS
-64 bits** (Debian Bookworm ou supérieur). Il faut une carte SD ≥ 16 Go, un
-accès SSH, et un ordinateur pour flasher la carte.
+- Raspberry Pi 4 ou 5
+- Raspberry Pi OS 64 bits
+- Python >= 3.12
+- `uv` pour la gestion du projet
+- outils système selon le matériel utilisé
 
-### 1. Installer Raspberry Pi OS (64 bits)
+## Démarrage rapide
 
-1. Télécharger **Raspberry Pi Imager** : <https://www.raspberrypi.com/software/>
-2. Lancer Imager → **Raspberry Pi OS (64-bit)**, choisir la carte SD, **Écrire**.
-3. Avant d'écrire, cliquer sur ⚙ **Options** et activer **SSH** (onglet
-   *Services*) ; définir un utilisateur/mot de passe dans **Général**.
-
-> Si la carte est déjà écrite : créer un fichier vide `ssh` dans la partition `bootfs`
-> de la carte.
-
-### 2. Se connecter
+### 1. Installer les dépendances Python
 
 ```bash
-ssh <user>@<adresse_ip_du_pi>      # ex. : ssh pi@192.168.1.42
-```
-
-Pour trouver l'adresse : `hostname -I` (sur le Pi avec un écran),
-`ping raspberrypi.local` (mDNS), ou la liste des clients du routeur.
-
-### 3. Mises à jour
-
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3-picamera2 git      # picamera2 vient des dépôts Deb
-```
-
-## Matériel testé
-
-| Composant | Référence | Notes |
-|---|---|---|
-| Carte | Raspberry Pi 5 8 GB | Rev 1.1 ; Pi 4 compatible |
-| Caméra | InnoMaker CAM-OV5647 (OV5647) | Sans EEPROM : pas d'auto-détection fiable, forcer `dtoverlay=ov5647,cam1` si besoin |
-| Audio / micros / LEDs | Keyestudio ReSpeaker 2-Mic Pi HAT V1.0 (KS0314, WM8960) | 2 micros, sortie 3,5 mm, 3 LEDs APA102, bouton GPIO17 |
-| GPS/GNSS | u-blox MAX-M10S (HAT Waveshare) | GPS+GLONASS+Galileo+BeiDou, < 25 mW, UART `/dev/serial0` + PPS |
-| Alimentation | Batterie Enerwow 27000 mAh | 418 g, alimente le Pi sans souci |
-
-> La caméra OV5647 sans EEPROM n'est pas toujours auto-détectée : si `dmesg | grep ov5647`
-> est vide après boot, ajouter `dtoverlay=ov5647,cam1` dans `/boot/firmware/config.txt`.
-
-## Installation du projet
-
-### 4. Installer le support GPIO pour le Smart Car
-
-Pour piloter la voiture 2 roues motrices branchée sur un L298N, il faut installer
-la librairie GPIO compatible avec le Raspberry Pi 5 sous Debian 13 :
-
-```bash
-sudo ./install_rpigpio.sh
+cd /path/to/conf_raspberrypi
 uv sync --project .
 ```
 
-> Sur Raspberry Pi 5 / Debian 13, `gpiozero` est préféré à `RPi.GPIO` car il est mieux supporté.
-
-### 5. Tester les GPIO
+### 2. Installer le LLM local sur macOS (portable)
 
 ```bash
-# ou tester seulement certains GPIO
-uv run gpio-test 5 6 16 24 --duration 0.5
+cd /path/to/conf_raspberrypi
+bash scripts/install/install_llm_mac_portable.sh
 ```
 
-### 6. Piloter la voiture Smart Car 2WD
+### 3. Tester le runtime sans microphone sur Mac
 
-Le module L298N est branché comme suit :
-- IN1 → GPIO 5
-- IN2 → GPIO 6
-- IN3 → GPIO 16
-- IN4 → GPIO 24
+```bash
+cd /path/to/conf_raspberrypi
+bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+```
 
-Exemples :
+### 4. Lancer un test de runtime complet
+
+```bash
+bash scripts/test/run_llm_runtime_mac.sh
+```
+
+## Commandes utiles
+
+### Caméra
+
+```bash
+uv run camera-live
+uv run color-detector
+```
+
+### Smart Car
 
 ```bash
 uv run smart-car forward --duration 1
@@ -158,283 +140,61 @@ uv run smart-car right --duration 0.5
 uv run smart-car stop
 ```
 
-Le script `smart_car.py` pilote directement les deux moteurs via le L298N. La roue centrale est libre et non motorisée.
-
-### 7. Installation du projet
-
-Cloner le dépôt, créer l'environnement et installer les dépendances :
+### Assistant vocal / runtime
 
 ```bash
-git clone https://github.com/mathleros/conf_raspberrypi.git
-cd conf_raspberrypi
-uv sync --project .
+uv run voice-assistant --once
+uv run voice-assistant --once --input-device bluetooth
 ```
 
-> `uv` s'installe via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-
-## Installation du projet
-
-Cloner le dépôt, créer l'environnement et installer les dépendances :
+### Tests Python
 
 ```bash
-git clone git@github.com:mathleros/conf_raspberrypi.git test
-cd test
-uv venv --system-site-packages   # requis pour accéder à picamera2 (installé via apt)
-uv sync
+pytest
 ```
 
-> `uv` s'installe via `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+## Concepts clés
 
-### ReSpeaker (micros + LEDs) — une seule fois
+- `Intent` : intention structurée issue d'une commande naturelle
+- `Skill` : action atomique ou logique de haut niveau
+- `SkillPlanner` : mapping `Intent` -> plan de skills
+- `SkillExecutor` : exécution du plan
+- `RobotController` : adaptation au matériel réel
 
-```bash
-sudo ./install_respeaker.sh      # overlay wm8960-soundcard + SPI + état ALSA
-sudo reboot
-```
+## Matériel supporté
 
-Vérifier : `aplay -l` / `arecord -l` doivent lister `wm8960-soundcard`.
-L'état ALSA (réglages micros) est réappliqué à chaque boot par un service systemd.
+Le dépôt couvre plusieurs axes de test :
+- caméra CSI
+- capteurs / distance / GPIO
+- LED / audio / microphones
+- Smart Car 2WD avec L298N
+- assistant vocal local hors ligne
 
-### Assistant vocal (LLM local) — une seule fois
+## Documentation
 
-```bash
-sudo ./install_llm.sh            # llama.cpp + modèle Ministral 3 3B + vosk
-sudo systemctl start ministral.service
-```
+- `docs/guide-installation-llm-mac-portable.md` : installation portable du LLM sur Mac
+- `docs/guide-installation-llm-local-pi5.md` : installation locale sur Raspberry Pi
+- `PROJECT_CONTEXT.md` : contexte technique et règles de structure du dépôt
+- `scripts/README.md` : vue d'ensemble des scripts d'installation et de test
 
-Le serveur LLM (`llama-server`) écoute sur `127.0.0.1:8080` (API compatible
-OpenAI), modèle **Ministral 3 3B** (le plus petit LLM de chez Mistral, Apache
-2.0), stocké dans `~/models/`. Test : `curl http://127.0.0.1:8080/v1/models`.
+## Règles de structure
 
-## Scripts de test
+Le dépôt suit une séparation claire entre :
+- `scripts/install/` : installation système / matériel / LLM / Bluetooth
+- `scripts/test/` : validation locale / runtime / démonstration
+- `tests/` : tests Python automatisés
 
-### `camera-live` — caméra
-Affiche le flux en direct (fenêtre « Camera 1 - Live », touche `q` pour
-quitter). Messages explicites si la caméra n'est pas détectée ou l'index invalide.
+Cette séparation permet de ne pas mélanger :
+- configuration système
+- validation fonctionnelle locale
+- tests de qualité automatisés
 
-### `color-detector` — détection de couleur
-Analyse le flux en direct : seuillage HSV pour les couleurs rouge/jaune,
-nettoyage morphologique, extraction de contours et classification en balle ou
-objet. Le script retourne aussi la position approximative dans l'image :
-`CENTRE`, `EN_HAUT`, `EN_BAS`, `A_GAUCHE`, `A_DROITE`, etc.
+## Dépannage rapide
 
-```bash
-uv run color-detector
-uv run color-detector --color red
-uv run color-detector --color yellow
-uv run color-detector --debug
-uv run color-detector --robotic
-```
+- `cmake` manquant sur macOS : installer les Xcode Command Line Tools puis `cmake`
+- serveur LLM non dispo : `bash scripts/test/run_llm_runtime_mac.sh`
+- `uv` absent : installer `uv` puis relancer `uv sync --project .`
 
-L'ancien alias `balle-rouge` reste disponible pour compatibilité.
+## Licence et usage
 
-### `micro-test` — micros ReSpeaker
-Détecte la carte WM8960, affiche les **niveaux L/R en temps réel**, enregistre
-5 s en WAV (16 kHz, stéréo) puis rejoue le fichier.
-
-### `led-test` — LEDs APA102
-Pilote les 3 LEDs sur `/dev/spidev0.1` (SPI0, CS1) : `static red green blue`,
-`scan`, `rainbow`, `off`.
-
-```bash
-uv run led-test static red green blue
-```
-
-### `gpio-test` — tests des GPIO
-Teste les sorties GPIO : chaque broche est activée brièvement puis remise à l'état
-bas. Utile pour valider le câblage du L298N ou d'autres modules.
-
-```bash
-uv run gpio-test 5 6 16 24 --duration 0.5
-```
-
-### `smart-car` — contrôle de la Smart Car 2WD
-Contrôle la voiture 2 roues motrices : `forward`, `backward`, `left`, `right`,
-`stop`. Le module L298N est branché sur les GPIO 5, 6, 16, 24 et les sorties
-PWM ENA/ENB sont sur 12/13.
-
-```bash
-uv run smart-car forward --speed 0.7 --duration 1
-uv run smart-car backward --speed 0.6 --duration 1
-uv run smart-car left --speed 0.4 --duration 0.5
-uv run smart-car right --speed 0.4 --duration 0.5
-uv run smart-car stop
-```
-
-### `voice-assistant` — assistant vocal local
-Micro → **vosk** (STT français) → `[texte]` sur stdout → **Ministral 3 3B**
-(llama.cpp local) → `[réponse]` sur stdout. Tout reste sur la machine (hors
-ligne). Options : `--once` (une phrase puis fin), `--no-llm` (transcription seule).
-
-```bash
-uv run voice-assistant          # écoute continue
-uv run voice-assistant --once   # une phrase, idéal pour un test
-```
-
-## Contrôle vocal de la voiture
-
-Le module `voice-assistant` peut désormais piloter la Smart Car par la voix en français ou en anglais.
-
-### Commandes vocales prises en charge
-
-- `avance`, `avancer`, `go forward`, `forward`
-- `recule`, `reculer`, `go back`, `backward`
-- `tourne à gauche`, `turn left`, `left`
-- `tourne à droite`, `turn right`, `right`
-- `stop`, `arrêt`, `stop car`
-- `va plus vite`, `go faster`, `faster`
-- `va moins vite`, `go slower`, `slower`
-
-### Durée
-
-La commande peut inclure une durée explicite, par exemple :
-
-- `avance pendant 2 secondes`
-- `tourne à gauche pendant 1.5 s`
-- `go for 3 seconds`
-- `turn right for 2 sec`
-
-Si aucune durée n’est donnée, le comportement par défaut est de 1 seconde.
-
-### Vitesse
-
-La voiture démarre par défaut à une vitesse moyenne :
-
-```bash
---car-speed 0.5
-```
-
-Tu peux aussi demander de modifier la vitesse à la voix :
-
-- `va plus vite`
-- `go faster`
-- `va moins vite`
-- `slower`
-
-### Exemple d’utilisation
-
-```bash
-uv run voice-assistant --car --input-device bluetooth
-```
-
-Puis dire par exemple :
-
-- “avance”
-- “avance pendant 2 secondes”
-- “tourne à droite”
-- “tourne à gauche pendant 1 seconde”
-- “va plus vite”
-- “stop”
-
-### Comportement technique
-
-Le contrôleur vocal transforme le texte reconnu en commandes de la `SmartCar2WD` :
-- direction : avant / arrière / gauche / droite / stop
-- vitesse : gestion via PWM sur ENA / ENB
-- durée : exécution pendant la durée détectée, puis arrêt automatique
-
-Le mode vocal est particulièrement utile pour un robot autonome ou pour des démonstrations sans clavier.
-
-## Dépannage
-
-| Problème | Cause probable | Solution |
-|---|---|---|
-| `i2c read error ... = -121` au boot | Nappe FPC caméra inversée ou mal branchée | Refaire le câblage en vérifiant le sens de la nappe |
-| `0 camera(s) détectée(s)` | Caméra clone non reconnue | Forcer `dtoverlay=ov5647,cam1` dans `config.txt` |
-| `Could not find the Qt platform plugin` lors de l'affichage | OpenCV cherche Wayland | Le script force `QT_QPA_PLATFORM=xcb` automatiquement |
-| `ModuleNotFoundError: No module named 'picamera2'` | venv uv sans paquets système | Recréer avec `uv venv --system-site-packages` |
-| `aucune carte WM8960 détectée` | Overlay audio inactif ou pas redémarré | Vérifier `dtoverlay=wm8960-soundcard` puis `sudo reboot` |
-| `impossible d'ouvrir /dev/spidev0.1` | SPI désactivé | Vérifier `dtparam=spi=on` puis `sudo reboot` |
-| LEDs muettes alors que `led-test` passe | HAT mal enfoncé / alimentation | Re-enfoncer le HAT ; alimenter via Micro USB |
-| `[erreur LLM] Connection refused` | Serveur LLM arrêté | `sudo systemctl start ministral.service` |
-| Réponse LLM lente | Inférence CPU sur Pi | Normal : ~3-5 tok/s ; questions courtes ou `--once` |
-
-## Structure
-
-```
-.
-├── pyproject.toml             # dépendances + commandes uv
-├── README.md                  # documentation du projet
-├── install_rpigpio.sh         # installation gpiozero pour Pi 5
-├── install_respeaker.sh       # installation du HAT ReSpeaker
-├── install_llm.sh             # installation llama.cpp + Ministral 3 3B + vosk
-├── commandes.txt              # commandes sudo utiles
-├── docs/                     # guides techniques et documentation
-├── src/
-│   └── irobot/
-│       ├── __init__.py
-│       ├── camera/
-│       │   ├── __init__.py
-│       │   ├── camera_live.py
-│       │   └── balle_rouge.py
-│       ├── smart_car/
-│       │   ├── __init__.py
-│       │   ├── README.md
-│       │   └── smart_car.py
-│       └── voice_assistant/
-│           ├── __init__.py
-│           └── voice_assistant.py
-└── tests/
-    ├── __init__.py
-    ├── README.md
-    ├── unit/
-    │   ├── README.md
-    │   ├── fake_robot.py
-    │   ├── test_skills_primitives.py
-    │   ├── test_skills_perception.py
-    │   └── test_skills_behaviors.py
-    └── hardware/
-        ├── test_hardware_gpio.py
-        ├── test_hardware_micro.py
-        ├── test_hardware_led.py
-        └── test_hardware_distance.py
-```
-
-Modèles et outils volumineux (hors dépôt) : `~/models/` (Ministral 3 3B GGUF
-Q4_K_M, vosk-fr) et `~/tools/llama.cpp/`.
-
-Les commandes de test sont déclarées dans `pyproject.toml`, section
-`[project.scripts]`, et s'invoquent avec `uv run <commande>` depuis la racine du
-projet.
-
-### Capteur ultrason HC-SR04
-
-Le capteur HC-SR04 est compatible avec le projet, mais il n’a pas de script d’installation dédié.
-
-Il dépend de la configuration GPIO déjà fournie par le projet :
-
-```bash
-sudo ./scripts/install_rpigpio.sh
-```
-
-Ensuite, câbler le capteur selon le schéma GPIO standard :
-- TRIG -> GPIO 17 (broche physique 11)
-- ECHO -> GPIO 27 (broche physique 13)
-- GND -> broche physique 6 (masse du Raspberry Pi)
-- VCC -> broche physique 4 (5V du Raspberry Pi)
-
-Le test du capteur est réalisé via le module :
-
-```bash
-uv run hc-sr04 --once
-```
-
-Le but du test est de mesurer la distance du premier objet détecté devant le capteur.
-
-### Règle de robustesse GPIO
-
-Pour tous les scripts qui utilisent `gpiozero` sur Raspberry Pi, on applique la règle suivante :
-- fermer proprement les dispositifs GPIO (`close()`)
-- puis terminer le programme avec `os._exit(0)` après le nettoyage
-
-Cette précaution est nécessaire sur certains Raspberry Pi où le backend GPIO (`lgpio`/`gpiozero`) peut provoquer un crash Python au moment du shutdown, même lorsque le code a bien fonctionné.
-
-Exemple de principe à appliquer dans les scripts de capteur ou de pilotage moteur :
-
-```python
-try:
-    ...
-finally:
-    sensor.cleanup()
-    os._exit(0)
-```
+Ce dépôt est un environnement de prototypage / laboratoire. Il sert à valider les composants matériels et la logique de commande robotique, pas à fournir un produit finalisé.

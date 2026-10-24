@@ -1,122 +1,60 @@
 # Skills du robot
 
-Ce package contient les compétences unitaires du robot, structurées selon un
-contrat commun.
+Ce package regroupe les compétences exécutables du robot selon un contrat
+commun (`Skill`, `SkillContext`, `SkillResult`).
 
-## Contrat de base
+## Contrat
 
-Chaque skill doit dériver de `Skill` et implémenter :
+Chaque skill implémente :
 - `execute(context) -> SkillResult`
-- éventuellement `validate(context) -> bool`
+- optionnellement `validate(context) -> bool`
 
-Les résultats sont homogènes et ne doivent jamais dépendre d'un texte libre
-improvisé. Cela permet à un orchestrateur de décider de manière fiable de la
-suite à exécuter.
+Les skills n'accèdent pas directement aux GPIO ; elles passent par
+`RobotController` injecté dans le contexte.
 
-## Adapter matériel / skills
+## Organisation
 
-Les skills n'interagissent pas directement avec les GPIO ni avec la classe
-concrète `SmartCar2WD`.
+### Primitives
+- `MoveForwardSkill`
+- `MoveBackwardSkill`
+- `TurnLeftSkill`
+- `TurnRightSkill`
+- `StopMotionSkill`
 
-Elles utilisent le contexte partagé qui contient un adaptateur :
-- `RobotController`
+### Perception
+- `DetectObjectSkill`
+- `DetectObstacleSkill`
 
-Exemple de contexte :
+### Behaviors composites
+- `FollowTargetSkill`
+- `MoveCircleSkill`
+
+## Note importante sur `MoveCircleSkill`
+
+`MoveCircleSkill` est un behavior composite, pas une primitive.
+Il doit être interprété comme une séquence de primitives (rotation + avance)
+pilotée par l'orchestrateur.
+
+Exemple logique de plan :
 
 ```python
-from irobot.robot_controller import RobotController
-from irobot.skills import SkillContext
-from irobot.smart_car.smart_car import SmartCar2WD
-
-car = SmartCar2WD()
-context = SkillContext(
-    robot=RobotController(car),
-    state={},
-)
+plan = [
+  ("turn_left", 0.5),
+  ("move_forward", 0.2),
+  ("turn_left", 0.5),
+  ("move_forward", 0.2),
+  ("stop_motion", None),
+]
 ```
 
-Dans ce schéma, la skill appelle :
-- `context.robot.forward()`
-- `context.robot.left()`
-- `context.robot.stop()`
-
-et non pas directement les broches GPIO.
-
-## Hiérarchie recommandée des skills
-
-### 1. Skills primitives (atomiques)
-
-Ce sont les actions de base du robot :
-
-- `MoveForwardSkill`
-- `MoveBackwardSkill`
-- `TurnLeftSkill`
-- `TurnRightSkill`
-- `StopMotionSkill`
-
-Ces skills doivent être simples, deterministes et sécurisées.
-
-### 2. Skills de perception
-
-- `DetectRedBallSkill`
-- `DetectObstacleSkill`
-
-### 3. Behaviors / tâches composites
-
-Ce sont des séquences de skills primitives, généralement orchestration + observation + boucle de contrôle :
-
-- `FollowTargetSkill`
-- `MoveCircleSkill`
-
-Important : `MoveCircleSkill` ne doit pas être considéré comme une primitive. Il s'agit d'une composition de mouvements, typiquement :
-
-- `turn_left` pendant X secondes
-- éventuellement `move_forward` pendant un petit intervalle pour tracer un arc
-- `stop_motion` quand le cercle est terminé
-
-## Skills disponibles
-
-- `MoveForwardSkill`
-- `MoveBackwardSkill`
-- `TurnLeftSkill`
-- `TurnRightSkill`
-- `StopMotionSkill`
-- `DetectRedBallSkill`
-- `DetectObstacleSkill`
-- `FollowTargetSkill`
-- `MoveCircleSkill`
-
-## Schéma de résultat
+## Exemple de résultat
 
 ```python
 SkillResult(
-    status="success",
-    message="...",
-    data={...},
-    confidence=0.9,
-    next_action="skill_name",
+  status="success",
+  message="...",
+  data={...},
+  confidence=0.9,
+  next_action="skill_name",
 )
-```
-
-## Principes de conception
-
-- une skill doit être testable indépendamment ;
-- une skill ne doit pas savoir comment le LLM a formulé la demande ;
-- une skill doit retourner un résultat standardisé ;
-- les conditions de sécurité doivent être prises en compte dans le flux de
-  validation ou dans l'orchestrateur ;
-- les skills doivent rester petites et spécialisées.
-
-## Exemple d'utilisation
-
-```python
-from irobot.robot_controller import RobotController
-from irobot.skills import MoveForwardSkill, SkillContext
-from irobot.smart_car.smart_car import SmartCar2WD
-
-car = SmartCar2WD()
-context = SkillContext(robot=RobotController(car), state={})
-skill = MoveForwardSkill()
-result = skill.execute(context)
-print(result)
 ```

@@ -35,7 +35,7 @@ Formalise les phases d'une mission :
 ## Exemple d'utilisation
 
 ```python
-from irobot.skills import DetectRedBallSkill, FollowTargetSkill, StopMotionSkill
+from irobot.skills import DetectObjectSkill, FollowTargetSkill, StopMotionSkill
 from irobot.orchestrator import SkillExecutor, SkillPlanner, MissionStateMachine
 from irobot.skills.base_skill import SkillContext
 
@@ -45,7 +45,7 @@ context = SkillContext(
 )
 
 executor = SkillExecutor(context)
-planner = SkillPlanner([DetectRedBallSkill(), FollowTargetSkill(), StopMotionSkill()])
+planner = SkillPlanner([DetectObjectSkill(), FollowTargetSkill(), StopMotionSkill()])
 mission = MissionStateMachine()
 
 mission.start("follow_red_ball", target="red_ball")

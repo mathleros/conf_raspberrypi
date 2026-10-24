@@ -6,35 +6,24 @@ Cette organisation vise à rendre visible la hiérarchie fonctionnelle du robot 
 src/irobot/
 ├── README.md
 ├── __init__.py
-├── robot_controller.py
-├── camera/
-├── sensors/
-├── smart_car/
-├── voice_assistant/
-├── skills/
-│   ├── __init__.py
-│   ├── base_skill.py
-│   ├── primitives/
-│   │   ├── __init__.py
-│   │   ├── move_forward.py
-│   │   ├── move_backward.py
-│   │   ├── turn_left.py
-│   │   ├── turn_right.py
-│   │   └── stop_motion.py
-│   ├── perception/
-│   │   ├── __init__.py
-│   │   ├── detect_red_ball.py
-│   │   └── detect_obstacle.py
-│   └── behaviors/
-│       ├── __init__.py
-│       ├── follow_target.py
-│       └── move_circle.py
-├── orchestrator/
-│   ├── __init__.py
-│   ├── executor.py
-│   ├── planner.py
-│   ├── mission_state_machine.py
-│   └── README.md
+├── domain/
+│   ├── orchestrator/
+│   └── skills/
+│       ├── base_skill.py
+│       ├── primitives/
+│       │   ├── move_forward.py
+│       │   ├── move_backward.py
+│       │   ├── turn_left.py
+│       │   ├── turn_right.py
+│       │   └── stop_motion.py
+│       ├── perception/
+│       │   ├── detect_object.py
+│       │   └── detect_obstacle.py
+│       └── behaviors/
+│           ├── follow_target.py
+│           └── move_circle.py
+├── interfaces/
+├── hardware/
 └── ...
 ```
 

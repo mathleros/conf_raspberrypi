@@ -48,7 +48,7 @@ SYSTEM_PROMPT_PLAN = (
     "Réponds UNIQUEMENT en JSON valide au format: "
     "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
     "Découpe la consigne en étapes atomiques ordonnées. "
-    "Intents autorisées: follow_red_ball, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start. "
+    "Intents autorisées: follow_red_ball, avoid_obstacle, contour_obstacle, spin_360, move_square, move_forward, move_backward, turn_left, turn_right, stop, return_to_start. "
     "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
 )
 
@@ -324,6 +324,142 @@ class VoiceRuntime:
 
         return expanded
 
+    def _normalize_plan_intent_names(self, intents: list[Intent]) -> list[Intent]:
+        """Normalise les noms d'intents issus du LLM pour limiter les `unknown`."""
+        synonyms = {
+            "contourner_obstacle": "contour_obstacle",
+            "contourne_obstacle": "contour_obstacle",
+            "avoid": "avoid_obstacle",
+            "rotate_360": "spin_360",
+            "spin": "spin_360",
+            "square": "move_square",
+            "go_home": "return_to_start",
+            "back_to_start": "return_to_start",
+        }
+        normalized: list[Intent] = []
+        for intent in intents:
+            name = intent.name.strip().lower()
+            mapped = synonyms.get(name, name)
+            normalized.append(
+                Intent(
+                    name=mapped,
+                    target=intent.target,
+                    parameters=dict(intent.parameters),
+                    confidence=intent.confidence,
+                    raw_text=intent.raw_text,
+                )
+            )
+        return normalized
+
+    def _expand_high_level_intents(self, intents: list[Intent]) -> list[Intent]:
+        """Décompose certains intents haut niveau en primitives exécutables."""
+        def _to_float(value: Any, default: float) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        expanded: list[Intent] = []
+        for intent in intents:
+            if intent.name == "spin_360":
+                for _ in range(4):
+                    expanded.append(
+                        Intent(
+                            name="turn_right",
+                            target=intent.target,
+                            parameters={"angle": 90, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        )
+                    )
+                continue
+
+            if intent.name == "move_square":
+                side = _to_float(intent.parameters.get("side", intent.parameters.get("distance", 40.0)), 40.0)
+                unit = str(intent.parameters.get("unit", "cm"))
+                direction = str(intent.parameters.get("turn_direction", "right")).lower()
+                turn_intent = "turn_left" if direction == "left" else "turn_right"
+                for _ in range(4):
+                    expanded.append(
+                        Intent(
+                            name="move_forward",
+                            target=intent.target,
+                            parameters={"distance": side, "unit": unit},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        )
+                    )
+                    expanded.append(
+                        Intent(
+                            name=turn_intent,
+                            target=intent.target,
+                            parameters={"angle": 90, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        )
+                    )
+                continue
+
+            if intent.name == "contour_obstacle":
+                clearance = _to_float(intent.parameters.get("clearance", intent.parameters.get("distance", 20.0)), 20.0)
+                unit = str(intent.parameters.get("unit", "cm"))
+                expanded.extend(
+                    [
+                        Intent(
+                            name="turn_right",
+                            target=intent.target,
+                            parameters={"angle": 45, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        ),
+                        Intent(
+                            name="move_forward",
+                            target=intent.target,
+                            parameters={"distance": clearance, "unit": unit},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        ),
+                        Intent(
+                            name="turn_left",
+                            target=intent.target,
+                            parameters={"angle": 90, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        ),
+                        Intent(
+                            name="move_forward",
+                            target=intent.target,
+                            parameters={"distance": clearance, "unit": unit},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        ),
+                        Intent(
+                            name="turn_right",
+                            target=intent.target,
+                            parameters={"angle": 45, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        ),
+                    ]
+                )
+                continue
+
+            if intent.name in {"turn_right", "turn_left"} and bool(intent.parameters.get("full_rotation")):
+                for _ in range(4):
+                    expanded.append(
+                        Intent(
+                            name=intent.name,
+                            target=intent.target,
+                            parameters={"angle": 90, "unit": "degrees"},
+                            confidence=intent.confidence,
+                            raw_text=intent.raw_text,
+                        )
+                    )
+                continue
+
+            expanded.append(intent)
+        return expanded
+
     def handle_text(self, text: str):
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
@@ -337,6 +473,8 @@ class VoiceRuntime:
         else:
             intents = [self.parser.parse(text)]
 
+        intents = self._normalize_plan_intent_names(intents)
+        intents = self._expand_high_level_intents(intents)
         intents = self._expand_return_to_start(intents)
         if not intents:
             return {"status": "rejected", "reason": "empty plan", "input": text}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
 
@@ -14,8 +16,28 @@ class TurnLeftSkill(Skill):
 
     def execute(self, context: SkillContext) -> SkillResult:
         try:
+            params = dict(context.state.get("active_intent_parameters") or {})
+            angle = params.get("angle")
+            if angle is None and params.get("full_rotation"):
+                angle = 360
+            duration = params.get("duration")
+
+            def _to_float(value: Any) -> float | None:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return None
+
+            angle_value = _to_float(angle)
+            duration_value = _to_float(duration)
+            if duration_value is None and angle_value is not None:
+                duration_value = max(0.1, angle_value / 180.0)
+
             if hasattr(context.robot, "left"):
-                context.robot.left()
+                if duration_value is not None and hasattr(context.robot, "left_for"):
+                    context.robot.left_for(duration_value)
+                else:
+                    context.robot.left()
             else:
                 return SkillResult(
                     status="failed",
@@ -29,7 +51,7 @@ class TurnLeftSkill(Skill):
             return SkillResult(
                 status="success",
                 message="Rotation gauche exécutée.",
-                data={"motion": "left"},
+                data={"motion": "left", "angle": angle_value, "duration": duration_value},
                 confidence=0.9,
                 next_action="track_target",
             )

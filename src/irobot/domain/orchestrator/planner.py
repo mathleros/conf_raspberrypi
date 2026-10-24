@@ -25,6 +25,22 @@ class SkillPlanner:
         "move_backward": ["move_backward"],
         "turn_left": ["turn_left"],
         "turn_right": ["turn_right"],
+        "spin_360": [
+            "turn_right",
+            "turn_right",
+            "turn_right",
+            "turn_right",
+        ],
+        "move_square": [
+            "move_forward",
+            "turn_right",
+            "move_forward",
+            "turn_right",
+            "move_forward",
+            "turn_right",
+            "move_forward",
+            "turn_right",
+        ],
         "move_circle": [
             "turn_left",
             "move_forward",
@@ -34,6 +50,12 @@ class SkillPlanner:
         "avoid_obstacle": [
             "detect_obstacle",
             "stop_motion",
+            "turn_left",
+            "move_forward",
+        ],
+        "contour_obstacle": [
+            "turn_right",
+            "move_forward",
             "turn_left",
             "move_forward",
         ],

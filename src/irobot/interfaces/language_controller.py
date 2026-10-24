@@ -34,6 +34,9 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             state={
+                "active_intent": intent,
+                "active_intent_name": intent.name,
+                "active_intent_parameters": dict(intent.parameters),
                 "last_camera_position": None,
                 "last_ball_position": None,
                 "camera_ready": self.camera is not None,
@@ -43,6 +46,7 @@ class LanguageController:
         executor = SkillExecutor(context)
         results = []
         for skill in plan:
+            context.state["active_skill"] = skill.name
             result = executor.run(skill)
             results.append(result)
             if result.next_action:
@@ -68,6 +72,9 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             state={
+                "active_intent": intent,
+                "active_intent_name": intent.name,
+                "active_intent_parameters": dict(intent.parameters),
                 "last_camera_position": None,
                 "last_ball_position": None,
                 "camera_ready": self.camera is not None,
@@ -75,7 +82,10 @@ class LanguageController:
         )
 
         executor = SkillExecutor(context)
-        results = [executor.run(skill) for skill in plan]
+        results = []
+        for skill in plan:
+            context.state["active_skill"] = skill.name
+            results.append(executor.run(skill))
         return {
             "intent": intent,
             "status": "accepted",

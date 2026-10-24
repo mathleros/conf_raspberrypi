@@ -38,6 +38,25 @@ def _extract_duration(text: str) -> float | None:
     return None
 
 
+def _extract_distance(text: str) -> tuple[float, str] | None:
+    """Extrait une distance (cm ou m) depuis une phrase libre."""
+    patterns = [
+        r"\b(\d+(?:[.,]\d+)?)\s*(cm|centim[eè]tre|centim[eè]tres)\b",
+        r"\b(\d+(?:[.,]\d+)?)\s*(m|m[eè]tre|m[eè]tres)\b",
+    ]
+    lowered = text.lower()
+    for pattern in patterns:
+        match = re.search(pattern, lowered)
+        if not match:
+            continue
+        value = float(match.group(1).replace(",", "."))
+        unit = match.group(2)
+        if unit.startswith("cm") or unit.startswith("centim"):
+            return (max(0.1, value), "cm")
+        return (max(0.01, value), "m")
+    return None
+
+
 class IntentParser:
     """Transforme du texte libre en intention métier structurée."""
 
@@ -50,6 +69,41 @@ class IntentParser:
 
         if any(token in lowered for token in ["stop", "arrêt", "arrete", "halt", "pause"]):
             return Intent(name="stop", confidence=0.95, raw_text=text)
+
+        if any(token in lowered for token in ["retour au point de départ", "reviens au point de départ", "point de départ", "point de depart"]):
+            return Intent(name="return_to_start", confidence=0.9, raw_text=text)
+
+        if any(token in lowered for token in ["tour sur toi", "tourne sur toi", "rotation complète", "rotation complete", "360"]):
+            return Intent(
+                name="spin_360",
+                parameters={"angle": 360, "unit": "degrees"},
+                confidence=0.9,
+                raw_text=text,
+            )
+
+        if any(token in lowered for token in ["carré", "carre", "forme un carré", "forme un carre"]):
+            distance = _extract_distance(cleaned)
+            side = distance[0] if distance else 40.0
+            unit = distance[1] if distance else "cm"
+            return Intent(
+                name="move_square",
+                parameters={"side": side, "unit": unit, "turn_direction": "right"},
+                confidence=0.86,
+                raw_text=text,
+            )
+
+        if any(token in lowered for token in ["contourne", "contourner", "évite l'objet", "evite l'objet", "évite objet", "evite objet"]):
+            distance = _extract_distance(cleaned)
+            parameters: dict[str, Any] = {"direction": "right", "clearance": 20.0, "unit": "cm"}
+            if distance:
+                parameters["clearance"] = distance[0]
+                parameters["unit"] = distance[1]
+            return Intent(
+                name="contour_obstacle",
+                parameters=parameters,
+                confidence=0.84,
+                raw_text=text,
+            )
 
         if any(token in lowered for token in ["balle rouge", "rouge", "cible rouge", "red ball"]):
             return Intent(
@@ -120,6 +174,10 @@ class IntentValidator:
     ALLOWED_INTENTS = {
         "follow_red_ball",
         "avoid_obstacle",
+        "contour_obstacle",
+        "spin_360",
+        "move_square",
+        "return_to_start",
         "move_forward",
         "move_backward",
         "turn_left",

@@ -4,6 +4,66 @@ Dépôt de **tests unitaires du matériel** autour d'un Raspberry Pi (caméra,
 audio, LEDs, GPS, assistant vocal). Le but final du projet n'est pas fixé :
 chaque script vérifie qu'un composant fonctionne, de façon isolée.
 
+Le projet a évolué vers une architecture plus robuste : le robot reçoit des
+instructions en français ou par commande vocale, transforme le texte en une
+**intention métier** (`Intent`), puis exécute un **plan de skills** validé par
+un orchestrateur. Les GPIO et le matériel ne sont plus pilotés directement par
+le LLM : ils sont appelés via des skills construites sur la couche `domain`.
+
+## Architecture actuelle
+
+```text
+src/irobot/
+├── domain/
+│   ├── skills/
+│   │   ├── primitives/
+│   │   ├── perception/
+│   │   ├── behaviors/
+│   │   └── base_skill.py
+│   ├── orchestrator/
+│   │   ├── planner.py
+│   │   ├── registry.py
+│   │   ├── executor.py
+│   │   └── mission_state_machine.py
+├── interfaces/
+│   ├── intent_parser.py
+│   ├── language_controller.py
+│   └── robot_controller.py
+├── hardware/
+│   ├── camera/
+│   ├── smart_car/
+│   ├── sensors/
+│   └── audio/
+└── config/
+```
+
+### Flux de commande
+
+```text
+Texte / voix
+   ↓
+IntentParser
+   ↓
+IntentValidator
+   ↓
+SkillPlanner
+   ↓
+SkillExecutor
+   ↓
+Skills (primitives / perception / behaviours)
+   ↓
+RobotController -> hardware concret
+```
+
+Les principaux concepts sont :
+- `Intent` : intention structurée issue d'une phrase naturelle
+- `Skill` : contrat abstrait pour une action robotique
+- `SkillPlanner` : mapping intention → plan de skills
+- `SkillExecutor` : exécution sécurisée d'un plan
+- `RobotController` : adaptateur entre la logique métier et le matériel
+
+## Commandes utiles
+
 | Commande | Rôle |
 |---|---|
 | `uv run camera-live` | affiche le flux de la caméra |

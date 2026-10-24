@@ -56,7 +56,7 @@ class FollowTargetSkill(Skill):
                 message=f"Suivi de la cible en cours ({target_position}).",
                 data={"target_position": target_position, "obstacle_detected": False},
                 confidence=0.85,
-                next_action="detect_red_ball",
+                next_action="detect_object",
             )
         except Exception as exc:  # pragma: no cover - logique métier
             return SkillResult(

@@ -10,12 +10,37 @@ Le dépôt est un banc d'essai matériel pour Raspberry Pi 5 (et compatible Pi 4
 - la motorisation Smart Car 2WD via L298N
 - l'assistant vocal local hors ligne
 - la validation de composants matériels de façon isolée
+- la commande du robot par texte ou voix via un système d'intentions et de skills
 
 Le projet n'est pas un produit unique finalisé, mais plutôt une base d'expérimentation et de test : chaque composant est vérifié indépendamment, puis éventuellement réuni dans un système complet.
 
 Le dépôt est donc plus proche d'un environnement de laboratoire / prototype embarqué qu'un projet applicatif classique.
 
-## 2. Structure du dépôt
+## 2. Évolution de l'architecture
+
+Le projet a été ref
+
+- `domain/` : logique métier du robot
+  - skills : primitives, perception, behaviors
+  - orchestrator : planification et exécution
+- `interfaces/` : points d'entrée et adaptateurs entre langage / robot / matériel
+  - parsing de texte / voix en `Intent`
+  - contrôleur de langage `LanguageController`
+  - adaptateur robot `RobotController`
+- `hardware/` : drivers et modules concrets
+  - camera
+  - smart_car
+  - sensors
+  - audio
+
+Le principe central est le suivant :
+- la demande utilisateur est convertie en intention (`Intent`)
+- cette intention est validée puis transformée en plan de skills
+- le plan est exécuté par `SkillExecutor`
+- les skills appelent `RobotController`, qui adapte la logique au matériel
+- le LLM n'exécute pas directement les GPIO
+
+## 3. Structure du dépôt
 
 - `README.md` : référence principale, documentation d'installation et usage
 - `pyproject.toml` : configuration Python / scripts `uv run`
@@ -29,16 +54,37 @@ Le dépôt est donc plus proche d'un environnement de laboratoire / prototype em
 
 ### Arborescence utile
 
-- `src/irobot/camera/camera_live.py` : flux vidéo en direct
-- `src/irobot/camera/color_detector.py` : détecteur de couleur par OpenCV (rouge/jaune)
-- `src/irobot/smart_car/smart_car.py` : contrôle de la voiture 2WD
-- `src/irobot/voice_assistant/voice_assistant.py` : transcribe la voix + contrôle vocal de la voiture + appel LLM local
-- `tests/hardware/test_hardware_gpio.py` : activation des GPIO
-- `tests/hardware/test_hardware_led.py` : test des LEDs APA102 du HAT ReSpeaker
-- `tests/hardware/test_hardware_micro.py` : test des micros WM8960 et enregistrement WAV
-- `tests/hardware/test_hardware_distance.py` : test du capteur ultrason HC-SR04
+- `src/irobot/domain/skills/perception/detect_object.py` : skill de détection d'objet
+- `src/irobot/domain/skills/behaviors/follow_target.py` : suite d'une cible
+- `src/irobot/domain/orchestrator/planner.py` : mapping des intentions vers les skills
+- `src/irobot/interfaces/intent_parser.py` : parsing du langage naturel en `Intent`
+- `src/irobot/interfaces/language_controller.py` : pipeline texte → intention → plan → exécution
+- `src/irobot/hardware/camera/color_detector.py` : détecteur de couleur par OpenCV (rouge/jaune)
+- `src/irobot/hardware/smart_car/smart_car.py` : contrôle de la voiture 2WD
+- `src/irobot/hardware/audio/voice_assistant.py` : transcription + LLM local + commandes vocales
 
-## 3. Stack logicielle
+### Règle de structure : scripts et tests
+
+Le dépôt suit une organisation stricte pour éviter la confusion entre installation, validation locale et tests automatisés :
+
+- `scripts/install/` : scripts d'installation système, dépendances, matériel, LLM, Bluetooth, etc.
+- `scripts/test/` : scripts de validation locale, de runtime, de démonstration sans matériel réel, et de test d'environnement
+- `tests/` : tests automatisés Python (`pytest`) pour le code métier, le hardware et les intégrations pertinentes
+
+Règles à respecter :
+- ne pas mélanger les scripts d'installation avec les scripts de test
+- maintenir les scripts de démonstration locale dans `scripts/test/`
+- garder les tests automatisés dans `tests/` et leur nommage dans le style `test_*.py`
+- utiliser des noms explicites et cohérents (`install_llm_mac_portable.sh`, `run_llm_runtime_mac.sh`, `test_voice_runtime.py`)
+- distinguer clairement : installation de dépendances / validation de l'environnement / tests de qualité
+- pour les environnements macOS Intel, privilégier la solution portable sans Homebrew (`scripts/install/install_llm_mac_portable.sh`)
+
+Cette règle évite la confusion entre :
+- configuration système
+- validation fonctionnelle locale
+- tests de qualité automatisés
+
+## 4. Stack logicielle
 
 ### Python
 - Python >= 3.12
@@ -50,149 +96,102 @@ Dans `pyproject.toml` :
 - `requests`
 - `vosk`
 - `gpiozero`
+- `pytest`
 
 ### Outils système
 - `picamera2` (via apt)
 - `llama.cpp` / `llama-server`
 - `Vosk` pour la transcription vocale
 - `alsa-utils`, `bluetooth`, `pulseaudio`, `bluez`, etc.
+- sur macOS Intel, la voie d'installation retenue est la version portable sans Homebrew : `scripts/install/install_llm_mac_portable.sh`
 
-## 4. Composants matériels supportés
+## 5. Architecture fonctionnelle du langage robotique
 
-### 4.1 Raspberry Pi
-- Raspberry Pi 5 (référence principale)
-- Compatible Pi 4 / CM4 / CM5 en théorie
-- Système cible : Raspberry Pi OS 64 bits (Debian Bookworm ou plus récent)
+### 5.1 Entrée manuscrite / vocale
+Le système accepte au moins deux sources d'entrée :
+- une phrase naturelle en texte
+- une commande vocale capturée via microphone + Vosk
 
-### 4.2 Caméra
-- Caméra CSI OV5647 InnoMaker CAM-OV5647
-- Détection via `Picamera2`
-- Cas particulier : si la caméra n'est pas auto-détectée, il faut parfois forcer :
-  `dtoverlay=ov5647,cam1`
+### 5.2 Parsing des intentions
+Le module `IntentParser` transforme le texte brut en objet métier :
 
-### 4.3 HAT ReSpeaker / audio / mic / LEDs
-- Modèle : Keyestudio ReSpeaker 2-Mic Pi HAT V1.0
-- Code audio : WM8960
-- 2 micros
-- sortie audio 3.5 mm
-- 3 LEDs APA102
-- bouton GPIO17
+```python
+Intent(
+    name="follow_red_ball",
+    target="red_ball",
+    parameters={"speed": 0.5},
+    confidence=0.9,
+    raw_text="va vers la balle rouge"
+)
+```
 
-### 4.4 Smart Car 2WD
-- moteur 2 roues
-- pont H-bridge L298N
-- GPIO BCM utilisés :
-  - IN1 = GPIO 5
-  - IN2 = GPIO 6
-  - IN3 = GPIO 16
-  - IN4 = GPIO 24
-  - ENA = GPIO 12
-  - ENB = GPIO 13
+Ce parsing a deux objectifs :
+- normaliser la commande pour la machine
+- sécuriser la commande en limitant les intentions autorisées
 
-### 4.5 GPS / GNSS
-Le README mentionne aussi un HAT Waveshare u-blox MAX-M10S, mais ce n’est pas central dans le code présent. C’est un composant potentiel, mais le code actuel ne montre pas d’implémentation GPS active dans le dépôt.
+### 5.3 Validation et garde-fous
+`IntentValidator` autorise uniquement un sous-ensemble d'intentions :
+- `follow_red_ball`
+- `avoid_obstacle`
+- `move_forward`
+- `move_backward`
+- `turn_left`
+- `turn_right`
+- `stop`
 
-### 4.6 Capteur de distance HC-SR04
-Le projet intègre désormais un module de test pour un capteur ultrason HC-SR04.
+Cela évite qu'une commande non contrôlée ou ambiguë ne déclenche des actions dangereuses.
 
-Important : le HC-SR04 ne nécessite pas de script d’installation spécifique. Il repose sur la configuration GPIO déjà fournie par le projet via `scripts/install_rpigpio.sh`.
+### 5.4 Planification
+`SkillPlanner` associe chaque intention à une séquence de skills. Exemple :
 
-Donc, pour ce capteur :
-- il faut d’abord installer le support GPIO avec `sudo ./install_rpigpio.sh`
-- ensuite seulement on branche le HC-SR04 sur les GPIO adéquats
-- le vrai point de configuration est le câblage GPIO, pas un script dédié d’installation
+```python
+"follow_red_ball": [
+    "detect_object",
+    "follow_target",
+    "detect_obstacle",
+    "stop_motion",
+]
+```
 
-GPIO recommandés :
-- TRIG -> GPIO 17 (broche physique 11)
-- ECHO -> GPIO 27 (broche physique 13)
-- GND -> broche physique 6 (masse du Raspberry Pi)
-- VCC -> broche physique 4 (5V du Raspberry Pi)
+Le plan est explicite et déterministe. Le LLM ne décide pas directement des GPIO, il produit seulement une intention.
 
-Le module Python associé est :
-- `src/irobot/sensors/hc_sr04.py`
+### 5.5 Exécution
+`SkillExecutor` exécute les skills de manière structurée, en passant un `SkillContext` partagé :
+- `robot`
+- `camera`
+- `sensor`
+- `state`
 
-Le test prévu est :
-- afficher la distance du premier objet détecté devant le capteur
+Chaque skill retourne un `SkillResult` comprenant :
+- `status`
+- `message`
+- `data`
+- `confidence`
+- `next_action`
 
-### Règle de robustesse GPIO
+## 6. Skills du robot
 
-Pour tous les scripts utilisant `gpiozero` sur Raspberry Pi, il faut appliquer cette règle systématiquement :
-- fermer proprement les périphériques GPIO (`close()`)
-- puis quitter immédiatement avec `os._exit(0)` après le nettoyage
+### 6.1 Primitives
+- `move_forward`
+- `move_backward`
+- `turn_left`
+- `turn_right`
+- `stop_motion`
 
-Cela évite un crash Python au moment du shutdown sur certains Raspberry Pi, même quand la logique métier a bien fonctionné.
+### 6.2 Perception
+- `detect_object`
+- `detect_obstacle`
 
-## 5. Architecture logicielle
+### 6.3 Behaviors
+- `follow_target`
+- `move_circle`
 
-### 5.1 Module caméra
-`camera_live.py`
-- utilise `Picamera2.global_camera_info()` pour détecter les caméras
-- ouvre le flux vidéo
-- affiche la fenêtre OpenCV `Camera 1 - Live`
-- boucle jusqu’à appui sur `q`
+Cette séparation est importante :
+- primitives = actions atomiques sur le robot
+- perception = lecture du monde
+- behaviors = logique composite de haut niveau
 
-`color_detector.py`
-- utilise `Picamera2.global_camera_info()` pour détecter les caméras
-- classe les objets en balle / objet / rien
-- ajoute la position approximative dans l'image (`CENTRE`, `EN_HAUT`, etc.)
-- supporte le mode robotique via `--robotic`
-
-`balle_rouge.py`
-- transforme le flux en HSV
-- applique un masque rouge (deux plages autour du rouge)
-- nettoie morphologiquement l’image
-- détecte contours
-- garde la plus grosse zone rouge
-- dessine un rectangle et un label `BALLE ROUGE DETECTEE`
-
-Ce script est un test de vision, pas un module de production de robot autonome.
-
-### 5.2 Module voiture Smart Car
-`smart_car.py`
-- encapsule `SmartCar2WD`
-- crée des `DigitalOutputDevice` pour les directions IN1/IN2/IN3/IN4
-- crée des `PWMOutputDevice` pour ENA/ENB
-- supporte :
-  - `forward`
-  - `backward`
-  - `left`
-  - `right`
-  - `stop`
-
-Contrôle de vitesse :
-- `set_speed()` avec clamp 0.0 à 1.0
-- PWM sur ENA / ENB
-- `cleanup()` pour fermer proprement les GPIO
-
-### 5.3 Module assistant vocal
-`voice_assistant.py`
-Le module regroupe plusieurs fonctions :
-- détection de la source audio (`auto`, `bluetooth`, `wm8960`, `default`)
-- capture du microphone via `arecord`
-- transcription par Vosk
-- appels LLM local via HTTP à `http://127.0.0.1:8080/v1/chat/completions`
-- contrôle vocal de la voiture via commandes françaises / anglaises
-
-Fonctionnement clé :
-- `transcribe_loop(device)` lit les échantillons audio brute et les envoie au moteur Vosk
-- `ask_llm(text)` envoie le texte à `llama-server`
-- `VoiceCarController.handle_text(text)` interprète les commandes vocales pour piloter la voiture
-
-Commandes voz reconnues incluent par exemple :
-- `avance`, `avancer`, `go forward`, `forward`
-- `recule`, `reculer`, `go back`, `backward`
-- `tourne à gauche`, `turn left`, `left`
-- `tourne à droite`, `turn right`, `right`
-- `stop`, `arrêt`
-- `va plus vite`, `go faster`, etc.
-
-Le système supporte également :
-- durée implicite ou explicite (`pendant 2 secondes`, `for 3 sec`)
-- vitesse de base via `--car-speed 0.5`
-- commande `--once`
-- `--no-llm` pour exécuter uniquement la transcription
-
-## 6. Commandes principales du projet
+## 7. Commandes principales du projet
 
 Les scripts exposés via `pyproject.toml` sont :
 - `camera-live`
@@ -211,10 +210,24 @@ uv run led-test static red green blue
 uv run gpio-test 5 6 16 24 --duration 0.5
 uv run smart-car forward --duration 1
 uv run voice-assistant --once
-uv run voice-assistant --car --input-device bluetooth
 ```
 
-## 7. Scripts de test matériels
+## 8. Côté robot autonome
+
+Le système est désormais structuré pour qu'une phrase naturelle déclenche un séquençage intelligent de skills.
+
+Exemple de comportement :
+
+```text
+Texte : "va vers la balle rouge"
+→ Intent(name="follow_red_ball", target="red_ball")
+→ Plan : detect_object → follow_target → detect_obstacle → stop_motion
+→ Exécution contrôlée par SkillExecutor
+```
+
+Le LLM, s'il est utilisé, doit être traité comme un interprète de langage, pas comme un pilote direct de GPIO.
+
+## 9. Scripts de test matériels
 
 ### `tests/hardware/test_hardware_gpio.py`
 - active des GPIO précis
@@ -235,15 +248,12 @@ uv run voice-assistant --car --input-device bluetooth
 - rejoue le fichier avec `aplay`
 
 ### `tests/hardware/test_hardware_distance.py`
-Un test de mesure de distance a été ajouté dans le dossier `tests/hardware/`.
-
 - fichier : `tests/hardware/test_hardware_distance.py`
 - objectif : afficher la distance du premier objet détecté devant le capteur
 - GPIO par défaut : TRIG=17, ECHO=27
 - durée par défaut : 5 secondes
-- comportement similaire à `tests/hardware/test_hardware_micro.py` : affichage en direct avec mesure et statistiques finales
 
-## 8. Scripts d'installation système
+## 10. Scripts d'installation système
 
 ### `scripts/install_rpigpio.sh`
 - vérifie que l’on est sur un Raspberry Pi
@@ -253,17 +263,14 @@ Un test de mesure de distance a été ajouté dans le dossier `tests/hardware/`.
 ### `scripts/install_respeaker.sh`
 - configure les overlays `wm8960-soundcard` et SPI
 - installe `alsa-utils`, `i2c-tools`, etc.
-- télécharge `/etc/wm8960-soundcard/wm8960_asound.state`
 - crée un service `systemd` pour restaurer les paramètres audio au boot
 
 ### `scripts/install_llm.sh`
 - installe les dépendances système de compilation
 - clone `llama.cpp`
 - compile `llama-server`
-- télécharge le modèle `Ministral 3 3B` en GGUF
-- installe le modèle Vosk français
+- télécharge le modèle local
 - configure le service `ministral.service`
-- lance `uv sync --project` côté utilisateur
 
 ### `scripts/install_bluetooth_audio.sh`
 - installe `bluez`, `pulseaudio`, `alsa-utils`
@@ -275,7 +282,7 @@ Un test de mesure de distance a été ajouté dans le dossier `tests/hardware/`.
 - appairage / connexion à un casque Jabra
 - vérifie les sources audio disponibles
 
-## 9. Installation recommandée
+## 11. Installation recommandée
 
 Le README et les scripts suggèrent généralement ce flux :
 
@@ -288,21 +295,21 @@ Le README et les scripts suggèrent généralement ce flux :
 7. installer `llama.cpp` + modèle local + Vosk
 8. lancer le système de test ou la commande vocale
 
-## 10. Modèle LLM local
+## 12. Modèle LLM local
 
 Le projet vise un fonctionnement local, sans dépendance à un cloud.
 
 - `llama-server` écoute sur `127.0.0.1:8080`
 - API compatible OpenAI : `/v1/chat/completions`
-- modèle choisi : `Ministral 3 3B` (ou variante alignée)
 - le modèle est utilisé pour générer des réponses à partir de la transcription
+- il peut aussi servir à produire une intention structurée à partir d'une phrase libre, mais le moteur de contrôle reste le planificateur de skills
 
 En pratique :
 - le flux audio -> Vosk -> texte
-- texte -> llama-server -> réponse dans le terminal
-- si mode `--car`, le LLM n’est pas forcément utilisé, mais la logique de commande est directement gérée dans le contrôleur vocal Python
+- texte -> LLM ou parser -> `Intent`
+- `Intent` -> planifier -> exécution via skills
 
-## 11. Points de vigilance / pièges connus
+## 13. Points de vigilance / pièges connus
 
 ### Caméra
 - la caméra OV5647 n’a pas toujours un auto-detect fiable
@@ -323,14 +330,15 @@ En pratique :
 - les services doivent être lancés avec le bon utilisateur systemd
 - le chemin du binaire/model est critique
 
-## 12. Hypothèses de conception
+## 14. Hypothèses de conception
 
 Le dépôt montre clairement une logique de preuve de concept / validation physique :
 - chaque module est testable séparément
 - le but n’est pas d’avoir un backend robuste ou un produit prêt pour la production
 - le code est orienté démonstration, expérimentation et prototypage embarqué
+- le flux de commande est désormais cadré par une architecture en `Intent` + `skills`
 
-## 13. Points importants pour les échanges futurs
+## 15. Points importants pour les échanges futurs
 
 Quand on travaille sur ce projet, il faut garder à l’esprit que :
 - la plupart des composants exigent un environnement Raspberry Pi réel
@@ -338,8 +346,9 @@ Quand on travaille sur ce projet, il faut garder à l’esprit que :
 - le code est très dépendant du matériel
 - des erreurs peuvent venir de l’OS, de la configuration du device tree, des overlays, ou des dépendances apt
 - le projet repose sur `uv` et sur les outils système installés par les scripts
+- les évolutions de l'architecture doivent rester cohérentes entre `domain`, `interfaces` et `hardware`
 
-## 14. Règle de maintenance du contexte
+## 16. Règle de maintenance du contexte
 
 Le fichier `PROJECT_CONTEXT.md` est un document vivant et doit être mis à jour systématiquement dès que l’on apprend une information utile, un changement de configuration, une évolution de l’architecture, un nouveau composant, un correctif ou une convention de travail.
 
@@ -351,13 +360,14 @@ Règle de travail :
 
 Objectif : garantir que la mémoire du projet reste exacte, exploitable et cohérente d’une conversation à l’autre.
 
-## 15. Conclusion
+## 17. Conclusion
 
 Ce dépôt est un environnement de démonstration / laboratoire sur Raspberry Pi dédié à :
 - la commande matérielle locale
 - la vision par caméra
 - la commande vocale hors ligne
 - la voiture autonome de prototype
+- la transformation d’une phrase naturelle en plan de skills validé
 
 Le code est compréhensible et modulaire, mais il dépend fortement du contexte matériel et système. Pour toute modification future, il faut toujours se référer à la fois au code Python et au contexte logiciel système (GPIO, ALSA, SPI, Bluetooth, `llama-server`, `systemd`, device tree).
 

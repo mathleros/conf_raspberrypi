@@ -16,7 +16,7 @@ class SkillPlanner:
 
     INTENT_TO_SKILLS: dict[str, list[str]] = {
         "follow_red_ball": [
-            "detect_red_ball",
+            "detect_object",
             "follow_target",
             "detect_obstacle",
             "stop_motion",
@@ -54,8 +54,8 @@ class SkillPlanner:
 
     def plan_with_target(self, intent: str, *, target: str | None = None) -> list[Skill]:
         plan = self.plan(intent)
-        if target == "red_ball" and "detect_red_ball" not in {skill.name for skill in plan}:
-            detect_skill = self.registry.get("detect_red_ball")
+        if target == "red_ball" and "detect_object" not in {skill.name for skill in plan}:
+            detect_skill = self.registry.get("detect_object")
             if detect_skill is not None:
                 plan.insert(0, detect_skill)
         return plan

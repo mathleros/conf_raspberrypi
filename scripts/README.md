@@ -1,24 +1,26 @@
 # Scripts d'installation
 
-Ce dossier contient les scripts d'installation et de configuration du projet `irobot`.
+Ce dossier contient les scripts d'installation et de validation du projet `irobot`.
+
+## Structure du dossier
+
+- `scripts/install/` : scripts système et de configuration (GPIO, Bluetooth, LLM, audio, etc.)
+- `scripts/test/` : scripts de validation locale, de runtime, de démonstration ou de test fonctionnel sans matériel réel
 
 ## Vue d'ensemble
 
-- `install_rpigpio.sh` : installation des dépendances GPIO et du module `gpiozero`
-- `install_respeaker.sh` : installation et configuration du HAT ReSpeaker (optionnel)
-- `install_llm.sh` : installation du modèle local LLM + Vosk + `llama.cpp`
-- `install_bluetooth_audio.sh` : installation du support audio Bluetooth pour un casque Jabra / microphone Bluetooth
-- `connect_jabra_bt.sh` : appairage / connexion du casque Jabra Bluetooth
+### Installation
 
-## ReSpeaker : optionnel
+- `install/install_rpigpio.sh` : installation des dépendances GPIO et du module `gpiozero`
+- `install/install_respeaker.sh` : installation et configuration du HAT ReSpeaker (optionnel)
+- `install/install_llm.sh` : installation du modèle local LLM + Vosk + `llama.cpp`
+- `install/install_llm_mac_portable.sh` : installation portable du LLM sur macOS sans Homebrew
+- `install/install_bluetooth_audio.sh` : installation du support audio Bluetooth pour un casque Jabra / microphone Bluetooth
+- `install/connect_jabra_bt.sh` : appairage / connexion du casque Jabra Bluetooth
 
-Le ReSpeaker n'est pas obligatoire pour le fonctionnement du projet.
+### Tests / validation locale
 
-Le projet supporte désormais deux modes d'entrée audio :
-- audio Bluetooth (casque Jabra, micro Bluetooth, etc.)
-- audio local via ReSpeaker (optionnel, si tu veux conserver le HAT)
-
-Le ReSpeaker est donc considéré comme une option matérielle facultative.
+- `test/run_llm_runtime_mac.sh` : démarre le serveur local LLM puis exécute le runtime sur Mac, sans microphone
 
 ## Installation recommandée
 
@@ -34,15 +36,15 @@ uv sync --project .
 
 ```bash
 cd ~/Dev/conf_raspberrypi
-sudo ./scripts/install_bluetooth_audio.sh
+sudo ./scripts/install/install_bluetooth_audio.sh
 ```
 
 ### 3. Appairer le casque Jabra
 
 ```bash
 cd ~/Dev/conf_raspberrypi
-./scripts/connect_jabra_bt.sh scan
-./scripts/connect_jabra_bt.sh 08:C8:C2:38:FB:A0
+./scripts/install/connect_jabra_bt.sh scan
+./scripts/install/connect_jabra_bt.sh 08:C8:C2:38:FB:A0
 ```
 
 ### 4. Vérifier que le casque est bien connecté
@@ -68,7 +70,7 @@ Si tu souhaites garder le HAT ReSpeaker, exécute :
 
 ```bash
 cd ~/Dev/conf_raspberrypi
-sudo ./scripts/install_respeaker.sh
+sudo ./scripts/install/install_respeaker.sh
 sudo reboot
 ```
 
@@ -80,18 +82,33 @@ arecord -l
 uv run voice-assistant --once --input-device wm8960
 ```
 
-## Installation du LLM local
+## Installation du LLM local sur macOS (portable, sans Homebrew)
 
 ```bash
 cd ~/Dev/conf_raspberrypi
-sudo ./scripts/install_llm.sh
+bash scripts/install/install_llm_mac_portable.sh
 ```
 
 Cette étape installe :
 - `llama.cpp`
 - `llama-server`
-- le modèle local de langue
-- le modèle Vosk FR pour la reconnaissance vocale
+- le modèle local GGUF dans `target/models/`
+- le support de test du runtime sans microphone
+
+## Validation locale sur Mac
+
+Le point d’entrée unique est :
+
+```bash
+cd ~/Dev/conf_raspberrypi
+bash scripts/test/run_llm_runtime_mac.sh
+```
+
+Optionnellement, avec une instruction précise :
+
+```bash
+bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+```
 
 ## Variables et commandes utiles
 
@@ -107,3 +124,4 @@ arecord -L
 - Privilégie le casque Bluetooth si tu manques de place sur le robot.
 - Le ReSpeaker reste utile pour un montage fixe / prototype.
 - Le projet est conçu pour fonctionner sans HAT, avec un casque Bluetooth compatible.
+- Sur macOS Intel, la version portable sans Homebrew est le chemin de référence.

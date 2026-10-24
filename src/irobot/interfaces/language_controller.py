@@ -5,6 +5,7 @@ from __future__ import annotations
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
@@ -69,15 +70,15 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             perception=self.perception,
-            state={
-                "active_intent": intent,
-                "active_intent_name": intent.name,
-                "active_intent_parameters": dict(intent.parameters),
-                "last_camera_position": None,
-                "last_object_position": None,
-                "last_ball_position": None,
-                "camera_ready": self.camera is not None,
-            },
+            state=BlackboardState(
+                active_intent=intent,
+                active_intent_name=intent.name,
+                active_intent_parameters=dict(intent.parameters),
+                last_camera_position=None,
+                last_object_position=None,
+                last_ball_position=None,
+                camera_ready=self.camera is not None,
+            ),
         )
 
         executor = SkillExecutor(context)
@@ -121,15 +122,15 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             perception=self.perception,
-            state={
-                "active_intent": intent,
-                "active_intent_name": intent.name,
-                "active_intent_parameters": dict(intent.parameters),
-                "last_camera_position": None,
-                "last_object_position": None,
-                "last_ball_position": None,
-                "camera_ready": self.camera is not None,
-            },
+            state=BlackboardState(
+                active_intent=intent,
+                active_intent_name=intent.name,
+                active_intent_parameters=dict(intent.parameters),
+                last_camera_position=None,
+                last_object_position=None,
+                last_ball_position=None,
+                camera_ready=self.camera is not None,
+            ),
         )
 
         executor = SkillExecutor(context)

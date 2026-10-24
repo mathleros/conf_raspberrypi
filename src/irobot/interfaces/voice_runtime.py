@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 import time
@@ -29,12 +28,12 @@ except ModuleNotFoundError:  # pragma: no cover - macOS/tests
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 
 RATE = 16000
-CARD_NAME = "wm8960"
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_MODEL = "ministral-3-3b"
@@ -64,68 +63,6 @@ SYSTEM_PROMPT_PLAN = (
     "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
     "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
 )
-
-
-def _run_command(args: list[str]):
-    """Exécute une commande système et retourne stdout si elle réussit."""
-    try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=10)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    return proc.stdout
-
-
-def find_wm8960_card() -> int | None:
-    """Retourne l'index ALSA de la carte WM8960, ou None."""
-    out = _run_command(["arecord", "-l"])
-    if out is None:
-        return None
-    for line in out.splitlines():
-        match = re.search(r"card (\d+):\s*(\S+)", line)
-        if match and CARD_NAME in match.group(2).lower():
-            return int(match.group(1))
-    return None
-
-
-def detect_bluetooth_input_device() -> str | None:
-    """Tente de détecter un périphérique audio Bluetooth comme source microphone."""
-    for cmd in (["pactl", "list", "short", "sources"], ["pacmd", "list-sources"], ["arecord", "-L"]):
-        out = _run_command(cmd)
-        if out is None:
-            continue
-        for line in out.splitlines():
-            lowered = line.lower()
-            if any(token in lowered for token in ("bluez", "bluetooth", "headset", "hfp")):
-                return "default"
-    return None
-
-
-def resolve_input_device(device_name: str | None) -> str:
-    """Résout le device d'entrée audio à utiliser."""
-    if device_name and device_name != "auto":
-        if device_name == "wm8960":
-            card = find_wm8960_card()
-            if card is not None:
-                return f"plughw:{card},0"
-            raise RuntimeError("Aucune carte WM8960 détectée.")
-        if device_name == "bluetooth":
-            bt = detect_bluetooth_input_device()
-            if bt is not None:
-                return bt
-            raise RuntimeError("Aucun casque Bluetooth détecté comme source audio.")
-        return device_name
-
-    bt = detect_bluetooth_input_device()
-    if bt is not None:
-        return bt
-
-    card = find_wm8960_card()
-    if card is not None:
-        return f"plughw:{card},0"
-
-    return "default"
 
 
 def transcribe_loop(device: str):

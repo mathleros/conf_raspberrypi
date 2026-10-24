@@ -9,6 +9,7 @@ from irobot.domain.skills.primitives.move_backward import MoveBackwardSkill
 from irobot.domain.skills.primitives.turn_left import TurnLeftSkill
 from irobot.domain.skills.primitives.turn_right import TurnRightSkill
 from irobot.domain.skills.primitives.stop_motion import StopMotionSkill
+from irobot.domain.skills.primitives.base_motion_primitive import BaseMotionPrimitiveSkill
 
 __all__ = [
     "MoveForwardSkill",
@@ -16,4 +17,5 @@ __all__ = [
     "TurnLeftSkill",
     "TurnRightSkill",
     "StopMotionSkill",
+    "BaseMotionPrimitiveSkill",
 ]

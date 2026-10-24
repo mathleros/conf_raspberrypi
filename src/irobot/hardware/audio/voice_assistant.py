@@ -16,10 +16,10 @@ except ModuleNotFoundError:  # pragma: no cover - tests/macOS
     vosk = None
 
 from irobot.hardware.smart_car.smart_car import SmartCar2WD
+from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.voice_runtime import main as voice_runtime_main
 
 RATE = 16000
-CARD_NAME = "wm8960"
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_MODEL = "ministral-3-3b"
@@ -145,68 +145,6 @@ class VoiceCarController:
     def cleanup(self) -> None:
         self.car.stop()
         self.car.cleanup()
-
-
-def _run_command(args):
-    """Exécute une commande externe et retourne le résultat texte."""
-    try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=10)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    return proc.stdout
-
-
-def find_wm8960_card():
-    """Retourne l'index ALSA de la carte WM8960, ou None."""
-    out = _run_command(["arecord", "-l"])
-    if out is None:
-        return None
-    for line in out.splitlines():
-        m = re.search(r"card (\d+):\s*(\S+)", line)
-        if m and CARD_NAME in m.group(2).lower():
-            return int(m.group(1))
-    return None
-
-
-def detect_bluetooth_input_device():
-    """Tente de trouver un périphérique audio Bluetooth comme source microphone."""
-    for cmd in (["pactl", "list", "short", "sources"], ["pacmd", "list-sources"], ["arecord", "-L"]):
-        out = _run_command(cmd)
-        if out is None:
-            continue
-        for line in out.splitlines():
-            lowered = line.lower()
-            if any(token in lowered for token in ("bluez", "bluetooth", "headset", "hfp")):
-                return "default"
-    return None
-
-
-def resolve_input_device(device_name: str | None):
-    """Résout le device d'entrée audio à utiliser."""
-    if device_name and device_name != "auto":
-        if device_name == "wm8960":
-            card = find_wm8960_card()
-            if card is not None:
-                return f"plughw:{card},0"
-            raise RuntimeError("Aucune carte WM8960 détectée.")
-        if device_name == "bluetooth":
-            bt = detect_bluetooth_input_device()
-            if bt is not None:
-                return bt
-            raise RuntimeError("Aucun casque Bluetooth détecté comme source audio.")
-        return device_name
-
-    bt = detect_bluetooth_input_device()
-    if bt is not None:
-        return bt
-
-    card = find_wm8960_card()
-    if card is not None:
-        return f"plughw:{card},0"
-
-    return "default"
 
 
 def transcribe_loop(device):

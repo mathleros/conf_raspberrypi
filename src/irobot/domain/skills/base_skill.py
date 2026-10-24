@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from irobot.domain.skills.blackboard_state import BlackboardState
+
 
 @dataclass
 class SkillContext:
@@ -17,7 +19,12 @@ class SkillContext:
     camera: Any | None = None
     sensor: Any | None = None
     perception: Any | None = None
-    state: dict[str, Any] = field(default_factory=dict)
+    state: BlackboardState = field(default_factory=BlackboardState)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.state, BlackboardState):
+            return
+        self.state = BlackboardState.from_mapping(self.state)
 
 
 @dataclass

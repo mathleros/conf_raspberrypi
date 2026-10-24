@@ -1,9 +1,9 @@
 # Instructions d'Optimisation de Tokens (Mode Concis)
 
 ## 1. CONNAISSANCE DU CONTEXTE
-- Les conventions du projet, les décisions d'architecture et l'état actuel sont maintenus dans `project_context.md`.
-- Aligne systématiquement la génération de code et tes recommandations sur les règles et l'état définis dans `project_context.md`.
-- **Mise à jour du contexte :** Ne mets à jour `project_context.md` QUE lors d'une décision d'architecture majeure, de la fin d'une fonctionnalité complète ou à la demande explicite de l'utilisateur. Ne le modifie pas pour de petits correctifs.
+- Les conventions du projet, les décisions d'architecture et l'état actuel sont maintenus dans `PROJECT_CONTEXT.md`.
+- Aligne systématiquement la génération de code et tes recommandations sur les règles et l'état définis dans `PROJECT_CONTEXT.md`.
+- **Mise à jour du contexte :** Ne mets à jour `PROJECT_CONTEXT.md` QUE lors d'une décision d'architecture majeure, de la fin d'une fonctionnalité complète ou à la demande explicite de l'utilisateur. Ne le modifie pas pour de petits correctifs.
 
 ## 2. RÈGLES DE RÉPONSE ÉCONOMIQUES
 - **Pas de prose inutile :** Supprime toute formule de politesse, préambule, introduction ("Voici le code...") ou conclusion.

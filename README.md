@@ -121,6 +121,24 @@ bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 bash scripts/test/run_llm_runtime_mac.sh
 ```
 
+### 5. Tester le runtime LLM local sur Mac sans microphone
+
+Pour valider la logique end-to-end avec le LLM local en envoyant directement un texte de commande :
+
+```bash
+cd /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
+bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+```
+
+Version plus complète, qui lance le serveur puis exécute plusieurs validations :
+
+```bash
+cd /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
+bash scripts/test/run_llm_runtime_mac.sh
+```
+
+Cette commande est le point d'entrée recommandé pour vérifier que le pipeline texte -> `Intent` -> skills fonctionne bien sur un Mac sans micro.
+
 ## Commandes utiles
 
 ### Caméra

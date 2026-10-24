@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 LLAMA_BINARY="${PROJECT_ROOT}/target/llama.cpp/build/bin/llama-server"
@@ -23,6 +23,21 @@ TEXT=""
 if [[ "${1:-}" == "--text" ]]; then
     shift
     TEXT="${1:-}"
+fi
+
+if [[ -z "${TEXT}" ]]; then
+    if [[ -t 0 ]]; then
+        echo "Saisis le texte à analyser par le runtime LLM."
+        read -r -p "Texte: " TEXT
+    else
+        TEXT="$(cat)"
+    fi
+fi
+
+if [[ -z "${TEXT}" ]]; then
+    echo "Aucun texte fourni."
+    echo "Utilise : bash $0 --text 'va vers la balle rouge'"
+    exit 1
 fi
 
 if [[ ! -x "${LLAMA_BINARY}" ]]; then
@@ -67,30 +82,13 @@ fi
 echo "Serveur LLM disponible sur http://127.0.0.1:8080"
 
 echo ""
-if [[ -n "${TEXT}" ]]; then
-    PYTHONPATH=src uv run python - "$TEXT" <<'PY'
+PYTHONPATH=src uv run python - "$TEXT" <<'PY'
 import sys
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 text = sys.argv[1]
 runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
-print(f"\n--- texte: {text}")
-print(runtime.handle_text(text))
+print(f"\nTexte saisi : {text}")
+print(runtime.handle_text_as_plan(text))
 PY
-else
-    PYTHONPATH=src uv run python <<'PY'
-from irobot.interfaces.voice_runtime import VoiceRuntime
-from tests.unit.fake_robot import FakeRobot
-
-runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
-for text in [
-    "va vers la balle rouge",
-    "stop maintenant",
-    "tourne à gauche",
-    "avance",
-]:
-    print(f"\n--- texte: {text}")
-    print(runtime.handle_text(text))
-PY
-fi

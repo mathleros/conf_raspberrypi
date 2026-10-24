@@ -42,6 +42,16 @@ SYSTEM_PROMPT = (
     "move_forward, move_backward, turn_left, turn_right, stop."
 )
 
+SYSTEM_PROMPT_PLAN = (
+    "Tu es un planificateur de commandes robotiques. "
+    "Tu reçois une instruction potentiellement composée. "
+    "Réponds UNIQUEMENT en JSON valide au format: "
+    "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
+    "Découpe la consigne en étapes atomiques ordonnées. "
+    "Intents autorisées: follow_red_ball, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start. "
+    "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
+)
+
 
 def _run_command(args: list[str]):
     """Exécute une commande système et retourne stdout si elle réussit."""
@@ -195,6 +205,54 @@ def ask_llm_for_intent(text: str) -> Intent:
         return IntentParser().parse(text)
 
 
+def ask_llm_for_intent_plan(text: str) -> list[Intent]:
+    """Demande au LLM un plan ordonné d'intentions atomiques pour une consigne complète."""
+    payload = {
+        "model": LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT_PLAN},
+            {"role": "user", "content": text},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 512,
+        "stream": False,
+    }
+    try:
+        response = requests.post(LLM_URL, json=payload, timeout=LLM_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        parsed = _parse_llm_json_payload(content)
+        if not parsed:
+            return [ask_llm_for_intent(text)]
+
+        raw_steps = parsed.get("steps")
+        if not isinstance(raw_steps, list) or not raw_steps:
+            return [ask_llm_for_intent(text)]
+
+        intents: list[Intent] = []
+        for step in raw_steps:
+            if not isinstance(step, dict):
+                continue
+            intent_name = str(step.get("intent") or step.get("name") or "unknown").strip()
+            target = step.get("target")
+            parameters = step.get("parameters") or {}
+            confidence = float(step.get("confidence") or 0.0)
+            intents.append(
+                Intent(
+                    name=intent_name,
+                    target=str(target) if target is not None else None,
+                    parameters=dict(parameters),
+                    confidence=max(0.0, min(1.0, confidence)),
+                    raw_text=text,
+                )
+            )
+
+        return intents or [ask_llm_for_intent(text)]
+    except Exception:
+        return [ask_llm_for_intent(text)]
+
+
 class VoiceRuntime:
     """Pipeline complet : microphone -> Vosk -> Intent -> LanguageController -> skills."""
 
@@ -231,11 +289,75 @@ class VoiceRuntime:
             return llm_intent
         return self.parser.parse(text)
 
+    def _expand_return_to_start(self, intents: list[Intent]) -> list[Intent]:
+        """Remplace `return_to_start` par la séquence inverse des actions déjà planifiées."""
+        reverse_map = {
+            "move_forward": "move_backward",
+            "move_backward": "move_forward",
+            "turn_left": "turn_right",
+            "turn_right": "turn_left",
+        }
+        reversible_names = set(reverse_map)
+        history: list[Intent] = []
+        expanded: list[Intent] = []
+
+        for intent in intents:
+            if intent.name == "return_to_start":
+                for previous in reversed(history):
+                    reverse_name = reverse_map.get(previous.name)
+                    if reverse_name is None:
+                        continue
+                    expanded.append(
+                        Intent(
+                            name=reverse_name,
+                            target=previous.target,
+                            parameters=dict(previous.parameters),
+                            confidence=previous.confidence,
+                            raw_text=previous.raw_text,
+                        )
+                    )
+                continue
+
+            expanded.append(intent)
+            if intent.name in reversible_names:
+                history.append(intent)
+
+        return expanded
+
     def handle_text(self, text: str):
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
         return self.controller.handle_intent(intent)
+
+    def handle_text_as_plan(self, text: str):
+        """Traite une consigne complète en une fois via le LLM, puis exécute les étapes."""
+        if self.use_llm:
+            intents = ask_llm_for_intent_plan(text)
+        else:
+            intents = [self.parser.parse(text)]
+
+        intents = self._expand_return_to_start(intents)
+        if not intents:
+            return {"status": "rejected", "reason": "empty plan", "input": text}
+
+        steps = []
+        global_status = "accepted"
+        for intent in intents:
+            if not self.validator.validate(intent):
+                step_result = {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
+                global_status = "incomplete"
+            else:
+                step_result = self.controller.handle_intent(intent)
+                if step_result.get("status") != "accepted":
+                    global_status = "incomplete"
+            steps.append(step_result)
+
+        return {
+            "input": text,
+            "status": global_status,
+            "steps": steps,
+        }
 
     def listen_once(self):
         device = resolve_input_device(self.input_device)

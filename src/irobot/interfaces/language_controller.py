@@ -68,6 +68,7 @@ class LanguageController:
             robot=self.robot,
             camera=self.camera,
             sensor=self.sensor,
+            perception=self.perception,
             state={
                 "active_intent": intent,
                 "active_intent_name": intent.name,
@@ -119,6 +120,7 @@ class LanguageController:
             robot=self.robot,
             camera=self.camera,
             sensor=self.sensor,
+            perception=self.perception,
             state={
                 "active_intent": intent,
                 "active_intent_name": intent.name,

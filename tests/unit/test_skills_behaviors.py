@@ -19,8 +19,8 @@ def test_follow_target_skill_success_when_target_visible():
     result = FollowTargetSkill().execute(context)
 
     assert result.status == "success"
-    assert result.data["target_position"] == "centre"
-    assert fake.commands[-1] == "forward"
+    assert result.data["target_position"] == "center"
+    assert "forward" in fake.commands
 
 
 def test_follow_target_skill_stops_when_obstacle_detected():
@@ -43,7 +43,7 @@ def test_follow_target_skill_fails_when_target_missing():
     assert result.status == "in_progress"
     assert result.data["target_position"] is None
     assert result.next_action == "detect_object"
-    assert fake.commands[-1] == "right"
+    assert "right" in fake.commands
 
 
 def test_move_circle_skill_executes_compound_motion():

@@ -16,6 +16,7 @@ class SkillContext:
     robot: Any | None = None
     camera: Any | None = None
     sensor: Any | None = None
+    perception: Any | None = None
     state: dict[str, Any] = field(default_factory=dict)
 
 

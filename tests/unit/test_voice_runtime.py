@@ -132,3 +132,26 @@ def test_voice_runtime_plan_rejects_invalid_execute_path_action(monkeypatch):
     assert result["status"] == "incomplete"
     assert result["steps"][0]["status"] == "rejected"
     assert result["steps"][0]["reason"] == "intent not allowed"
+
+
+def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
+    from irobot.interfaces import voice_runtime as runtime_module
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm_for_intent_plan",
+        lambda _text: [
+            Intent(
+                name="search_object",
+                parameters={"search": True, "approach": True, "target_object": "bouteille"},
+                confidence=1.0,
+            )
+        ],
+    )
+
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
+    result = runtime.handle_text_as_plan("cherche un objet puis approche toi")
+
+    assert result["status"] == "accepted"
+    assert result["steps"][0]["intent"].name == "search_and_approach_object"
+    assert "follow_target" in result["steps"][0]["plan"]

@@ -35,6 +35,14 @@ def test_intent_parser_recognizes_spin_square_and_return():
     assert back.name == "return_to_start"
 
 
+def test_intent_parser_recognizes_search_and_approach_object():
+    intent = IntentParser().parse("détecte un objet bouteille puis approche toi")
+
+    assert intent.name == "search_and_approach_object"
+    assert intent.parameters["search"] is True
+    assert intent.parameters["approach"] is True
+
+
 def test_language_controller_handles_text_command():
     controller = LanguageController(robot=FakeRobot())
     result = controller.handle_text("va vers la balle rouge")
@@ -49,3 +57,12 @@ def test_language_controller_handles_contour_obstacle_command():
 
     assert result["status"] == "accepted"
     assert result["plan"][0] == "turn_right"
+
+
+def test_language_controller_handles_search_and_approach_object_command():
+    controller = LanguageController(robot=FakeRobot())
+    result = controller.handle_text("cherche un objet puis approche toi")
+
+    assert result["status"] == "accepted"
+    assert result["plan"][0] == "detect_object"
+    assert "follow_target" in result["plan"]

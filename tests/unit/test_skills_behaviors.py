@@ -40,9 +40,10 @@ def test_follow_target_skill_fails_when_target_missing():
 
     result = FollowTargetSkill().execute(context)
 
-    assert result.status == "failed"
+    assert result.status == "in_progress"
     assert result.data["target_position"] is None
-    assert result.next_action == "stop_motion"
+    assert result.next_action == "detect_object"
+    assert fake.commands[-1] == "right"
 
 
 def test_move_circle_skill_executes_compound_motion():

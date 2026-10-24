@@ -42,7 +42,7 @@ SYSTEM_PROMPT = (
     "Tu es un interprète de commande robotique. "
     "Réponds UNIQUEMENT en JSON valide avec les clés suivantes : "
     "intent, target, parameters, confidence. "
-    "Les intents autorisées sont : follow_red_ball, avoid_obstacle, "
+    "Les intents autorisées sont : follow_red_ball, search_and_approach_object, avoid_obstacle, "
     "move_forward, move_backward, turn_left, turn_right, stop."
 )
 
@@ -53,7 +53,7 @@ SYSTEM_PROMPT_PLAN = (
     "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
     "Découpe la consigne en étapes atomiques ordonnées. "
     "Tu peux utiliser: "
-    "(a) des intents atomiques (follow_red_ball, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
+    "(a) des intents atomiques (follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
     "ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] "
     "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
     "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
@@ -337,6 +337,10 @@ class VoiceRuntime:
             "contourner_obstacle": "contour_obstacle",
             "contourne_obstacle": "contour_obstacle",
             "avoid": "avoid_obstacle",
+            "find_object": "search_and_approach_object",
+            "search_object": "search_and_approach_object",
+            "detect_object": "search_and_approach_object",
+            "approach_object": "search_and_approach_object",
             "rotate_360": "spin_360",
             "spin": "spin_360",
             "square": "move_square",

@@ -18,7 +18,7 @@ class FollowTargetSkill(Skill):
 
     def execute(self, context: SkillContext) -> SkillResult:
         try:
-            target_position = context.state.get("last_ball_position")
+            target_position = context.state.get("last_object_position", context.state.get("last_ball_position"))
             obstacle_detected = bool(context.state.get("obstacle_detected", False))
 
             if obstacle_detected:
@@ -31,6 +31,16 @@ class FollowTargetSkill(Skill):
                 )
 
             if target_position in {None, "UNKNOWN"}:
+                if hasattr(context.robot, "right"):
+                    context.robot.right()
+                    context.state["motion"] = "search_target"
+                    return SkillResult(
+                        status="in_progress",
+                        message="Cible non détectée : recherche active en rotation.",
+                        data={"target_position": None, "obstacle_detected": False},
+                        confidence=0.4,
+                        next_action="detect_object",
+                    )
                 return SkillResult(
                     status="failed",
                     message="Cible perdue : aucun objet détecté.",

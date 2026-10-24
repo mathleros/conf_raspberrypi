@@ -10,25 +10,32 @@ class DetectObjectSkill(Skill):
     description = "Retourne la position d'un objet cible si elle est visible"
 
     def validate(self, context: SkillContext) -> bool:
-        return context.camera is not None or context.state.get("camera_ready") is True
+        return context.camera is not None or context.state.get("camera_ready") is True or context.robot is not None
 
     def execute(self, context: SkillContext) -> SkillResult:
         try:
-            position = context.state.get("last_ball_position", "UNKNOWN")
+            params = dict(context.state.get("active_intent_parameters") or {})
+            target_object = params.get("target_object") or context.state.get("target_object") or "object"
 
-            if position == "UNKNOWN":
+            position = context.state.get("last_object_position")
+            if position is None:
+                position = context.state.get("last_ball_position", "UNKNOWN")
+
+            if position in {None, "UNKNOWN"}:
                 return SkillResult(
                     status="failed",
-                    message="Aucun objet détecté.",
-                    data={"position": None},
+                    message=f"Aucun objet détecté ({target_object}).",
+                    data={"position": None, "target_object": target_object},
                     confidence=0.0,
                     next_action="scan_for_target",
                 )
 
+            context.state["last_object_position"] = position
+
             return SkillResult(
                 status="success",
-                message="Objet détecté.",
-                data={"position": position},
+                message=f"Objet détecté ({target_object}).",
+                data={"position": position, "target_object": target_object},
                 confidence=0.8,
                 next_action="align_to_target",
             )

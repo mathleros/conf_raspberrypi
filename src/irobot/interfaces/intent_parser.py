@@ -57,6 +57,40 @@ def _extract_distance(text: str) -> tuple[float, str] | None:
     return None
 
 
+def _extract_target_object(text: str) -> str | None:
+    """Extrait un nom d'objet simple depuis une phrase (heuristique légère)."""
+    lowered = text.lower()
+    patterns = [
+        r"(?:objet|object)\s+(?:de type\s+)?([a-z0-9_\-éèêàùïîç]+)",
+        r"(?:cherche|trouve|détecte|detecte|approche)\s+(?:un|une|le|la|l')?\s*([a-z0-9_\-éèêàùïîç]+)",
+    ]
+    forbidden = {
+        "objet",
+        "object",
+        "toi",
+        "point",
+        "départ",
+        "depart",
+        "puis",
+        "ensuite",
+        "et",
+        "de",
+        "du",
+        "la",
+        "le",
+        "les",
+        "un",
+        "une",
+    }
+    for pattern in patterns:
+        match = re.search(pattern, lowered)
+        if match:
+            token = match.group(1).strip(" '-")
+            if token and token not in forbidden:
+                return token
+    return None
+
+
 class IntentParser:
     """Transforme du texte libre en intention métier structurée."""
 
@@ -102,6 +136,26 @@ class IntentParser:
                 name="contour_obstacle",
                 parameters=parameters,
                 confidence=0.84,
+                raw_text=text,
+            )
+
+        if any(
+            token in lowered
+            for token in [
+                "détecte", "detecte", "chercher un objet", "cherche un objet", "trouve un objet",
+                "approche l'objet", "approcher l'objet", "s'en approcher", "s en approcher",
+                "detect and approach", "find object", "approach object",
+            ]
+        ):
+            target_object = _extract_target_object(cleaned)
+            parameters: dict[str, Any] = {"search": True, "approach": True}
+            if target_object:
+                parameters["target_object"] = target_object
+            return Intent(
+                name="search_and_approach_object",
+                target=target_object,
+                parameters=parameters,
+                confidence=0.87,
                 raw_text=text,
             )
 
@@ -174,6 +228,7 @@ class IntentValidator:
     ALLOWED_INTENTS = {
         "follow_red_ball",
         "avoid_obstacle",
+        "search_and_approach_object",
         "contour_obstacle",
         "spin_360",
         "move_square",

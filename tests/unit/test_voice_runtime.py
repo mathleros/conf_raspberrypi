@@ -76,3 +76,59 @@ def test_voice_runtime_plan_expands_contour_obstacle(monkeypatch):
     assert result["status"] == "accepted"
     names = [step["intent"].name for step in result["steps"]]
     assert names == ["turn_right", "move_forward", "turn_left", "move_forward", "turn_right"]
+
+
+def test_voice_runtime_plan_expands_execute_path(monkeypatch):
+    from irobot.interfaces import voice_runtime as runtime_module
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm_for_intent_plan",
+        lambda _text: [
+            Intent(
+                name="execute_path",
+                parameters={
+                    "steps": [
+                        {"action": "move_forward", "distance": 40, "unit": "cm"},
+                        {"action": "turn_right", "angle": 90},
+                        {"action": "move_forward", "distance": 20, "unit": "cm"},
+                    ]
+                },
+                confidence=1.0,
+            )
+        ],
+    )
+
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
+    result = runtime.handle_text_as_plan("fais un rectangle")
+
+    assert result["status"] == "accepted"
+    names = [step["intent"].name for step in result["steps"]]
+    assert names == ["move_forward", "turn_right", "move_forward"]
+
+
+def test_voice_runtime_plan_rejects_invalid_execute_path_action(monkeypatch):
+    from irobot.interfaces import voice_runtime as runtime_module
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm_for_intent_plan",
+        lambda _text: [
+            Intent(
+                name="execute_path",
+                parameters={
+                    "steps": [
+                        {"action": "draw_heart", "distance": 30, "unit": "cm"},
+                    ]
+                },
+                confidence=1.0,
+            )
+        ],
+    )
+
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
+    result = runtime.handle_text_as_plan("dessine un coeur")
+
+    assert result["status"] == "incomplete"
+    assert result["steps"][0]["status"] == "rejected"
+    assert result["steps"][0]["reason"] == "intent not allowed"

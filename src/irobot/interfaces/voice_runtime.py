@@ -34,6 +34,10 @@ MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_MODEL = "ministral-3-3b"
 LLM_TIMEOUT = 120
+MAX_PLAN_STEPS = 20
+MAX_DISTANCE_CM = 300.0
+MAX_ANGLE_DEG = 360.0
+MAX_DURATION_SEC = 12.0
 SYSTEM_PROMPT = (
     "Tu es un interprète de commande robotique. "
     "Réponds UNIQUEMENT en JSON valide avec les clés suivantes : "
@@ -48,7 +52,10 @@ SYSTEM_PROMPT_PLAN = (
     "Réponds UNIQUEMENT en JSON valide au format: "
     "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
     "Découpe la consigne en étapes atomiques ordonnées. "
-    "Intents autorisées: follow_red_ball, avoid_obstacle, contour_obstacle, spin_360, move_square, move_forward, move_backward, turn_left, turn_right, stop, return_to_start. "
+    "Tu peux utiliser: "
+    "(a) des intents atomiques (follow_red_ball, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
+    "ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] "
+    "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
     "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
 )
 
@@ -333,6 +340,9 @@ class VoiceRuntime:
             "rotate_360": "spin_360",
             "spin": "spin_360",
             "square": "move_square",
+            "path": "execute_path",
+            "trajectory": "execute_path",
+            "trajet": "execute_path",
             "go_home": "return_to_start",
             "back_to_start": "return_to_start",
         }
@@ -350,6 +360,106 @@ class VoiceRuntime:
                 )
             )
         return normalized
+
+    def _to_float(self, value: Any, default: float | None = None) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _sanitize_primitive_intent(self, intent: Intent) -> Intent:
+        """Normalise et borne les paramètres de primitives pour un plan sûr."""
+        params = dict(intent.parameters)
+        if intent.name in {"move_forward", "move_backward"}:
+            distance = self._to_float(params.get("distance"), None)
+            unit = str(params.get("unit", "cm")).lower()
+            duration = self._to_float(params.get("duration"), None)
+
+            if distance is not None:
+                if unit == "m":
+                    distance = max(0.01, min(distance, MAX_DISTANCE_CM / 100.0))
+                else:
+                    unit = "cm"
+                    distance = max(0.1, min(distance, MAX_DISTANCE_CM))
+                params["distance"] = distance
+                params["unit"] = unit
+
+            if duration is not None:
+                params["duration"] = max(0.1, min(duration, MAX_DURATION_SEC))
+
+        if intent.name in {"turn_left", "turn_right"}:
+            angle = self._to_float(params.get("angle"), None)
+            duration = self._to_float(params.get("duration"), None)
+            if angle is not None:
+                params["angle"] = max(1.0, min(angle, MAX_ANGLE_DEG))
+                params["unit"] = "degrees"
+            if duration is not None:
+                params["duration"] = max(0.1, min(duration, MAX_DURATION_SEC))
+
+        return Intent(
+            name=intent.name,
+            target=intent.target,
+            parameters=params,
+            confidence=intent.confidence,
+            raw_text=intent.raw_text,
+        )
+
+    def _expand_execute_path(self, intents: list[Intent]) -> list[Intent]:
+        """Décompose l'intent générique `execute_path` en primitives validables."""
+        action_synonyms = {
+            "forward": "move_forward",
+            "move": "move_forward",
+            "backward": "move_backward",
+            "back": "move_backward",
+            "left": "turn_left",
+            "right": "turn_right",
+        }
+        allowed_actions = {"move_forward", "move_backward", "turn_left", "turn_right", "stop"}
+        expanded: list[Intent] = []
+
+        for intent in intents:
+            if intent.name != "execute_path":
+                expanded.append(intent)
+                continue
+
+            steps = intent.parameters.get("steps")
+            if not isinstance(steps, list) or not steps:
+                expanded.append(Intent(name="unknown", raw_text=intent.raw_text, parameters={"reason": "empty execute_path"}))
+                continue
+
+            for raw_step in steps[:MAX_PLAN_STEPS]:
+                if not isinstance(raw_step, dict):
+                    expanded.append(Intent(name="unknown", raw_text=intent.raw_text, parameters={"reason": "invalid step format"}))
+                    continue
+
+                action_raw = str(raw_step.get("action") or raw_step.get("intent") or raw_step.get("name") or "").strip().lower()
+                action = action_synonyms.get(action_raw, action_raw)
+                if action not in allowed_actions:
+                    expanded.append(
+                        Intent(
+                            name="unknown",
+                            raw_text=intent.raw_text,
+                            parameters={"reason": "invalid action", "action": action_raw},
+                        )
+                    )
+                    continue
+
+                step_params = raw_step.get("parameters") if isinstance(raw_step.get("parameters"), dict) else {}
+                merged_params = dict(step_params)
+                for key in ("distance", "unit", "angle", "duration"):
+                    if key in raw_step and key not in merged_params:
+                        merged_params[key] = raw_step[key]
+
+                primitive_intent = Intent(
+                    name=action,
+                    target=intent.target,
+                    parameters=merged_params,
+                    confidence=float(raw_step.get("confidence") or intent.confidence or 0.0),
+                    raw_text=intent.raw_text,
+                )
+                expanded.append(self._sanitize_primitive_intent(primitive_intent))
+
+        return expanded
 
     def _expand_high_level_intents(self, intents: list[Intent]) -> list[Intent]:
         """Décompose certains intents haut niveau en primitives exécutables."""
@@ -458,7 +568,7 @@ class VoiceRuntime:
                 continue
 
             expanded.append(intent)
-        return expanded
+        return [self._sanitize_primitive_intent(it) if it.name in {"move_forward", "move_backward", "turn_left", "turn_right"} else it for it in expanded]
 
     def handle_text(self, text: str):
         intent = self._resolve_intent(text)
@@ -474,8 +584,12 @@ class VoiceRuntime:
             intents = [self.parser.parse(text)]
 
         intents = self._normalize_plan_intent_names(intents)
+        intents = self._expand_execute_path(intents)
         intents = self._expand_high_level_intents(intents)
         intents = self._expand_return_to_start(intents)
+        if len(intents) > MAX_PLAN_STEPS:
+            intents = intents[:MAX_PLAN_STEPS]
+            intents.append(Intent(name="stop", raw_text=text, confidence=1.0))
         if not intents:
             return {"status": "rejected", "reason": "empty plan", "input": text}
 

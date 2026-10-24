@@ -17,14 +17,14 @@ pythonpath = ["src"]
 
 [project.scripts]
 test = "irobot:main"
-camera-live = "irobot.camera.camera_live:main"
-color-detector = "irobot.camera.color_detector:main"
+camera-live = "irobot.hardware.camera.camera_live:main"
+color-detector = "irobot.hardware.camera.color_detector:main"
 # Alias conservé pour compatibilité avec l'ancien nom
-balle-rouge = "irobot.camera.color_detector:main"
-voice-assistant = "irobot.voice_assistant.voice_assistant:main"
+balle-rouge = "irobot.hardware.camera.color_detector:main"
+voice-assistant = "irobot.hardware.audio.voice_assistant:main"
 voice-runtime = "irobot.interfaces.voice_runtime:main"
-smart-car = "irobot.smart_car.smart_car:main"
-hc-sr04 = "irobot.sensors.hc_sr04:main"
+smart-car = "irobot.hardware.smart_car.smart_car:main"
+hc-sr04 = "irobot.hardware.sensors.hc_sr04:main"
 
 # Les scripts de test sont désormais dans le dossier tests/ et s'exécutent via
 # python3 tests/<nom>.py ; ils ne sont pas exposés via uv run car ils ne font

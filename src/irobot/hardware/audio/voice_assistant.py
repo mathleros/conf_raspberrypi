@@ -16,6 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover - tests/macOS
     vosk = None
 
 from irobot.hardware.smart_car.smart_car import SmartCar2WD
+from irobot.interfaces.voice_runtime import main as voice_runtime_main
 
 RATE = 16000
 CARD_NAME = "wm8960"
@@ -262,7 +263,7 @@ def ask_llm(text):
         return f"[erreur LLM] {exc}"
 
 
-def main():
+def legacy_main():
     parser = argparse.ArgumentParser(
         description="Assistant vocal : microphone Bluetooth/WM8960 → Vosk (STT) → Ministral 3 3B → stdout"
     )
@@ -329,6 +330,11 @@ def main():
         print(f"[RÉPONSE ({elapsed:.1f}s)] {answer}", flush=True)
         if args.once:
             return
+
+
+def main() -> None:
+    """Compatibilité CLI: redirige vers le runtime vocal unifié."""
+    voice_runtime_main()
 
 
 if __name__ == "__main__":

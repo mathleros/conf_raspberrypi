@@ -1,5 +1,13 @@
 # Contexte projet — résumé session (2026-10-24)
 
+## Feuille de route & Chantiers en cours
+- Référence d'audit : `docs/audit-architecture-2026.md`
+- [ ] **Chantier P1 :** Restauration des points d'entrée et nettoyage legacy (En cours)
+- [ ] **Chantier P2 :** Sécurité matérielle & Mouvements non bloquants
+- [ ] **Chantier P3 :** Boucle de contrôle fermée
+- [ ] **Chantier P4 :** Factorisation DRY & Typage
+- [ ] **Chantier P5 :** Gestion asynchrone LLM & Watchdog
+
 ## 1) Réalisé et validé
 - Runtime LLM local Mac consolidé : `run_llm_runtime_mac.sh` + saisie texte + mode mock objet.
 - Mode hybride planification : support `execute_path`, normalisation, bornage strict des paramètres, fallback local rapide.

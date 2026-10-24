@@ -7,6 +7,8 @@ from typing import Any
 class RobotController:
     """Adapter between robot business logic and hardware implementation."""
 
+    CONTROL_LOOP_PERIOD_S = 0.02
+
     def __init__(self, robot: Any):
         self.robot = robot
 
@@ -48,40 +50,67 @@ class RobotController:
 
     def check_obstacle(self) -> bool:
         if hasattr(self.robot, "check_obstacle"):
-            return bool(self.robot.check_obstacle())
+            try:
+                obstacle = self.robot.check_obstacle()
+            except Exception:
+                return True
+            if obstacle is None:
+                return True
+            return bool(obstacle)
         return False
 
-    def forward_for(self, duration_seconds: float) -> None:
-        if hasattr(self.robot, "forward_for"):
-            self.robot.forward_for(duration_seconds)
+    def _is_emergency_stop_requested(self) -> bool:
+        detectors = (
+            "is_emergency_stop_requested",
+            "check_emergency_stop",
+            "emergency_stop_requested",
+            "stop_requested",
+        )
+        for name in detectors:
+            if not hasattr(self.robot, name):
+                continue
+            detector = getattr(self.robot, name)
+            try:
+                value = detector() if callable(detector) else detector
+            except Exception:
+                return True
+            if bool(value):
+                return True
+        return False
+
+    def _run_motion_for(self, start_motion, duration_seconds: float) -> None:
+        duration = max(0.0, float(duration_seconds))
+        start_motion()
+
+        if duration <= 0.0:
+            self.stop()
             return
-        self.forward()
-        time.sleep(max(0.0, duration_seconds))
+
+        deadline = time.monotonic() + duration
+        while True:
+            if self._is_emergency_stop_requested() or self.check_obstacle():
+                self.stop()
+                return
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                break
+
+            time.sleep(min(self.CONTROL_LOOP_PERIOD_S, remaining))
+
         self.stop()
+
+    def forward_for(self, duration_seconds: float) -> None:
+        self._run_motion_for(self.forward, duration_seconds)
 
     def backward_for(self, duration_seconds: float) -> None:
-        if hasattr(self.robot, "backward_for"):
-            self.robot.backward_for(duration_seconds)
-            return
-        self.backward()
-        time.sleep(max(0.0, duration_seconds))
-        self.stop()
+        self._run_motion_for(self.backward, duration_seconds)
 
     def left_for(self, duration_seconds: float) -> None:
-        if hasattr(self.robot, "left_for"):
-            self.robot.left_for(duration_seconds)
-            return
-        self.left()
-        time.sleep(max(0.0, duration_seconds))
-        self.stop()
+        self._run_motion_for(self.left, duration_seconds)
 
     def right_for(self, duration_seconds: float) -> None:
-        if hasattr(self.robot, "right_for"):
-            self.robot.right_for(duration_seconds)
-            return
-        self.right()
-        time.sleep(max(0.0, duration_seconds))
-        self.stop()
+        self._run_motion_for(self.right, duration_seconds)
 
     def __getattr__(self, name: str):
         return getattr(self.robot, name)

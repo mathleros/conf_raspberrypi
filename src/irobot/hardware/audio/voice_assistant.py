@@ -1,4 +1,5 @@
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import re
@@ -149,36 +150,56 @@ class VoiceCarController:
 
 def transcribe_loop(device):
     """Lit le flux brut du microphone et le transmet à Vosk."""
-    args = [
-        "arecord",
-        "-D",
-        device,
-        "-f",
-        "S16_LE",
-        "-r",
-        str(RATE),
-        "-c",
-        "1",
-        "-t",
-        "raw",
-    ]
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE)
+    if vosk is None:
+        raise RuntimeError("La dépendance 'vosk' est absente. Installez les paquets Raspberry Pi requis.")
+
+    @contextmanager
+    def _arecord_stream():
+        args = [
+            "arecord",
+            "-D",
+            device,
+            "-f",
+            "S16_LE",
+            "-r",
+            str(RATE),
+            "-c",
+            "1",
+            "-t",
+            "raw",
+        ]
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE)
+        try:
+            if proc.stdout is None:
+                raise RuntimeError("Impossible d'ouvrir le flux audio arecord.")
+            yield proc.stdout
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=1.0)
+            if proc.stdout is not None:
+                proc.stdout.close()
 
     model = vosk.Model(MODEL_PATH)
     rec = vosk.KaldiRecognizer(model, RATE)
     print(f"(parle dans le micro — device: {device} — Ctrl+C pour quitter)\n", flush=True)
 
     bytes_per_chunk = 8000
-    while True:
-        raw = proc.stdout.read(bytes_per_chunk)
-        if not raw:
-            break
-        if rec.AcceptWaveform(raw):
-            result = json.loads(rec.Result())
-            text = result.get("text", "").strip()
-            if text:
-                yield text
-                rec.Reset()
+    with _arecord_stream() as audio_stream:
+        while True:
+            raw = audio_stream.read(bytes_per_chunk)
+            if not raw:
+                break
+            if rec.AcceptWaveform(raw):
+                result = json.loads(rec.Result())
+                text = result.get("text", "").strip()
+                if text:
+                    yield text
+                    rec.Reset()
 
 
 def ask_llm(text):

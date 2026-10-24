@@ -9,6 +9,7 @@ validée par le système.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import os
@@ -37,7 +38,9 @@ RATE = 16000
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_MODEL = "ministral-3-3b"
-LLM_TIMEOUT = 120
+LLM_CONNECT_TIMEOUT_SECONDS = 1.0
+LLM_READ_TIMEOUT_SECONDS = 4.0
+LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
 RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
 MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
 MAX_DISTANCE_CM = RUNTIME_SETTINGS.max_distance_cm
@@ -65,11 +68,9 @@ SYSTEM_PROMPT_PLAN = (
 )
 
 
-def transcribe_loop(device: str):
-    """Lit le flux brut du microphone et le transmet à Vosk."""
-    if vosk is None:
-        raise RuntimeError("La dépendance 'vosk' est absente. Installez les paquets Raspberry Pi requis.")
-
+@contextmanager
+def _arecord_stream(device: str):
+    """Ouvre un flux arecord et garantit son arrêt même en cas d'exception."""
     args = [
         "arecord",
         "-D",
@@ -84,21 +85,43 @@ def transcribe_loop(device: str):
         "raw",
     ]
     proc = subprocess.Popen(args, stdout=subprocess.PIPE)
+    try:
+        if proc.stdout is None:
+            raise RuntimeError("Impossible d'ouvrir le flux audio arecord.")
+        yield proc.stdout
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=1.0)
+        if proc.stdout is not None:
+            proc.stdout.close()
+
+
+def transcribe_loop(device: str):
+    """Lit le flux brut du microphone et le transmet à Vosk."""
+    if vosk is None:
+        raise RuntimeError("La dépendance 'vosk' est absente. Installez les paquets Raspberry Pi requis.")
+
     model = vosk.Model(MODEL_PATH)
     recognizer = vosk.KaldiRecognizer(model, RATE)
     print(f"(parle dans le micro — device: {device} — Ctrl+C pour quitter)\n", flush=True)
 
     bytes_per_chunk = 8000
-    while True:
-        raw = proc.stdout.read(bytes_per_chunk)
-        if not raw:
-            break
-        if recognizer.AcceptWaveform(raw):
-            result = json.loads(recognizer.Result())
-            text = result.get("text", "").strip()
-            if text:
-                yield text
-                recognizer.Reset()
+    with _arecord_stream(device) as audio_stream:
+        while True:
+            raw = audio_stream.read(bytes_per_chunk)
+            if not raw:
+                break
+            if recognizer.AcceptWaveform(raw):
+                result = json.loads(recognizer.Result())
+                text = result.get("text", "").strip()
+                if text:
+                    yield text
+                    recognizer.Reset()
 
 
 def _parse_llm_json_payload(content: str) -> dict[str, Any] | None:
@@ -132,7 +155,7 @@ def ask_llm_for_intent(text: str) -> Intent:
         "stream": False,
     }
     try:
-        response = requests.post(LLM_URL, json=payload, timeout=LLM_TIMEOUT)
+        response = requests.post(LLM_URL, json=payload, timeout=LLM_HTTP_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         content = data["choices"][0]["message"]["content"].strip()
@@ -170,7 +193,7 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         "stream": False,
     }
     try:
-        response = requests.post(LLM_URL, json=payload, timeout=LLM_TIMEOUT)
+        response = requests.post(LLM_URL, json=payload, timeout=LLM_HTTP_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         content = data["choices"][0]["message"]["content"].strip()

@@ -101,6 +101,23 @@ class IntentParser:
 
         lowered = cleaned.lower()
 
+        # "arrête-toi quand tu vois X" est une condition d'arrêt, pas un ordre d'arrêt immédiat.
+        has_condition = any(
+            token in lowered for token in ["quand", "jusqu", "dès que", "des que", "lorsque", "when", "until"]
+        )
+        has_search_verb = any(token in lowered for token in ["tourne", "cherche", "recherche", "scan", "look"])
+        if has_condition and has_search_verb:
+            color = "yellow" if any(t in lowered for t in ["jaune", "yellow"]) else (
+                "red" if any(t in lowered for t in ["rouge", "red"]) else None
+            )
+            return Intent(
+                name="search_and_approach_object",
+                target=color,
+                parameters={"search": True, "approach": False, **({"target_object": color} if color else {})},
+                confidence=0.8,
+                raw_text=text,
+            )
+
         if any(token in lowered for token in ["stop", "arrêt", "arrete", "halt", "pause"]):
             return Intent(name="stop", confidence=0.95, raw_text=text)
 

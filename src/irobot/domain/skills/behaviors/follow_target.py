@@ -77,7 +77,6 @@ class FollowTargetSkill(Skill):
             directional()
             if duration > 0.0:
                 time.sleep(duration)
-            self._stop_robot(context)
 
     def _detect_target(self, context: SkillContext) -> tuple[str | None, float | None]:
         params = dict(context.state.get("active_intent_parameters") or {})

@@ -822,6 +822,45 @@ class VoiceRuntime:
             print("\nInterruption clavier : arrêt du runtime vocal.")
 
 
+def build_hardware_runtime() -> dict[str, Any]:
+    """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""
+    runtime: dict[str, Any] = {
+        "robot": None,
+        "camera": None,
+        "sensor": None,
+        "perception": None,
+    }
+
+    if not sys.platform.startswith("linux"):
+        return runtime
+
+    try:
+        from irobot.hardware.smart_car.smart_car import SmartCar2WD
+
+        runtime["robot"] = SmartCar2WD(require_obstacle_sensor=False)
+    except Exception:
+        runtime["robot"] = None
+
+    try:
+        from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
+
+        perception = CameraLivePerceptionPipeline()
+        runtime["camera"] = perception
+        runtime["perception"] = perception
+    except Exception:
+        runtime["camera"] = None
+        runtime["perception"] = None
+
+    try:
+        from irobot.hardware.sensors.hc_sr04 import HC_SR04
+
+        runtime["sensor"] = HC_SR04()
+    except (Exception, SystemExit):
+        runtime["sensor"] = None
+
+    return runtime
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Runtime vocal complet : Vosk → intent → skills -> robot."
@@ -845,7 +884,15 @@ def main():
     args = parser.parse_args()
 
     try:
-        runtime = VoiceRuntime(input_device=args.input_device, use_llm=not args.no_llm)
+        hardware = build_hardware_runtime()
+        runtime = VoiceRuntime(
+            robot=hardware["robot"],
+            camera=hardware["camera"],
+            sensor=hardware["sensor"],
+            perception=hardware["perception"],
+            input_device=args.input_device,
+            use_llm=not args.no_llm,
+        )
         if args.once:
             runtime.listen_once()
             return

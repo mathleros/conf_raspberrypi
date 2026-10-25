@@ -16,7 +16,6 @@ Notes de câblage :
 """
 
 import argparse
-import os
 import time
 
 try:
@@ -58,6 +57,7 @@ class SmartCar2WD:
         obstacle_threshold_cm: float = 5.0,
         sensor_trigger_pin: int = 17,
         sensor_echo_pin: int = 27,
+        require_obstacle_sensor: bool = False,
     ):
         self.pins = {
             "in1": DigitalOutputDevice(in1),
@@ -72,6 +72,7 @@ class SmartCar2WD:
         self.stop()
 
         self.obstacle_threshold_cm = obstacle_threshold_cm
+        self.require_obstacle_sensor = bool(require_obstacle_sensor)
         self.distance_sensor = (
             HC_SR04(
                 trigger_pin=sensor_trigger_pin,
@@ -149,6 +150,8 @@ class SmartCar2WD:
 
     def check_obstacle(self) -> bool:
         """Retourne True si un objet est détecté à moins de l seuil configuré."""
+        if self.distance_sensor is None and not self.require_obstacle_sensor:
+            return False
         if self.distance_sensor is None:
             return True
 
@@ -274,11 +277,6 @@ def main() -> None:
         run_command(args)
     except ValueError as exc:
         parser.error(str(exc))
-    finally:
-        # gpiozero peut provoquer un crash de finalisation sur certains Raspberry Pi
-        # (threads du backend GPIO) au moment du shutdown. On quitte immédiatement
-        # après le nettoyage afin d'éviter ce bug de fermeture Python.
-        os._exit(0)
 
 
 if __name__ == "__main__":

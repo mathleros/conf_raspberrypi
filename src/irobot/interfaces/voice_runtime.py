@@ -821,7 +821,7 @@ class VoiceRuntime:
         except KeyboardInterrupt:
             print("\nInterruption clavier : arrêt du runtime vocal.")
 
-    def close (self) -> None:
+    def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
         if self.perception is not None and hasattr(self.perception, "close"):
             try:
@@ -851,6 +851,7 @@ def build_hardware_runtime() -> dict[str, Any]:
         from irobot.interfaces.robot_controller import RobotController
 
         car = SmartCar2WD(require_obstacle_sensor=False)
+        car.set_speed(0.5)
         runtime["robot"] = RobotController(car)
         runtime["sensor"] = car.distance_sensor
     except Exception:

@@ -7,29 +7,54 @@ cd "${PROJECT_ROOT}"
 LLAMA_BINARY="${PROJECT_ROOT}/target/llama.cpp/build/bin/llama-server"
 MODEL_PATH="${PROJECT_ROOT}/target/models/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
 LLM_URL="http://127.0.0.1:8080/v1/models"
+PID_FILE="/tmp/irobot_llama_runtime_mac.pid"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    echo "Usage: $0 [--text 'phrase'] [--mock-object-position 'centre']"
+    echo "Usage: $0 [--text 'phrase'] [--mock-object-position 'centre'] [--ctx-size TOKENS]"
+    echo "       $0 --stop"
     echo ""
     echo "Démarre le serveur LLM portable local puis exécute le runtime sur Mac."
     echo "Aucun microphone n'est utilisé."
     echo "Exemples :"
     echo "  bash $0"
     echo "  bash $0 --text 'va vers la balle rouge'"
+    echo "  bash $0 --ctx-size 8192 --text 'va vers la balle rouge'"
+    echo "  bash $0 --stop"
     echo "  bash $0 --text 'cherche un objet puis approche toi' --mock-object-position 'centre'"
     exit 0
 fi
 
 TEXT=""
 MOCK_OBJECT_POSITION=""
+CTX_SIZE=4096
+STOP_SERVER=0
+OTHER_OPTION=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --stop)
+            STOP_SERVER=1
+            ;;
+        --ctx-size)
+            OTHER_OPTION=1
+            if [[ $# -lt 2 ]]; then
+                echo "Valeur manquante pour --ctx-size."
+                exit 1
+            fi
+            shift
+            CTX_SIZE="${1}"
+            if [[ ! "${CTX_SIZE}" =~ ^[1-9][0-9]*$ ]]; then
+                echo "La taille du contexte doit être un entier positif : ${CTX_SIZE}"
+                exit 1
+            fi
+            ;;
         --text)
+            OTHER_OPTION=1
             shift
             TEXT="${1:-}"
             ;;
         --mock-object-position)
+            OTHER_OPTION=1
             shift
             MOCK_OBJECT_POSITION="${1:-}"
             ;;
@@ -41,6 +66,74 @@ while [[ $# -gt 0 ]]; do
     esac
     shift || true
 done
+
+if [[ "${STOP_SERVER}" -eq 1 ]]; then
+    if [[ "${OTHER_OPTION}" -eq 1 ]]; then
+        echo "--stop ne peut pas être combiné avec les autres options."
+        exit 1
+    fi
+
+    server_pids=()
+    is_target_server() {
+        local pid="$1"
+        local command
+        command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+        [[ "${command}" == *"${LLAMA_BINARY}"* && "${command}" == *"--port 8080"* ]]
+    }
+
+    if [[ -f "${PID_FILE}" ]]; then
+        saved_pid="$(<"${PID_FILE}")"
+        if [[ "${saved_pid}" =~ ^[0-9]+$ ]] && kill -0 "${saved_pid}" 2>/dev/null; then
+            if is_target_server "${saved_pid}"; then
+                server_pids+=("${saved_pid}")
+            else
+                echo "Le PID enregistré n'est plus celui du serveur LLM; fichier PID ignoré."
+            fi
+        fi
+        rm -f "${PID_FILE}"
+    fi
+
+    if command -v lsof >/dev/null 2>&1; then
+        while IFS= read -r pid; do
+            [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+            is_target_server "${pid}" || continue
+            already_added=0
+            for existing_pid in "${server_pids[@]}"; do
+                if [[ "${existing_pid}" == "${pid}" ]]; then
+                    already_added=1
+                    break
+                fi
+            done
+            if [[ "${already_added}" -eq 0 ]]; then
+                server_pids+=("${pid}")
+            fi
+        done < <(lsof -nP -t -iTCP:8080 -sTCP:LISTEN 2>/dev/null || true)
+    fi
+
+    if [[ "${#server_pids[@]}" -eq 0 ]]; then
+        echo "Aucun llama-server du projet n'est actif sur le port 8080."
+        exit 0
+    fi
+
+    for pid in "${server_pids[@]}"; do
+        kill -TERM "${pid}"
+    done
+    for pid in "${server_pids[@]}"; do
+        for _ in $(seq 1 10); do
+            if ! kill -0 "${pid}" 2>/dev/null; then
+                break
+            fi
+            sleep 1
+        done
+        if kill -0 "${pid}" 2>/dev/null; then
+            echo "Le serveur (PID ${pid}) ne s'est pas arrêté après SIGTERM."
+            exit 1
+        fi
+    done
+    rm -f "${PID_FILE}"
+    echo "Serveur LLM arrêté."
+    exit 0
+fi
 
 if [[ -z "${TEXT}" ]]; then
     if [[ -t 0 ]]; then
@@ -75,11 +168,12 @@ if ! curl -fsS "${LLM_URL}" >/dev/null 2>&1; then
         -m "${MODEL_PATH}" \
         --host 127.0.0.1 \
         --port 8080 \
-        --ctx-size 4096 \
+        --ctx-size "${CTX_SIZE}" \
         --threads 4 \
         --parallel 1 > /tmp/irobot_llama.log 2>&1 &
 
     SERVER_PID=$!
+    printf '%s\n' "${SERVER_PID}" > "${PID_FILE}"
     echo "PID serveur : ${SERVER_PID}"
 
     for _ in $(seq 1 60); do

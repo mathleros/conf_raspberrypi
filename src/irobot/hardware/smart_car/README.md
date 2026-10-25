@@ -12,8 +12,19 @@ Il permet de :
 Commande principale :
 
 ```bash
-uv run smart-car <command> [--speed 0.0-1.0] [--duration N]
+uv run smart-car <command> [--speed 0.0-1.0] [--duration N] \
+    [--obstacle-threshold-cm CM] [--obstacle-check-interval S]
 ```
+
+## Options
+
+| Option | Défaut | Description |
+|---|---|---|
+| `command` | – | `forward`, `backward`, `left`, `right` ou `stop` |
+| `--speed` | `1.0` | Vitesse de `0.0` (arrêt) à `1.0` (maximum) |
+| `--duration` | `-1` | Durée en secondes ; `-1` = indéfini (Ctrl+C), `0` = arrêt immédiat |
+| `--obstacle-threshold-cm` | `5.0` | Arrête la voiture si le HC-SR04 mesure un objet à moins de X cm |
+| `--obstacle-check-interval` | `0.2` | Intervalle (s) entre deux vérifications du capteur pendant un déplacement |
 
 ## Broches GPIO utilisées
 
@@ -85,6 +96,17 @@ Exemples :
 uv run smart-car forward --speed 0.7 --duration 2
 uv run smart-car backward --speed 0.6
 uv run smart-car stop
+```
+
+## Détection d'obstacle
+
+Pendant un déplacement, le capteur HC-SR04 (TRIG GPIO 17, ECHO GPIO 27) est lu toutes les `--obstacle-check-interval` secondes :
+- distance < `--obstacle-threshold-cm` : la voiture s'arrête et le programme se termine normalement
+- mesure manquante : jusqu'à 5 lectures sont tentées avant de conclure à un obstacle
+
+```bash
+uv run smart-car forward --speed 0.5 --obstacle-threshold-cm 15
+uv run smart-car forward --duration 5 --obstacle-check-interval 0.1
 ```
 
 ## Exemple complet

@@ -46,6 +46,8 @@ class SmartCar2WD:
         "enb": 13,
     }
 
+    SENSOR_READ_ATTEMPTS = 5
+
     def __init__(
         self,
         in1=DEFAULT_PINS["in1"],
@@ -155,13 +157,16 @@ class SmartCar2WD:
         if self.distance_sensor is None:
             return True
 
-        try:
-            distance_cm = self.distance_sensor.read_distance_cm()
-        except Exception:
-            return True
-        if distance_cm is None:
-            return True
-        return distance_cm < self.obstacle_threshold_cm
+        # Le HC-SR04 renvoie souvent des mesures manquantes : on réessaie avant de conclure.
+        for _ in range(self.SENSOR_READ_ATTEMPTS):
+            try:
+                distance_cm = self.distance_sensor.read_distance_cm()
+            except Exception:
+                return True
+            if distance_cm is not None:
+                return distance_cm < self.obstacle_threshold_cm
+            time.sleep(0.03)
+        return True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -268,6 +273,27 @@ def run_command(args: argparse.Namespace) -> None:
         car.cleanup()
 
 
+def _stop_lgpio_notify_thread() -> None:
+    """Arrête le thread daemon de lgpio pour éviter un crash à la finalisation de Python."""
+    try:
+        import lgpio
+        from gpiozero import Device
+    except ImportError:  # pragma: no cover - hors Raspberry Pi
+        return
+
+    thread = getattr(lgpio, "_notify_thread", None)
+    if thread is None:
+        return
+    try:
+        thread.stop()
+        if Device.pin_factory is not None:
+            Device.pin_factory.close()
+        lgpio._notify_close(thread._notify)
+        thread.join(1.0)
+    except Exception:
+        pass
+
+
 def main() -> None:
     """Point d'entrée du script."""
     parser = build_parser()
@@ -277,6 +303,8 @@ def main() -> None:
         run_command(args)
     except ValueError as exc:
         parser.error(str(exc))
+    finally:
+        _stop_lgpio_notify_thread()
 
 
 if __name__ == "__main__":

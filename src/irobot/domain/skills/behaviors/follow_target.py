@@ -90,9 +90,8 @@ class FollowTargetSkill(Skill):
                 context.state["last_object_position"] = getattr(detection, "position", None)
                 context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
 
-        position = self._normalize_position(
-            context.state.get("last_object_position", context.state.get("last_ball_position"))
-        )
+        raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")
+        position = self._normalize_position(raw_position)
 
         distance_raw = context.state.get("last_object_distance_cm")
         distance_cm: float | None

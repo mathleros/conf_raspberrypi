@@ -145,9 +145,6 @@ def main() -> None:
         sensor.cleanup()
         if args.once:
             print("Fermeture propre du capteur...")
-            print("", end="", flush=True)
-            os._exit(0)
-
 
 if __name__ == "__main__":
     main()

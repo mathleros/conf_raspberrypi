@@ -821,6 +821,18 @@ class VoiceRuntime:
         except KeyboardInterrupt:
             print("\nInterruption clavier : arrêt du runtime vocal.")
 
+    def close (self) -> None:
+        """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
+        if self.perception is not None and hasattr(self.perception, "close"):
+            try:
+                self.perception.close()
+            except Exception:
+                pass
+        if self.robot is not None and hasattr(self.robot, "stop"):
+            try:
+                self.robot.stop()
+            except Exception:
+                pass
 
 def build_hardware_runtime() -> dict[str, Any]:
     """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""
@@ -836,10 +848,14 @@ def build_hardware_runtime() -> dict[str, Any]:
 
     try:
         from irobot.hardware.smart_car.smart_car import SmartCar2WD
+        from irobot.interfaces.robot_controller import RobotController
 
-        runtime["robot"] = SmartCar2WD(require_obstacle_sensor=False)
+        car = SmartCar2WD(require_obstacle_sensor=False)
+        runtime["robot"] = RobotController(car)
+        runtime["sensor"] = car.distance_sensor
     except Exception:
         runtime["robot"] = None
+        runtime["sensor"] = None
 
     try:
         from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
@@ -851,15 +867,7 @@ def build_hardware_runtime() -> dict[str, Any]:
         runtime["camera"] = None
         runtime["perception"] = None
 
-    try:
-        from irobot.hardware.sensors.hc_sr04 import HC_SR04
-
-        runtime["sensor"] = HC_SR04()
-    except (Exception, SystemExit):
-        runtime["sensor"] = None
-
     return runtime
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -883,6 +891,7 @@ def main():
     )
     args = parser.parse_args()
 
+    runtime = None
     try:
         hardware = build_hardware_runtime()
         runtime = VoiceRuntime(
@@ -900,7 +909,9 @@ def main():
     except RuntimeError as exc:
         print(f"Erreur : {exc}")
         sys.exit(1)
-
+    finally:
+        if runtime is not None:
+            runtime.close()
 
 if __name__ == "__main__":
     main()

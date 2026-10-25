@@ -1,4 +1,8 @@
 import os
+import sys
+
+if not os.environ.get("DISPLAY"):
+    sys.exit("Erreur : Aucun serveur d'affichage X11 détecté (variable DISPLAY absente).")
 
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 

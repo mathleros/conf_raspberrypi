@@ -806,7 +806,7 @@ class VoiceRuntime:
         device = resolve_input_device(self.input_device)
         for text in transcribe_loop(device):
             print(f"\n[VOIX] {text}", flush=True)
-            result = self.handle_text(text)
+            result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {result}", flush=True)
             return result
         return {"status": "no_transcript"}
@@ -816,7 +816,7 @@ class VoiceRuntime:
         try:
             for text in transcribe_loop(device):
                 print(f"\n[VOIX] {text}", flush=True)
-                result = self.handle_text(text)
+                result = self.handle_text_as_plan(text)
                 print(f"[RUNTIME] {result}", flush=True)
         except KeyboardInterrupt:
             print("\nInterruption clavier : arrêt du runtime vocal.")

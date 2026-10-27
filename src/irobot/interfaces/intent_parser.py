@@ -212,19 +212,19 @@ class IntentParser:
             )
 
         if any(token in lowered for token in ["gauche", "turn left", "left turn", "tourne à gauche", "tourne a gauche"]):
-            duration = _extract_duration(cleaned) or 1.0
+            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_left",
-                parameters={"duration": duration},
+                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["droite", "turn right", "right turn", "tourne à droite", "tourne a droite"]):
-            duration = _extract_duration(cleaned) or 1.0
+            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_right",
-                parameters={"duration": duration},
+                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
                 raw_text=text,
             )
 

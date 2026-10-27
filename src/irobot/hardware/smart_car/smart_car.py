@@ -56,7 +56,7 @@ class SmartCar2WD:
         in4=DEFAULT_PINS["in4"],
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
-        obstacle_threshold_cm: float = 5.0,
+        obstacle_threshold_cm: float = 20.0,
         sensor_trigger_pin: int = 17,
         sensor_echo_pin: int = 27,
         require_obstacle_sensor: bool = False,
@@ -194,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--obstacle-threshold-cm",
         type=float,
-        default=5.0,
+        default=20.0,
         help="Arrête la voiture si le capteur HC-SR04 détecte un objet à moins de X cm.",
     )
     parser.add_argument(

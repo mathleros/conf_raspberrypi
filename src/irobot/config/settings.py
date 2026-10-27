@@ -13,7 +13,8 @@ DEFAULT_TIMEOUT_SECONDS = 2.0
 @dataclass(frozen=True)
 class RuntimeSettings:
 	cm_per_second: float = 25.0
-	deg_per_second: float = 180.0
+	deg_per_second: float = 360.0
+	turn_speed: float = 0.5
 	step_timeout_seconds: float = 6.0
 	mission_timeout_seconds: float = 45.0
 	max_step_retries: int = 2
@@ -38,7 +39,8 @@ def load_runtime_settings() -> RuntimeSettings:
 
 	return RuntimeSettings(
 		cm_per_second=float(runtime.get("cm_per_second", 25.0)),
-		deg_per_second=float(runtime.get("deg_per_second", 180.0)),
+		deg_per_second=float(runtime.get("deg_per_second", 360.0)),
+		turn_speed=float(runtime.get("turn_speed", 0.5)),
 		step_timeout_seconds=float(runtime.get("step_timeout_seconds", 6.0)),
 		mission_timeout_seconds=float(runtime.get("mission_timeout_seconds", 45.0)),
 		max_step_retries=int(runtime.get("max_step_retries", 2)),

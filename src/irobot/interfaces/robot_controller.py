@@ -78,7 +78,7 @@ class RobotController:
                 return True
         return False
 
-    def _run_motion_for(self, start_motion, duration_seconds: float) -> None:
+    def _run_motion_for(self, start_motion, duration_seconds: float, check_obstacle: bool = True) -> None:
         duration = max(0.0, float(duration_seconds))
         start_motion()
 
@@ -88,7 +88,7 @@ class RobotController:
 
         deadline = time.monotonic() + duration
         while True:
-            if self._is_emergency_stop_requested() or self.check_obstacle():
+            if self._is_emergency_stop_requested() or (check_obstacle and self.check_obstacle()):
                 self.stop()
                 return
 
@@ -104,7 +104,7 @@ class RobotController:
         self._run_motion_for(self.forward, duration_seconds)
 
     def backward_for(self, duration_seconds: float) -> None:
-        self._run_motion_for(self.backward, duration_seconds)
+        self._run_motion_for(self.backward, duration_seconds, check_obstacle=False)
 
     def left_for(self, duration_seconds: float) -> None:
         self._run_motion_for(self.left, duration_seconds)

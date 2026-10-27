@@ -64,10 +64,19 @@ class BaseMotionPrimitiveSkill(Skill):
             return False
 
         command_for = getattr(context.robot, self.command_for_method, None)
-        if duration_value is not None and callable(command_for):
-            command_for(duration_value)
-        else:
-            command()
+        previous_speed = getattr(context.robot, "speed", None)
+        set_speed = getattr(context.robot, "set_speed", None)
+        use_turn_speed = self.parameter_mode == "angle" and callable(set_speed)
+        if use_turn_speed:
+            set_speed(SETTINGS.turn_speed)
+        try:
+            if duration_value is not None and callable(command_for):
+                command_for(duration_value)
+            else:
+                command()
+        finally:
+            if use_turn_speed and previous_speed is not None and duration_value is not None:
+                set_speed(previous_speed)
         return True
 
     def execute(self, context: SkillContext) -> SkillResult:

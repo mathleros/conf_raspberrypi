@@ -32,8 +32,9 @@ def main():
     try:
         while True:
             frame = picam2.capture_array()
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            cv2.imshow("Camera 1 - Live", frame)
+            rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            rotated_frame = cv2.cvtColor(rotated_frame, cv2.COLOR_RGB2BGR)
+            cv2.imshow("Camera 1 - Live", rotated_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     finally:

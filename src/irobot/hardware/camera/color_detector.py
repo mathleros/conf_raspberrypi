@@ -339,19 +339,20 @@ def main():
     try:
         while True:
             frame = picam2.capture_array()
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            rotated_frame = cv2.cvtColor(rotated_frame, cv2.COLOR_RGB2BGR)
 
             best_result = None
             for color_name in colors_to_check:
-                candidates = detect_colored_objects(frame, color_name=color_name, debug=debug)
-                result = choose_best_result(candidates, color_name, frame.shape, robotic=robotic)
+                candidates = detect_colored_objects(rotated_frame, color_name=color_name, debug=debug)
+                result = choose_best_result(candidates, color_name, rotated_frame.shape, robotic=robotic)
                 if result is not None and best_result is None:
                     best_result = result
 
             if best_result is not None:
                 safe_print(best_result)
                 if HAS_GUI:
-                    cv2.imshow("Camera 1 - Live", frame)
+                    cv2.imshow("Camera 1 - Live", rotated_frame)
                     cv2.waitKey(250)
                 break
 

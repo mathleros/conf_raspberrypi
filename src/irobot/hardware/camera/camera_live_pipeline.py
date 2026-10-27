@@ -97,11 +97,12 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
             while not self._stop_event.is_set():
                 frame_rgb = camera.capture_array()
+                rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
                 
                 results: list[str] = []
                 for color in self._iter_colors_for_target(None, self.default_target):
-                    candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True, debug=False)
-                    best = choose_best_result(candidates, color, frame_rgb.shape, robotic=True)
+                    candidates = detect_colored_objects(rotated_frame_rgb, color_name=color, is_rgb=True, debug=False)
+                    best = choose_best_result(candidates, color, rotated_frame_rgb.shape, robotic=True)
                     if best:
                         results.append(best)
 

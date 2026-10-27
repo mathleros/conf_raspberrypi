@@ -11,7 +11,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 
-def test_pin(pin: int, duration: float) -> None:
+def activate_pin(pin: int, duration: float) -> None:
     output = DigitalOutputDevice(pin)
     print(f"Activation du GPIO{pin} pendant {duration}s")
     output.on()
@@ -35,7 +35,7 @@ def main() -> None:
 
     try:
         for pin in pins:
-            test_pin(pin, args.duration)
+            activate_pin(pin, args.duration)
             time.sleep(0.1)
         print("Test terminé.")
     except KeyboardInterrupt:

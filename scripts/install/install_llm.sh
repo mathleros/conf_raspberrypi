@@ -55,7 +55,7 @@ cat > /usr/local/bin/ministral-server <<SHELL
 exec ${LLAMA_DIR}/build/bin/llama-server \
     -m ${MODEL_FILE} \
     --host 127.0.0.1 --port 8080 \
-    --ctx-size 4096 --threads 4 --parallel 1
+    --ctx-size 2048 --threads 4 --parallel 1
 SHELL
 chmod +x /usr/local/bin/ministral-server
 

@@ -6,9 +6,10 @@ from typing import Any
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
+from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
 
 
-class FollowTargetSkill(Skill):
+class FollowTargetSkill(TargetTrackingMixin, Skill):
     """Behavior composite : suit une cible détectée.
 
     Ce behavior est un exemple de logique de niveau supérieur : il combine
@@ -25,7 +26,6 @@ class FollowTargetSkill(Skill):
     DEFAULT_MAX_TARGET_LOSS_S = 1.0
     DEFAULT_APPROACH_THRESHOLD_CM = 20.0
     DEFAULT_STAND_OFF_TOLERANCE_CM = 10.0
-    SEARCH_SETTLE_S = 0.15
     MIN_FORWARD_SCALE = 0.25
     PHASE_SEARCH = "search"
     PHASE_TRACK = "track"
@@ -63,88 +63,6 @@ class FollowTargetSkill(Skill):
             return base_step_s
         ratio = (distance_cm - stand_off_cm) / stand_off_cm
         return base_step_s * min(1.0, max(self.MIN_FORWARD_SCALE, ratio))
-
-    @staticmethod
-    def _to_float(value: Any, default: float) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def _normalize_position(position: Any) -> str | None:
-        if position is None:
-            return None
-        normalized = str(position).strip().lower()
-        if normalized in {"center", "centre", "middle"}:
-            return "center"
-        if normalized in {"left", "right"}:
-            return normalized
-        if normalized in {"unknown", "none", ""}:
-            return None
-        return None
-
-    def _check_obstacle_fail_safe(self, context: SkillContext) -> bool:
-        if bool(context.state.get("obstacle_detected", False)):
-            return True
-
-        checker = getattr(context.robot, "check_obstacle", None)
-        if checker is None:
-            return False
-
-        try:
-            reading = checker()
-        except Exception:
-            return True
-
-        if reading is None:
-            return True
-        return bool(reading)
-
-    def _stop_robot(self, context: SkillContext) -> None:
-        stop = getattr(context.robot, "stop", None)
-        if callable(stop):
-            stop()
-
-    def _pulse_motion(self, context: SkillContext, direction: str, duration_s: float) -> None:
-        duration = max(0.0, float(duration_s))
-        directional_for = getattr(context.robot, f"{direction}_for", None)
-        if callable(directional_for):
-            directional_for(duration)
-            return
-
-        directional = getattr(context.robot, direction, None)
-        if callable(directional):
-            directional()
-            if duration > 0.0:
-                self.sleep_fn(duration)
-
-    def _detect_target(self, context: SkillContext) -> tuple[str | None, float | None]:
-        params = dict(context.state.get("active_intent_parameters") or {})
-        target_object = params.get("target_object") or context.state.get("target_object")
-        detector = getattr(context.perception, "detect", None)
-
-        if callable(detector):
-            detection = detector(target=target_object)
-            if detection is None:
-                context.state["last_object_position"] = None
-                context.state["last_object_distance_cm"] = None
-                context.state["last_ball_position"] = None
-            else:
-                context.state["target_object"] = getattr(detection, "label", target_object) or target_object
-                context.state["last_object_position"] = getattr(detection, "position", None)
-                context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
-
-        raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")
-        position = self._normalize_position(raw_position)
-
-        distance_raw = context.state.get("last_object_distance_cm")
-        distance_cm: float | None
-        try:
-            distance_cm = float(distance_raw) if distance_raw is not None else None
-        except (TypeError, ValueError):
-            distance_cm = None
-        return position, distance_cm
 
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
@@ -382,14 +300,7 @@ class FollowTargetSkill(Skill):
                         next_action="stop_motion",
                     )
 
-                self._pulse_motion(context, sweep_direction, align_step_s)
-                context.state["motion"] = "search_target"
-                context.state["follow_target_state"] = {
-                    "phase": "searching",
-                    "direction": sweep_direction,
-                    "iterations": iterations,
-                }
-                self.sleep_fn(self.SEARCH_SETTLE_S)
+                self._sweep_step(context, sweep_direction, align_step_s, iterations)
 
             self._stop_robot(context)
             context.state["follow_target_state"] = {

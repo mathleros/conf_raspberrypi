@@ -25,3 +25,4 @@ target/
 # Fichiers système
 .DS_Store
 Thumbs.db
+rapport.json

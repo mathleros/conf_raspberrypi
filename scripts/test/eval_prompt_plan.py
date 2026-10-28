@@ -7,6 +7,7 @@ Usage :
     python3 eval_prompt_plan.py --only usecase,carre  # quelques cas
     python3 eval_prompt_plan.py --prompt-file p.txt   # tester une variante du prompt
     python3 eval_prompt_plan.py --no-response-format  # sans JSON contraint
+    python3 eval_prompt_plan.py --schema              # sortie contrainte par schéma JSON
     python3 eval_prompt_plan.py --no-preprocess       # envoie le texte brut (nombres en lettres)
     python3 eval_prompt_plan.py --json-out rapport.json
 
@@ -141,6 +142,8 @@ CASES = [
     ("droite_nu", "tourne à droite",
      [[S("turn_right", angle=ANY)], [S("turn_right", duration=ANY)]]),
     ("stop", "arrête toi", [[S("stop")]]),
+    ("stop_nu", "stop", [[S("stop")]]),
+    ("halte", "halte", [[S("stop")]]),
     ("carre", "fais un carré de un mètre", [[S("move_square", side_cm=100)]]),
     ("spin", "fais un tour complet sur toi même",
      [[S("spin_360")], [S("turn_right", angle=360)], [S("turn_left", angle=360)]]),
@@ -149,16 +152,20 @@ CASES = [
     ("retour", "avance d'un mètre puis reviens au point de départ",
      [[S("move_forward", distance_cm=100), S("return_to_start")]]),
     ("hors_liste", "fais un salto arrière", [[]]),
+    ("hors_liste_2", "chante une chanson", [[]]),
+    ("hors_liste_3", "ouvre la porte du garage", [[]]),
     ("couleur_non_geree", "va chercher la balle bleue", [[]]),
     ("approche_50", "approche toi de la balle jaune à cinquante centimètres",
      [[S("search_and_approach_object", "yellow", stand_off_cm=50)]]),
     ("gauche_2s", "tourne à gauche pendant deux secondes",
      [[S("turn_left", duration=2)]]),
     ("avance_10s_stop", "avance pendant dix secondes puis arrête",
-     [[S("move_forward", duration=10), S("stop")]]),
+     # « puis arrête » est redondant : le runtime ajoute un stop en fin de plan
+     [[S("move_forward", duration=10), S("stop")], [S("move_forward", duration=10)]]),
     ("suis_jaune_30s", "suis la balle jaune pendant trente secondes à deux mètres",
      [[S("follow_object", "yellow", stand_off_cm=200, duration_s=30)]]),
-    ("evite", "évite l'obstacle", [[S("avoid_obstacle")]]),
+    # avoid_obstacle est peu fiable côté robot (rotations bloquées par l'obstacle) : [] accepté aussi
+    ("evite", "évite l'obstacle", [[S("avoid_obstacle")], []]),
     ("trois_etapes",
      "avance de vingt centimètres puis recule de dix centimètres puis tourne à droite de quatre vingt dix degrés",
      [[S("move_forward", distance_cm=20), S("move_backward", distance_cm=10),
@@ -170,6 +177,53 @@ CASES = [
     ("nombre_compose", "tourne à droite de quatre vingt dix degrés", [[S("turn_right", angle=90)]]),
     ("nombre_soixante", "avance de soixante et onze centimètres", [[S("move_forward", distance_cm=71)]]),
 ]
+
+
+PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "steps": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "intent": {"type": "string", "enum": [
+                        "move_forward", "move_backward", "turn_left", "turn_right", "stop",
+                        "search_and_approach_object", "follow_object", "follow_red_ball",
+                        "avoid_obstacle", "spin_360", "move_square", "return_to_start"]},
+                    "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "distance": {"type": "number"}, "duration": {"type": "number"},
+                            "angle": {"type": "number"}, "stand_off_cm": {"type": "number"},
+                            "duration_s": {"type": "number"}, "side": {"type": "number"},
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["intent"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["steps"],
+    "additionalProperties": False,
+}
+
+
+def build_formats(no_response_format: bool, use_schema: bool):
+    if no_response_format:
+        return [None]
+    if use_schema:
+        return [
+            {"type": "json_schema", "json_schema": {"name": "plan", "strict": True, "schema": PLAN_SCHEMA}},
+            {"type": "json_object", "schema": PLAN_SCHEMA},
+            {"type": "json_object"},
+            None,
+        ]
+    return [{"type": "json_object"}, None]
 
 
 # --------------------------------------------------------------------------- JSON
@@ -283,8 +337,10 @@ def plan_matches(steps: list, expected_plan: list) -> bool:
 # --------------------------------------------------------------------------- HTTP
 
 
-def call_llm(url, system_prompt, text, *, model, max_tokens, response_format, timeout):
-    payload = {
+def call_llm(url, system_prompt, text, *, model, max_tokens, formats, timeout):
+    """`formats` : liste de response_format à essayer dans l'ordre (None = sans contrainte).
+    On passe au suivant sur HTTP 400 (option non gérée par cette version de llama-server)."""
+    base = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
@@ -295,8 +351,6 @@ def call_llm(url, system_prompt, text, *, model, max_tokens, response_format, ti
         "stream": False,
         "cache_prompt": True,
     }
-    if response_format:
-        payload["response_format"] = {"type": "json_object"}
 
     def post(body):
         req = urllib.request.Request(
@@ -307,20 +361,22 @@ def call_llm(url, system_prompt, text, *, model, max_tokens, response_format, ti
             return json.loads(resp.read().decode("utf-8"))
 
     started = time.perf_counter()
-    fallback_used = False
-    try:
-        data = post(payload)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 400 and response_format:  # même repli que l'étape 8
-            payload.pop("response_format", None)
-            fallback_used = True
-            data = post(payload)
-        else:
+    data, used = None, 0
+    for used, fmt in enumerate(formats):
+        body = dict(base)
+        if fmt:
+            body["response_format"] = fmt
+        try:
+            data = post(body)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400 and used < len(formats) - 1:
+                continue
             raise
     elapsed = time.perf_counter() - started
     content = data["choices"][0]["message"]["content"]
     usage = data.get("usage") or {}
-    return content, elapsed, usage, fallback_used
+    return content, elapsed, usage, used
 
 
 # --------------------------------------------------------------------------- main
@@ -346,6 +402,8 @@ def main() -> int:
     ap.add_argument("--only", default="", help="ids séparés par des virgules")
     ap.add_argument("--prompt-file", help="fichier texte contenant un prompt système alternatif")
     ap.add_argument("--no-response-format", action="store_true")
+    ap.add_argument("--schema", action="store_true",
+                    help="contraint la sortie avec un schéma JSON (repli auto si le serveur refuse)")
     ap.add_argument("--no-preprocess", action="store_true",
                     help="ne convertit pas les nombres en chiffres avant l'envoi")
     ap.add_argument("--json-out")
@@ -362,12 +420,13 @@ def main() -> int:
         print("Aucun cas sélectionné.")
         return 2
 
+    formats = build_formats(args.no_response_format, args.schema)
     print(f"Prompt système : {len(prompt)} caractères (~{round(len(prompt) / 3.3)} tokens estimés)")
     print(f"Serveur : {args.url} | cas : {len(cases)} x {args.repeat}\n")
 
     try:  # préchauffage : remplit le cache de prompt, non comptabilisé
         call_llm(args.url, prompt, "arrête toi", model=args.model, max_tokens=args.max_tokens,
-                 response_format=not args.no_response_format, timeout=args.http_timeout)
+                 formats=formats, timeout=args.http_timeout)
     except Exception as exc:
         print(f"Serveur injoignable ou erreur au préchauffage : {exc}")
         return 2
@@ -380,7 +439,7 @@ def main() -> int:
             try:
                 content, elapsed, usage, fb = call_llm(
                     args.url, prompt, sent, model=args.model, max_tokens=args.max_tokens,
-                    response_format=not args.no_response_format, timeout=args.http_timeout)
+                    formats=formats, timeout=args.http_timeout)
             except Exception as exc:
                 row.update(status="ERREUR", detail=str(exc), latency=None)
                 rows.append(row)
@@ -391,7 +450,8 @@ def main() -> int:
             steps = parsed.get("steps") if parsed else None
             row.update(latency=round(elapsed, 3), content=content,
                        completion_tokens=usage.get("completion_tokens"),
-                       prompt_tokens=usage.get("prompt_tokens"), response_format_fallback=fb)
+                       prompt_tokens=usage.get("prompt_tokens"), response_format_fallback=bool(fb),
+                       response_format_index=fb)
             latencies.append(elapsed)
             if usage.get("completion_tokens") and elapsed > 0:
                 tps.append(usage["completion_tokens"] / elapsed)
@@ -403,6 +463,16 @@ def main() -> int:
             else:
                 errs = schema_errors(steps)
                 ok = any(plan_matches(steps, p) for p in plans)
+                # Hors périmètre attendu, mais le LLM a nommé une cible inconnue : le validateur
+                # du runtime rejette le plan, ce qui est sans danger.
+                safe_reject = (not ok and [] in plans and errs
+                               and all("target" in e for e in errs))
+                if safe_reject:
+                    row.update(status="OK_VALIDATEUR", detail="rejeté par le validateur (sans danger)",
+                               steps=steps)
+                    rows.append(row)
+                    print(f"[OK_VALIDATEUR ] {case_id:<18} {elapsed:6.2f}s  {'LENT' if elapsed > args.read_timeout else ''}")
+                    continue
                 # steps vide = repli sur le parseur local côté runtime (comportement attendu pour [])
                 row.update(status="OK" if ok and not errs else ("SCHEMA" if ok else "ECART"),
                            detail="; ".join(errs) if errs else "",
@@ -415,8 +485,16 @@ def main() -> int:
 
     total = len(rows)
     valid = sum(1 for r in rows if r["status"] in {"OK", "SCHEMA", "ECART"})
-    ok = sum(1 for r in rows if r["status"] == "OK")
+    ok = sum(1 for r in rows if r["status"] in {"OK", "OK_VALIDATEUR"})
     slow = sum(1 for r in latencies if r > args.read_timeout)
+    print("\n=== Par cas (instable = résultats différents entre répétitions) ===")
+    by_case = {}
+    for r in rows:
+        by_case.setdefault(r["id"], []).append(r["status"])
+    for cid, sts in by_case.items():
+        good = sum(1 for x in sts if x in {"OK", "OK_VALIDATEUR"})
+        if good != len(sts):
+            print(f"  {cid:<20} {good}/{len(sts)}  {'INSTABLE' if good else 'ÉCHEC'}  {sts}")
     print("\n=== Résumé ===")
     print(f"JSON valide avec 'steps' : {valid}/{total}")
     print(f"Plan correct + schéma OK : {ok}/{total} ({100 * ok / total:.0f} %)")

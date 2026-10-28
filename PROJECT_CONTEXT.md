@@ -1,4 +1,4 @@
-# Contexte projet — résumé session (2026-10-24)
+# Contexte projet — résumé session (2026-10-28)
 
 ## Feuille de route & Chantiers en cours
 - Référence d'audit : `docs/audit-architecture-2026.md`
@@ -15,7 +15,12 @@
 - Traçabilité complète : traces JSONL, `TRACE_PATH`, script replay `replay_runtime_trace_mac.sh`.
 - Préparation Mac avant Pi : scripts `run_mission_mac.sh`, `run_runtime_standard_scenarios_mac.sh`, protocoles/checklists/backlog.
 - Nettoyage doublons/doc : `detect_red_ball.py` converti en shim compat, docs centralisées.
-- Validation : suite unitaire verte (41 tests).
+- Validation : suite unitaire verte (50 tests).
+- Étape 1 sécurité : durée par défaut injectée (1.0 s avance/recul, 90° rotation) quand aucun distance/angle/duration, bornée par `max_duration_sec`.
+- Étape 1 sécurité : normalisation des unités de distance (`m`/mètres… -> `m`, `cm`/centimètres… et inconnues -> `cm`) via `normalize_distance_unit`, au runtime et dans les primitives.
+- Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
+- Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
+- Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.

@@ -144,7 +144,7 @@ def test_voice_runtime_plan_rejects_invalid_execute_path_action(monkeypatch):
     result = runtime.handle_text_as_plan("dessine un coeur")
 
     assert result["status"] == "rejected"
-    assert result["reason"] == "no valid plan step"
+    assert result["reason"] == "invalid plan step"
     assert len(result["validation_errors"]) >= 1
 
 
@@ -249,3 +249,159 @@ def test_voice_runtime_mission_timeout(monkeypatch):
 
     result = runtime.handle_text_as_plan("avance")
     assert result["status"] == "aborted"
+
+
+def _patch_plan(monkeypatch, intents):
+    from irobot.interfaces import voice_runtime as runtime_module
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm_for_intent_plan_with_trace",
+        lambda _text: (intents, {"source": "llm_plan"}),
+    )
+
+
+def test_sanitize_injects_default_duration_and_angle():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+
+    forward = runtime._sanitize_primitive_intent(Intent(name="move_forward"))
+    backward = runtime._sanitize_primitive_intent(Intent(name="move_backward"))
+    turn = runtime._sanitize_primitive_intent(Intent(name="turn_left"))
+    turn_timed = runtime._sanitize_primitive_intent(Intent(name="turn_right", parameters={"duration": 2}))
+
+    assert forward.parameters["duration"] == 1.0
+    assert backward.parameters["duration"] == 1.0
+    assert turn.parameters["angle"] == 90.0
+    assert "angle" not in turn_timed.parameters
+    assert turn_timed.parameters["duration"] == 2.0
+
+
+def test_sanitize_default_duration_bounded_by_max_duration():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    runtime.settings = runtime.settings.__class__(
+        **{**runtime.settings.__dict__, "max_duration_sec": 0.5}
+    )
+
+    forward = runtime._sanitize_primitive_intent(Intent(name="move_forward"))
+
+    assert forward.parameters["duration"] == 0.5
+
+
+def test_sanitize_normalizes_units():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+
+    meters = runtime._sanitize_primitive_intent(
+        Intent(name="move_forward", parameters={"distance": 1, "unit": "mètres"})
+    )
+    unknown = runtime._sanitize_primitive_intent(
+        Intent(name="move_forward", parameters={"distance": 10, "unit": "furlongs"})
+    )
+
+    assert meters.parameters["unit"] == "m"
+    assert meters.parameters["distance"] == 1
+    assert unknown.parameters["unit"] == "cm"
+
+
+def test_primitive_resolves_unit_synonyms():
+    from irobot.domain.skills.base_skill import SkillContext
+    from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
+    from irobot.domain.skills.primitives.move_forward import MoveForwardSkill
+
+    assert normalize_distance_unit("Metres") == "m"
+    assert normalize_distance_unit("centimètres") == "cm"
+    assert normalize_distance_unit("parsec") == "cm"
+
+    context = SkillContext(
+        robot=FakeRobot(), state={"active_intent_parameters": {"distance": 1, "unit": "meters"}}
+    )
+    payload = MoveForwardSkill()._resolve_motion_parameters(context)
+    assert payload["unit"] == "m"
+
+
+def test_voice_runtime_stops_robot_at_end_of_mission(monkeypatch):
+    _patch_plan(monkeypatch, [Intent(name="move_forward", parameters={"distance": 10, "unit": "cm"}, confidence=1.0)])
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True)
+
+    result = runtime.handle_text_as_plan("avance")
+
+    assert result["status"] == "accepted"
+    assert robot.commands[-1] == "stop"
+
+
+def test_voice_runtime_stops_robot_even_after_exception(monkeypatch):
+    _patch_plan(monkeypatch, [Intent(name="move_forward", parameters={"distance": 10, "unit": "cm"}, confidence=1.0)])
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True)
+
+    def _boom(_intent):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(runtime.controller, "handle_intent", _boom)
+
+    try:
+        runtime.handle_text_as_plan("avance")
+        raised = False
+    except RuntimeError:
+        raised = True
+
+    assert raised
+    assert robot.commands == ["stop"]
+
+
+def test_voice_runtime_ignores_exception_raised_by_final_stop(monkeypatch):
+    _patch_plan(monkeypatch, [Intent(name="move_forward", parameters={"distance": 10, "unit": "cm"}, confidence=1.0)])
+    robot = FakeRobot()
+
+    def _bad_stop():
+        raise OSError("gpio")
+
+    robot.stop = _bad_stop
+    runtime = VoiceRuntime(robot=robot, use_llm=True)
+
+    result = runtime.handle_text_as_plan("avance")
+
+    assert result["status"] == "accepted"
+
+
+def test_voice_runtime_stops_executing_steps_after_failure(monkeypatch):
+    _patch_plan(
+        monkeypatch,
+        [
+            Intent(name="move_forward", parameters={"distance": 10, "unit": "cm"}, confidence=1.0),
+            Intent(name="turn_left", parameters={"angle": 90}, confidence=1.0),
+        ],
+    )
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
+    seen: list[str] = []
+
+    def _fail(intent):
+        seen.append(intent.name)
+        return {"intent": intent, "status": "failed", "reason": "nope"}
+
+    monkeypatch.setattr(runtime.controller, "handle_intent", _fail)
+
+    result = runtime.handle_text_as_plan("avance puis tourne")
+
+    assert result["status"] == "incomplete"
+    assert len(result["steps"]) == 1
+    assert set(seen) == {"move_forward"}
+
+
+def test_voice_runtime_rejects_whole_plan_when_one_step_invalid(monkeypatch):
+    _patch_plan(
+        monkeypatch,
+        [
+            Intent(name="move_forward", parameters={"distance": 10, "unit": "cm"}, confidence=1.0),
+            Intent(name="draw_heart", confidence=1.0),
+        ],
+    )
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True)
+
+    result = runtime.handle_text_as_plan("avance puis dessine")
+
+    assert result["status"] == "rejected"
+    assert result["reason"] == "invalid plan step"
+    assert len(result["validation_errors"]) == 1
+    assert "forward" not in robot.commands

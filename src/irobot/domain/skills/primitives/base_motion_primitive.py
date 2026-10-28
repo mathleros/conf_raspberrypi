@@ -7,6 +7,16 @@ from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
 SETTINGS = load_runtime_settings()
 
+_METER_UNITS = {"m", "meter", "meters", "metre", "metres", "mètre", "mètres"}
+
+
+def normalize_distance_unit(unit: Any) -> str:
+    """Ramène une unité libre à "m" ou "cm" (inconnue -> "cm")."""
+    text = str(unit if unit is not None else "cm").strip().lower()
+    if text in _METER_UNITS:
+        return "m"
+    return "cm"
+
 
 class BaseMotionPrimitiveSkill(Skill):
     """Classe de base factorisée pour les primitives de mouvement."""
@@ -46,7 +56,7 @@ class BaseMotionPrimitiveSkill(Skill):
             }
 
         distance = params.get("distance", params.get("side"))
-        unit = str(params.get("unit", "cm")) if distance is not None else None
+        unit = normalize_distance_unit(params.get("unit")) if distance is not None else None
         distance_value = self._to_float(distance)
         duration_value = self._to_float(params.get("duration"))
         if duration_value is None and distance_value is not None:

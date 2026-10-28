@@ -29,6 +29,7 @@ except ModuleNotFoundError:  # pragma: no cover - macOS/tests
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
@@ -264,6 +265,10 @@ def ask_llm_for_intent_plan(text: str) -> list[Intent]:
     return intents
 
 
+DEFAULT_MOVE_DURATION_SEC = 1.0
+DEFAULT_TURN_ANGLE_DEG = 90.0
+
+
 class VoiceRuntime:
     """Pipeline complet : microphone -> Vosk -> Intent -> LanguageController -> skills."""
 
@@ -484,14 +489,16 @@ class VoiceRuntime:
         params = dict(intent.parameters)
         if intent.name in {"move_forward", "move_backward"}:
             distance = self._to_float(params.get("distance"), None)
-            unit = str(params.get("unit", "cm")).lower()
+            unit = normalize_distance_unit(params.get("unit"))
             duration = self._to_float(params.get("duration"), None)
+
+            if distance is None and duration is None:
+                duration = DEFAULT_MOVE_DURATION_SEC
 
             if distance is not None:
                 if unit == "m":
                     distance = max(0.01, min(distance, self.settings.max_distance_cm / 100.0))
                 else:
-                    unit = "cm"
                     distance = max(0.1, min(distance, self.settings.max_distance_cm))
                 params["distance"] = distance
                 params["unit"] = unit
@@ -502,6 +509,8 @@ class VoiceRuntime:
         if intent.name in {"turn_left", "turn_right"}:
             angle = self._to_float(params.get("angle"), None)
             duration = self._to_float(params.get("duration"), None)
+            if angle is None and duration is None and not params.get("full_rotation"):
+                angle = DEFAULT_TURN_ANGLE_DEG
             if angle is not None:
                 params["angle"] = max(1.0, min(angle, self.settings.max_angle_deg))
                 params["unit"] = "degrees"
@@ -682,6 +691,15 @@ class VoiceRuntime:
             expanded.append(intent)
         return [self._sanitize_primitive_intent(it) if it.name in {"move_forward", "move_backward", "turn_left", "turn_right"} else it for it in expanded]
 
+    def _safe_stop(self) -> None:
+        stop = getattr(self.robot, "stop", None)
+        if not callable(stop):
+            return
+        try:
+            stop()
+        except Exception:
+            pass
+
     def handle_text(self, text: str):
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
@@ -732,12 +750,12 @@ class VoiceRuntime:
             },
         )
 
-        if validation_errors and not validated_intents:
-            self.mission.fail("no valid plan step")
+        if validation_errors:
+            self.mission.fail("invalid plan step")
             return {
                 "input": text,
                 "status": "rejected",
-                "reason": "no valid plan step",
+                "reason": "invalid plan step",
                 "validation_errors": validation_errors,
                 "trace_path": str(trace_path),
                 "source": plan_trace.get("source"),
@@ -762,24 +780,30 @@ class VoiceRuntime:
 
         steps = []
         global_status = "accepted"
-        for intent in intents:
-            self.mission.state.metadata["step_index"] = len(steps)
-            if (time.time() - execution_started_at) > float(self.settings.mission_timeout_seconds):
-                global_status = "aborted"
-                step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
-                steps.append(step_result)
-                self.mission.abort("mission timeout")
-                self._write_trace_event(trace_path, {"event": "mission_timeout", "intent": self._intent_to_dict(intent)})
-                break
+        try:
+            for intent in intents:
+                self.mission.state.metadata["step_index"] = len(steps)
+                if (time.time() - execution_started_at) > float(self.settings.mission_timeout_seconds):
+                    global_status = "aborted"
+                    step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
+                    steps.append(step_result)
+                    self.mission.abort("mission timeout")
+                    self._write_trace_event(trace_path, {"event": "mission_timeout", "intent": self._intent_to_dict(intent)})
+                    break
 
-            step_result = self._execute_intent_with_retry(intent, trace_path)
-            if step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}:
-                global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"
-                if global_status == "aborted":
-                    self.mission.abort(step_result.get("reason", "aborted"))
-                else:
-                    self.mission.fail(step_result.get("reason", "step failed"))
-            steps.append(step_result)
+                step_result = self._execute_intent_with_retry(intent, trace_path)
+                failed = step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}
+                if failed:
+                    global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"
+                    if global_status == "aborted":
+                        self.mission.abort(step_result.get("reason", "aborted"))
+                    else:
+                        self.mission.fail(step_result.get("reason", "step failed"))
+                steps.append(step_result)
+                if failed:
+                    break
+        finally:
+            self._safe_stop()
 
         if self.mission.state.phase == "executing":
             if global_status == "accepted":

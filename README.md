@@ -152,10 +152,12 @@ uv run voice-runtime
 
 Fonctionnement du runtime (`voice_runtime.py`) :
 - la transcription est d'abord normalisée de façon déterministe (`text_normalizer.preprocess` : nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
-- prompt système court et statique, appel non streamé avec `response_format: json_object` (nouvel essai sans si le serveur répond HTTP 400) et `cache_prompt` ; préchauffage du cache au démarrage ;
+- prompt système court et statique, appel non streamé avec `response_format` contraint par schéma (`json_schema`, replis `json_object` puis sans sur HTTP 400, format accepté mémorisé) et `cache_prompt` ; préchauffage du cache au démarrage ;
+- « stop », « arrête toi », « halte », « pause » : arrêt local immédiat, sans LLM ;
+- contrôle lexical du plan LLM (`plan_guards.grounding_check`) : intent ou nombre non justifié par la phrase -> commande rejetée, aucun mouvement ;
 - timeout, erreur HTTP, JSON invalide ou clé `steps` absente -> repli sur le parseur local ; `{"steps": []}` -> commande rejetée (`unsupported command`), aucun mouvement.
 
-Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (4.0), `LLM_MAX_TOKENS_PLAN` (160), `LLM_MAX_TOKENS_INTENT` (96).
+Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (8.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_MAX_TOKENS_INTENT` (96).
 
 Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
 

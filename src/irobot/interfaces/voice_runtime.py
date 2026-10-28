@@ -36,6 +36,7 @@ from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
+from irobot.interfaces.plan_guards import build_formats, grounding_check, is_pure_stop
 from irobot.interfaces.text_normalizer import preprocess
 
 RATE = 16000
@@ -49,7 +50,6 @@ LLM_READ_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.read_timeout_seconds
 LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
 LLM_WARMUP_READ_TIMEOUT_SECONDS = 120.0
 LLM_DEFAULT_CONFIDENCE = 0.8
-LLM_JSON_RESPONSE_FORMAT = {"type": "json_object"}
 RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
 MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
 MAX_DISTANCE_CM = RUNTIME_SETTINGS.max_distance_cm
@@ -177,18 +177,51 @@ def _llm_payload(system_prompt: str, user_text: str, max_tokens: int, model: str
         "max_tokens": max_tokens,
         "stream": False,
         "cache_prompt": True,
-        "response_format": dict(LLM_JSON_RESPONSE_FORMAT),
     }
 
 
-def _post_llm_chat(payload: dict[str, Any], timeout: tuple[float, float]) -> str:
-    """Appel non streamé ; retourne le contenu texte de la réponse."""
-    response = requests.post(LLM_URL, json=payload, timeout=timeout)
-    if getattr(response, "status_code", 200) == 400 and "response_format" in payload:
-        # Dépend de la version de llama-server : certaines refusent response_format -> un seul nouvel essai sans.
-        retry_payload = {key: value for key, value in payload.items() if key != "response_format"}
-        response = requests.post(LLM_URL, json=retry_payload, timeout=timeout)
+class ResponseFormatChain:
+    """`response_format` essayés dans l'ordre (None = sans) ; le premier accepté est mémorisé."""
+
+    def __init__(self, formats: list[dict[str, Any] | None]):
+        self.formats = list(formats)
+        self._start = 0
+
+    def candidates(self) -> list[tuple[int, dict[str, Any] | None]]:
+        return list(enumerate(self.formats))[self._start:]
+
+    def accept(self, index: int) -> None:
+        self._start = index
+
+    def reset(self) -> None:
+        self._start = 0
+
+
+# Plan : json_schema strict -> json_object + schema -> json_object -> sans (selon la version de llama-server).
+PLAN_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, True))
+INTENT_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, False))
+
+
+def reset_response_format_cache() -> None:
+    PLAN_RESPONSE_FORMATS.reset()
+    INTENT_RESPONSE_FORMATS.reset()
+
+
+def _post_llm_chat(payload: dict[str, Any], timeout: tuple[float, float], formats: ResponseFormatChain) -> str:
+    """Appel non streamé ; format suivant sur HTTP 400 ; retourne le contenu texte de la réponse."""
+    candidates = formats.candidates()
+    response = None
+    index = 0
+    for position, (index, fmt) in enumerate(candidates):
+        body = dict(payload)
+        if fmt is not None:
+            body["response_format"] = fmt
+        response = requests.post(LLM_URL, json=body, timeout=timeout)
+        if getattr(response, "status_code", 200) == 400 and position < len(candidates) - 1:
+            continue
+        break
     response.raise_for_status()
+    formats.accept(index)
     data = response.json()
     return str(data["choices"][0]["message"]["content"]).strip()
 
@@ -229,7 +262,9 @@ def ask_llm_for_intent(text: str) -> Intent:
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
     try:
-        content = _post_llm_chat(payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds))
+        content = _post_llm_chat(
+            payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds), INTENT_RESPONSE_FORMATS
+        )
         parsed = _parse_llm_json_payload(content)
         intent = _intent_from_llm_step(parsed, text) if parsed else None
         return intent if intent is not None else IntentParser().parse(text)
@@ -237,10 +272,29 @@ def ask_llm_for_intent(text: str) -> Intent:
         return IntentParser().parse(text)
 
 
+def _normalize_llm_step(step: Any) -> dict[str, Any] | None:
+    """Étape LLM tolérante (target absent -> None, parameters absent -> {}) ; None si malformée."""
+    if not isinstance(step, dict):
+        return None
+    parameters = step.get("parameters")
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        return None
+    name = str(step.get("intent") or step.get("name") or "unknown").strip().lower()
+    return {
+        **step,
+        "intent": PLAN_INTENT_SYNONYMS.get(name, name),
+        "target": step.get("target"),
+        "parameters": dict(parameters),
+    }
+
+
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
     """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace.
 
     - JSON valide avec `steps: []` -> ([], source "llm_unsupported") : commande hors périmètre ;
+    - plan non justifié par la phrase prétraitée (`grounding_check`) -> ([], source "llm_ungrounded") ;
     - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
       -> repli sur IntentParser (texte d'origine).
     """
@@ -258,7 +312,9 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         }
 
     try:
-        content = _post_llm_chat(payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds))
+        content = _post_llm_chat(
+            payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds), PLAN_RESPONSE_FORMATS
+        )
     except Exception as exc:
         return _fallback(error=f"{type(exc).__name__}: {exc}")
 
@@ -274,19 +330,27 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     if not raw_steps:
         return [], {"source": "llm_unsupported", **trace}
 
-    intents: list[Intent] = []
+    steps: list[dict[str, Any]] = []
     skipped: list[int] = []
     for index, step in enumerate(raw_steps):
-        intent = _intent_from_llm_step(step, text)
-        if intent is None:
+        normalized_step = _normalize_llm_step(step)
+        if normalized_step is None:
             skipped.append(index)
             continue
-        intents.append(intent)
+        steps.append(normalized_step)
 
-    if not intents:
+    if not steps:
         return _fallback(llm_content=content, llm_json=parsed, reason="no usable step", skipped_steps=skipped)
 
-    return intents, {"source": "llm_plan", **trace, "skipped_steps": skipped}
+    # Le LLM propose, le lexique dispose : contrôle sur le texte réellement envoyé au LLM.
+    kept, guard_reason, guard_notes = grounding_check(normalized_text, steps)
+    trace["guard_notes"] = guard_notes
+    trace["skipped_steps"] = skipped
+    if guard_reason or not kept:
+        return [], {"source": "llm_ungrounded", **trace, "guard_reason": guard_reason or "no grounded step"}
+
+    intents = [intent for step in kept if (intent := _intent_from_llm_step(step, text)) is not None]
+    return intents, {"source": "llm_plan", **trace}
 
 
 def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
@@ -294,7 +358,11 @@ def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT_PLAN, "stop", 1, settings.model)
     try:
-        _post_llm_chat(payload, timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS))
+        _post_llm_chat(
+            payload,
+            timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS),
+            PLAN_RESPONSE_FORMATS,
+        )
         return True
     except Exception:
         return False
@@ -315,6 +383,31 @@ def ask_llm_for_intent_plan(text: str) -> list[Intent]:
 
 DEFAULT_MOVE_DURATION_SEC = 1.0
 DEFAULT_TURN_ANGLE_DEG = 90.0
+PLAN_INTENT_SYNONYMS = {
+    "contourner_obstacle": "contour_obstacle",
+    "contourne_obstacle": "contour_obstacle",
+    "avoid": "avoid_obstacle",
+    "find_object": "search_and_approach_object",
+    "search_object": "search_and_approach_object",
+    "detect_object": "search_and_approach_object",
+    "approach_object": "search_and_approach_object",
+    "follow": "follow_object",
+    "track": "follow_object",
+    "track_object": "follow_object",
+    "follow_target": "follow_object",
+    "suivre": "follow_object",
+    "suit": "follow_object",
+    "rotate_360": "spin_360",
+    "spin": "spin_360",
+    "square": "move_square",
+    "path": "execute_path",
+    "trajectory": "execute_path",
+    "trajet": "execute_path",
+    "go_home": "return_to_start",
+    "back_to_start": "return_to_start",
+}
+# Sources de plan rejetées sans repli parseur ni mouvement.
+UNSUPPORTED_PLAN_SOURCES = {"llm_unsupported", "llm_ungrounded"}
 OBJECT_INTENTS = {"search_and_approach_object", "follow_object"}
 TARGET_COLOR_SYNONYMS = {
     "jaune": "yellow",
@@ -535,29 +628,7 @@ class VoiceRuntime:
 
     def _normalize_plan_intent_names(self, intents: list[Intent]) -> list[Intent]:
         """Normalise les noms d'intents issus du LLM pour limiter les `unknown`."""
-        synonyms = {
-            "contourner_obstacle": "contour_obstacle",
-            "contourne_obstacle": "contour_obstacle",
-            "avoid": "avoid_obstacle",
-            "find_object": "search_and_approach_object",
-            "search_object": "search_and_approach_object",
-            "detect_object": "search_and_approach_object",
-            "approach_object": "search_and_approach_object",
-            "follow": "follow_object",
-            "track": "follow_object",
-            "track_object": "follow_object",
-            "follow_target": "follow_object",
-            "suivre": "follow_object",
-            "suit": "follow_object",
-            "rotate_360": "spin_360",
-            "spin": "spin_360",
-            "square": "move_square",
-            "path": "execute_path",
-            "trajectory": "execute_path",
-            "trajet": "execute_path",
-            "go_home": "return_to_start",
-            "back_to_start": "return_to_start",
-        }
+        synonyms = PLAN_INTENT_SYNONYMS
         normalized: list[Intent] = []
         for intent in intents:
             name = intent.name.strip().lower()
@@ -858,7 +929,11 @@ class VoiceRuntime:
         self._write_trace_event(trace_path, {"event": "input", "text": text})
         self.mission.reset()
 
-        if self.use_llm:
+        if is_pure_stop(text):
+            # Sécurité : arrêt pur traité localement, sans LLM ni normalisation des nombres.
+            intents = [Intent(name="stop", raw_text=text, confidence=1.0)]
+            plan_trace = {"source": "local_stop", "llm_content": None, "llm_json": None, "normalized_text": None}
+        elif self.use_llm:
             intents, plan_trace = ask_llm_for_intent_plan_with_trace(text)
         else:
             intents = self.parser.parse_plan(text)
@@ -879,11 +954,13 @@ class VoiceRuntime:
                 "llm_json": plan_trace.get("llm_json"),
                 "llm_content": plan_trace.get("llm_content"),
                 "error": plan_trace.get("error"),
+                "guard_notes": plan_trace.get("guard_notes"),
+                "guard_reason": plan_trace.get("guard_reason"),
             },
         )
 
-        if plan_trace.get("source") == "llm_unsupported":
-            # Hors périmètre explicite ({"steps": []}) : rejet sans repli parseur ni mouvement.
+        if plan_trace.get("source") in UNSUPPORTED_PLAN_SOURCES:
+            # Hors périmètre ({"steps": []}) ou plan non justifié par la phrase : rejet sans repli ni mouvement.
             self.mission.fail("unsupported command")
             self._write_trace_event(
                 trace_path,
@@ -892,12 +969,15 @@ class VoiceRuntime:
                     "text": text,
                     "normalized_text": plan_trace.get("normalized_text"),
                     "llm_content": plan_trace.get("llm_content"),
+                    "guard_reason": plan_trace.get("guard_reason"),
+                    "guard_notes": plan_trace.get("guard_notes"),
                 },
             )
             return {
                 "input": text,
                 "status": "rejected",
                 "reason": "unsupported command",
+                "guard_reason": plan_trace.get("guard_reason"),
                 "steps": [],
                 "trace_path": str(trace_path),
                 "source": plan_trace.get("source"),
@@ -1040,7 +1120,7 @@ class VoiceRuntime:
         return self._worker is not None and self._worker.is_alive()
 
     def _is_stop_phrase(self, text: str) -> bool:
-        return self.parser.parse(text).name == "stop"
+        return is_pure_stop(text) or self.parser.parse(text).name == "stop"
 
     def _mission_worker(self, text: str) -> None:
         try:

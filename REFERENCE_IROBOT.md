@@ -118,8 +118,8 @@ Synonymes normalisés côté runtime : `contourner_obstacle`, `avoid`, `find_obj
 ## 5. Pipeline d'exécution (`VoiceRuntime.handle_text_as_plan`)
 
 1. Trace JSONL (`target/logs/runtime_trace_<horodatage>.jsonl`), `mission.reset()`.
-2. Si `use_llm` : `ask_llm_for_intent_plan_with_trace` (texte prétraité par `text_normalizer.preprocess`) ; sinon `IntentParser().parse_plan`.
-3. Timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable → **repli immédiat** sur `IntentParser.parse_plan` (pas de 2ᵉ timeout). `{"steps": []}` = hors périmètre → `status "rejected"`, `reason "unsupported command"`, événement `plan_unsupported`, **aucun mouvement ni repli**. Une étape malformée est ignorée seule (`skipped_steps`).
+2. Phrase d'arrêt pure (`plan_guards.is_pure_stop` : « stop », « arrête toi », « halte », « pause ») -> plan `[stop]` local, sans LLM ni prétraitement (source `local_stop`). Sinon, si `use_llm` : `ask_llm_for_intent_plan_with_trace` (texte prétraité par `text_normalizer.preprocess`) ; sinon `IntentParser().parse_plan`.
+3. Timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable → **repli immédiat** sur `IntentParser.parse_plan` (pas de 2ᵉ timeout). Étapes tolérantes (`target` absent → `null`, `parameters` absent → `{}`, synonymes ramenés au nom canonique) puis `grounding_check` sur le texte **prétraité** : intent non justifié par un mot de la phrase, ou nombre absent alors que la phrase contient des chiffres → plan rejeté (source `llm_ungrounded`) ; `stop` parasite, paramètre non géré par l'intent et nombre inventé (phrase sans chiffre) → supprimés (notes `guard_notes` dans la trace). `{"steps": []}` = hors périmètre, et plan non justifié → `status "rejected"`, `reason "unsupported command"`, événement `plan_unsupported`, **aucun mouvement ni repli**. Une étape malformée est ignorée seule (`skipped_steps`).
 4. `_normalize_plan_intent_names` → `_expand_execute_path` → `_expand_high_level_intents` → `_expand_return_to_start`.
 5. Plan tronqué à `max_plan_steps` (20) + `stop` ajouté.
 6. `_validate_intent_plan` : étapes non autorisées **retirées** (erreurs journalisées) ; primitives **bornées** (`_sanitize_primitive_intent`).
@@ -136,20 +136,20 @@ Bornage des primitives : distance ∈ [0,1 ; 300] cm (ou [0,01 ; 3] m), angle �
 
 ## 6. Les prompts actuels (dans `voice_runtime.py`)
 
-Appel : `requests.post(LLM_URL, json=payload, timeout=(connect, read))`, non streamé, `temperature=0.0`, `cache_prompt: true`, `response_format: {"type":"json_object"}` (si le serveur répond HTTP 400 : un seul nouvel essai sans, selon la version de `llama-server`). Réglages lus à chaque appel par `load_llm_settings()` (`settings.py`) :
+Appel : `requests.post(LLM_URL, json=payload, timeout=(connect, read))`, non streamé, `temperature=0.0`, `cache_prompt: true`, `response_format` du plan : `json_schema` strict (`PLAN_SCHEMA`), puis sur HTTP 400 `{"type":"json_object","schema":…}`, `{"type":"json_object"}`, sans ; le premier format accepté est mémorisé (intent unique : `json_object` puis sans). Réglages lus à chaque appel par `load_llm_settings()` (`settings.py`) :
 
 | Variable d'environnement | Défaut |
 |---|---|
 | `LLM_MODEL` | `qwen2.5-1.5b` |
 | `LLM_CONNECT_TIMEOUT_SECONDS` | 1.0 |
-| `LLM_READ_TIMEOUT_SECONDS` | 4.0 |
-| `LLM_MAX_TOKENS_PLAN` | 160 |
+| `LLM_READ_TIMEOUT_SECONDS` | 8.0 |
+| `LLM_MAX_TOKENS_PLAN` | 120 |
 | `LLM_MAX_TOKENS_INTENT` | 96 |
 
 Le texte utilisateur est **prétraité** avant envoi (`text_normalizer.preprocess`) ; `raw_text` des Intent reste le texte d'origine, le texte prétraité est tracé sous `normalized_text`. Préchauffage du cache de prompt au démarrage (`warm_up_llm_async()`, thread daemon, sauf `--no-llm`).
 
 ### 6.1 `SYSTEM_PROMPT_PLAN` — plan multi-étapes (**chemin principal**)
-Identique au prompt de `scripts/test/eval_prompt_plan.py` (un test vérifie l'égalité). Court et statique : format `{"steps":[{"intent","target","parameters"}]}` (sans `confidence`, remplie à 0,8 côté code), liste des intents avec leurs paramètres (distances en cm, durées en s, angles en degrés), valeurs par défaut (avance/recule → `duration` 1 ; tourne → `angle` 90), `jaune`→`"yellow"`, `rouge`→`"red"`, consigne hors liste → `{"steps":[]}`, 5 exemples (dont le cas d'usage et « fais un salto arrière »). `max_tokens` = 160.
+Identique au prompt de `scripts/test/eval_prompt_plan.py` (un test vérifie l'égalité). Court et statique : format `{"steps":[{"intent","target","parameters"}]}` (sans `confidence`, remplie à 0,8 côté code), liste des intents avec leurs paramètres (distances en cm, durées en s, angles en degrés), valeurs par défaut (avance/recule → `duration` 1 ; tourne → `angle` 90), `jaune`→`"yellow"`, `rouge`→`"red"`, consigne hors liste → `{"steps":[]}`, 5 exemples (dont le cas d'usage et « fais un salto arrière »). `max_tokens` = 120.
 
 ### 6.2 `SYSTEM_PROMPT` — intent unique (chemin `handle_text`, secondaire)
 Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, « une seule action », hors liste → `intent: "unknown"`, un seul exemple. `max_tokens` = 96. Sur ce chemin, `unknown` entraîne encore un repli sur le parseur local.
@@ -157,7 +157,7 @@ Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, �
 ### 6.3 Lacunes restantes
 - `execute_path`, `contour_obstacle` ne sont pas proposés au modèle (le runtime les gère toujours) ; `move_square` est proposé avec `side`.
 - Débit réel du 1,5B sur Pi 5 **à mesurer** (`eval_prompt_plan.py --repeat 3`).
-- Pas de grammaire GBNF : `json_object` garantit un JSON, pas le schéma ; la validation reste côté runtime.
+- Sortie contrainte par `json_schema` quand le serveur l'accepte ; sinon `json_object` garantit un JSON, pas le schéma. Gardes lexicales + validation restent côté runtime.
 
 ---
 
@@ -165,7 +165,7 @@ Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, �
 
 ### 7.1 Modèle et latence
 - Modèle actuel : **Qwen2.5-1.5B quantisé**, CPU seul (le dépôt analysé utilisait un 3B). L'audit v5 annonçait **3–6 tokens/s** pour le 3B sur Pi 5 ; le 1,5B sera plus rapide mais **le débit réel est à mesurer** (`eval_prompt_plan.py`). Un modèle de cette taille suit moins bien les consignes longues et convertit mal les nombres en lettres : prétraitement déterministe côté Python et prompt court.
-- Génération **non streamée** avec **timeout de lecture = 4 s** : tout ce qui n'est pas fini en ~4 s (évaluation du prompt **+** génération) déclenche le repli sur le parseur regex. À 3–6 tok/s, cela laisse seulement ~12–24 tokens de sortie. **Un plan JSON multi-étapes verbeux sortira presque toujours du budget sur le Pi** (sur Mac c'est sans doute différent).
+- Génération **non streamée** avec **timeout de lecture = 8 s** depuis l'étape 8b (4 s auparavant ; `LLM_READ_TIMEOUT_SECONDS`) : tout ce qui n'est pas fini en ~4 s (évaluation du prompt **+** génération) déclenche le repli sur le parseur regex. À 3–6 tok/s, cela laisse seulement ~12–24 tokens de sortie. **Un plan JSON multi-étapes verbeux sortira presque toujours du budget sur le Pi** (sur Mac c'est sans doute différent).
 - Conséquences pour les prompts : **sortie la plus compacte possible** (clés courtes, pas d'espaces inutiles, pas de champ superflu comme `confidence` si on peut le remplir côté code), **system prompt court** (le temps d'évaluation du prompt est linéaire) et **statique** (placé en tête, texte utilisateur en dernier) pour profiter du cache de préfixe de `llama.cpp` (`cache_prompt`, **à vérifier** selon la version du serveur).
 - `--ctx-size` : `install_llm.sh` met 2048 (Pi) ; l'audit v5, le script Mac et le test d'intégration utilisent encore 4096.
 - `cache_prompt` est envoyé et le serveur est préchauffé au démarrage ; l'effet réel du cache sur le Pi reste **à mesurer**.

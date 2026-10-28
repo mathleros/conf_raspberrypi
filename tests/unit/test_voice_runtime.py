@@ -11,6 +11,7 @@ from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.skills import FollowObjectSkill, FollowTargetSkill
 from irobot.interfaces import voice_runtime as vr
 from irobot.interfaces.intent_parser import Intent, IntentParser
+from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
@@ -531,6 +532,8 @@ def fake_llm(monkeypatch):
         monkeypatch.setattr(vr.requests, "post", llm)
         return llm
 
+    vr.reset_response_format_cache()
+
     for key in ("LLM_MODEL", "LLM_CONNECT_TIMEOUT_SECONDS", "LLM_READ_TIMEOUT_SECONDS",
                 "LLM_MAX_TOKENS_PLAN", "LLM_MAX_TOKENS_INTENT"):
         monkeypatch.delenv(key, raising=False)
@@ -643,11 +646,13 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     assert payload["messages"][0] == {"role": "system", "content": vr.SYSTEM_PROMPT_PLAN}
     assert payload["model"] == "qwen2.5-1.5b"
     assert payload["temperature"] == 0.0
-    assert payload["max_tokens"] == 160
+    assert payload["max_tokens"] == 120
     assert payload["stream"] is False
     assert payload["cache_prompt"] is True
-    assert payload["response_format"] == {"type": "json_object"}
-    assert llm.calls[0]["timeout"] == (1.0, 4.0)
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["strict"] is True
+    assert payload["response_format"]["json_schema"]["schema"] == PLAN_SCHEMA
+    assert llm.calls[0]["timeout"] == (1.0, 8.0)
 
     assert result["status"] == "accepted", result
     assert result["source"] == "llm_plan"
@@ -724,7 +729,7 @@ def test_llm_plan_skips_only_malformed_steps(fake_llm):
         }
     )
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance puis tourne")
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance puis tourne à droite")
 
     assert [i.name for i in intents] == ["move_forward", "turn_right"]
     assert trace["skipped_steps"] == [1, 2]
@@ -753,28 +758,43 @@ def test_llm_step_without_unit_is_treated_as_cm(fake_llm):
     assert params["distance"] == 50.0
 
 
-def test_llm_http_400_retries_once_without_response_format(fake_llm):
-    llm = fake_llm(
-        _FakeResponse(status_code=400),
-        json_dumps({"steps": [{"intent": "stop", "target": None, "parameters": {}}]}),
-    )
+def test_llm_http_400_walks_format_chain_then_memorizes(fake_llm):
+    stop_plan = json_dumps({"steps": [{"intent": "stop", "target": None, "parameters": {}}]})
+    llm = fake_llm(_FakeResponse(status_code=400), _FakeResponse(status_code=400), stop_plan)
 
     intents, trace = vr.ask_llm_for_intent_plan_with_trace("stop")
 
-    assert len(llm.calls) == 2
-    assert "response_format" in llm.calls[0]["json"]
-    assert "response_format" not in llm.calls[1]["json"]
-    assert llm.calls[1]["json"]["cache_prompt"] is True
+    formats = [call["json"].get("response_format") for call in llm.calls]
+    assert formats == build_formats(False, True)[:3]
+    assert formats[1] == {"type": "json_object", "schema": PLAN_SCHEMA}
+    assert formats[2] == {"type": "json_object"}
+    assert llm.calls[2]["json"]["cache_prompt"] is True
     assert trace["source"] == "llm_plan"
     assert [i.name for i in intents] == ["stop"]
 
+    vr.ask_llm_for_intent_plan_with_trace("stop")
 
-def test_llm_http_400_twice_falls_back_after_single_retry(fake_llm):
+    assert len(llm.calls) == 4
+    assert llm.calls[3]["json"]["response_format"] == {"type": "json_object"}
+
+
+def test_llm_json_schema_accepted_first_is_reused(fake_llm):
+    llm = fake_llm({"steps": [{"intent": "stop"}]})
+
+    vr.ask_llm_for_intent_plan_with_trace("stop")
+    vr.ask_llm_for_intent_plan_with_trace("stop")
+
+    assert len(llm.calls) == 2
+    assert all(call["json"]["response_format"]["type"] == "json_schema" for call in llm.calls)
+
+
+def test_llm_http_400_on_every_format_falls_back(fake_llm):
     llm = fake_llm(_FakeResponse(status_code=400))
 
     _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
 
-    assert len(llm.calls) == 2
+    assert len(llm.calls) == 4
+    assert "response_format" not in llm.calls[-1]["json"]
     assert trace["source"] == "local_parser_fast_fallback"
 
 
@@ -800,8 +820,8 @@ def test_load_llm_settings_defaults_and_invalid_values():
     assert load_llm_settings({}) == LLMSettings(
         model="qwen2.5-1.5b",
         connect_timeout_seconds=1.0,
-        read_timeout_seconds=4.0,
-        max_tokens_plan=160,
+        read_timeout_seconds=8.0,
+        max_tokens_plan=120,
         max_tokens_intent=96,
     )
     invalid = load_llm_settings(
@@ -881,3 +901,240 @@ def test_warm_up_swallows_errors(fake_llm):
     fake_llm(requests.ConnectionError("refused"))
 
     assert vr.warm_up_llm() is False
+
+
+# --------------------------------------------------------------------------- Étape 8b : gardes déterministes
+
+
+def _events(result) -> list[dict]:
+    return [json.loads(line) for line in Path(result["trace_path"]).read_text(encoding="utf-8").splitlines()]
+
+
+def _forbid_parser(monkeypatch):
+    def _no_parser(*_args, **_kwargs):
+        raise AssertionError("le parseur local ne doit pas être utilisé")
+
+    monkeypatch.setattr(IntentParser, "parse_plan", _no_parser)
+
+
+@pytest.mark.parametrize("text", ["stop", "arrête toi", "halte", "pause"])
+def test_pure_stop_runs_locally_without_llm(fake_llm, tmp_path, text):
+    llm = fake_llm({"steps": [{"intent": "move_forward", "parameters": {"duration": 1}}]})
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True, trace_dir=str(tmp_path))
+
+    result = runtime.handle_text_as_plan(text)
+
+    assert llm.calls == []
+    assert result["status"] == "accepted"
+    assert result["source"] == "local_stop"
+    assert [s["intent"].name for s in result["steps"]] == ["stop"]
+    assert "stop" in robot.commands
+    assert not MOVES & set(robot.commands)
+
+
+def test_pure_stop_also_bypasses_parser_without_llm(tmp_path):
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path)).handle_text_as_plan("halte")
+
+    assert result["source"] == "local_stop"
+    assert result["status"] == "accepted"
+
+
+@pytest.mark.parametrize(
+    ("text", "plan", "expected"),
+    [
+        (
+            "avance puis arrête",
+            [{"intent": "move_forward", "parameters": {"duration": 1}}, {"intent": "stop"}],
+            ["move_forward", "stop"],
+        ),
+        (
+            "arrête toi et recule",
+            [{"intent": "stop"}, {"intent": "move_backward", "parameters": {}}],
+            ["stop", "move_backward"],
+        ),
+    ],
+)
+def test_stop_inside_longer_command_goes_to_llm(fake_llm, tmp_path, text, plan, expected):
+    llm = fake_llm({"steps": plan})
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
+
+    result = runtime.handle_text_as_plan(text)
+
+    assert len(llm.calls) == 1
+    assert result["source"] == "llm_plan"
+    assert result["status"] == "accepted"
+    assert [s["intent"].name for s in result["steps"]] == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "llm_step"),
+    [
+        ("chante une chanson", {"intent": "spin_360", "target": None, "parameters": {}}),
+        ("ouvre la porte du garage", {"intent": "move_forward", "target": None, "parameters": {"distance": 100}}),
+        ("fais un salto arrière", {"intent": "avoid_obstacle", "target": None, "parameters": {}}),
+        ("avance de cinquante centimètres", {"intent": "move_forward", "parameters": {"distance": 500}}),
+    ],
+)
+def test_ungrounded_llm_plan_is_rejected_without_motion_or_parser(fake_llm, monkeypatch, tmp_path, text, llm_step):
+    fake_llm({"steps": [llm_step]})
+    _forbid_parser(monkeypatch)
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True, trace_dir=str(tmp_path))
+
+    result = runtime.handle_text_as_plan(text)
+
+    assert result["status"] == "rejected"
+    assert result["reason"] == "unsupported command"
+    assert result["source"] == "llm_ungrounded"
+    assert result["steps"] == []
+    assert robot.commands == []
+    events = _events(result)
+    unsupported = next(e for e in events if e["event"] == "plan_unsupported")
+    assert unsupported["guard_reason"]
+    assert unsupported["normalized_text"] == preprocess(text)
+    assert "step_result" not in {e["event"] for e in events}
+
+
+def test_only_parasite_stop_is_rejected(fake_llm, monkeypatch, tmp_path):
+    fake_llm({"steps": [{"intent": "stop"}]})
+    _forbid_parser(monkeypatch)
+
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path)).handle_text_as_plan(
+        "chante une chanson"
+    )
+
+    assert result["status"] == "rejected"
+    assert result["reason"] == "unsupported command"
+    notes = next(e for e in _events(result) if e["event"] == "plan_unsupported")["guard_notes"]
+    assert notes == ["stop parasite supprimé"]
+
+
+def test_forward_with_invented_distance_gets_default_duration(fake_llm, tmp_path):
+    fake_llm({"steps": [{"intent": "move_forward", "target": None, "parameters": {"distance": 1}}]})
+
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path)).handle_text_as_plan("avance")
+
+    assert result["status"] == "accepted"
+    params = result["steps"][0]["intent"].parameters
+    assert params["duration"] == 1
+    assert "distance" not in params
+
+
+def test_parasite_stop_between_moves_is_removed(fake_llm, tmp_path):
+    fake_llm(
+        {
+            "steps": [
+                {"intent": "move_forward", "target": None, "parameters": {"distance": 20}},
+                {"intent": "stop", "target": None, "parameters": {}},
+                {"intent": "move_backward", "target": None, "parameters": {"distance": 10}},
+            ]
+        }
+    )
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
+
+    result = runtime.handle_text_as_plan("avance de vingt centimètres puis recule de dix centimètres")
+
+    assert result["status"] == "accepted"
+    assert [s["intent"].name for s in result["steps"]] == ["move_forward", "move_backward"]
+    assert [s["intent"].parameters["distance"] for s in result["steps"]] == [20.0, 10.0]
+    plan_raw = next(e for e in _events(result) if e["event"] == "plan_raw")
+    assert plan_raw["guard_notes"] == ["stop parasite supprimé"]
+
+
+def test_return_to_start_unhandled_parameter_is_dropped(fake_llm):
+    fake_llm({"steps": [{"intent": "return_to_start", "target": None, "parameters": {"duration": 1}}]})
+
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace("reviens au point de départ")
+
+    assert trace["source"] == "llm_plan"
+    assert [(i.name, i.parameters) for i in intents] == [("return_to_start", {})]
+    assert trace["guard_notes"] == ["return_to_start.duration inutile : supprimé"]
+
+
+def test_return_to_start_with_dropped_parameter_runs(fake_llm, tmp_path):
+    fake_llm(
+        {
+            "steps": [
+                {"intent": "move_forward", "parameters": {"distance": 100}},
+                {"intent": "return_to_start", "parameters": {"duration": 1}},
+            ]
+        }
+    )
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
+
+    result = runtime.handle_text_as_plan("avance d'un mètre puis reviens au point de départ")
+
+    assert result["status"] == "accepted"
+    assert [s["intent"].name for s in result["steps"]] == ["move_forward", "move_backward"]
+
+
+def test_use_case_passes_guards_without_notes(fake_llm, tmp_path):
+    fake_llm(USE_CASE_PLAN)
+
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace(USE_CASE)
+
+    assert trace["source"] == "llm_plan"
+    assert trace["guard_notes"] == []
+    assert [i.name for i in intents] == ["search_and_approach_object", "follow_object"]
+    assert intents[1].parameters == {"stand_off_cm": 100, "duration_s": 300}
+
+
+def test_llm_step_without_target_or_parameters_is_tolerated(fake_llm):
+    fake_llm({"steps": [{"intent": "stop"}]})
+
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace("arrête toi")
+
+    assert trace["source"] == "llm_plan"
+    assert (intents[0].name, intents[0].target, intents[0].parameters) == ("stop", None, {})
+
+
+def test_llm_synonym_is_grounded_under_canonical_name(fake_llm):
+    fake_llm({"steps": [{"intent": "spin", "parameters": {}}]})
+
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace("chante une chanson")
+
+    assert intents == []
+    assert trace["source"] == "llm_ungrounded"
+
+
+def test_unit_is_normalized_after_guards(fake_llm, tmp_path):
+    fake_llm({"steps": [{"intent": "move_backward", "parameters": {"distance": 200, "unit": "centimètres"}}]})
+
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path)).handle_text_as_plan(
+        "recule de deux mètres"
+    )
+
+    assert result["status"] == "accepted"
+    params = result["steps"][0]["intent"].parameters
+    assert (params["distance"], params["unit"]) == (200.0, "cm")
+
+
+def test_read_timeout_default_and_env_override(fake_llm, monkeypatch):
+    llm = fake_llm({"steps": [{"intent": "stop"}]})
+
+    vr.ask_llm_for_intent_plan_with_trace("stop")
+    monkeypatch.setenv("LLM_READ_TIMEOUT_SECONDS", "3")
+    vr.ask_llm_for_intent_plan_with_trace("stop")
+
+    assert llm.calls[0]["timeout"] == (1.0, 8.0)
+    assert llm.calls[1]["timeout"] == (1.0, 3.0)
+    assert llm.calls[0]["json"]["max_tokens"] == 120
+
+
+def test_emergency_listener_checks_pure_stop_before_parser(monkeypatch):
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    calls = []
+    original = runtime.parser.parse
+
+    def _spy(text):
+        calls.append(text)
+        return original(text)
+
+    monkeypatch.setattr(runtime.parser, "parse", _spy)
+
+    assert runtime._is_stop_phrase("halte")
+    assert calls == []
+    assert runtime._is_stop_phrase("stop maintenant")
+    assert calls == ["stop maintenant"]
+    assert not runtime._is_stop_phrase("avance")

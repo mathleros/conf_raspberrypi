@@ -40,8 +40,8 @@ class LLMSettings:
 
     model: str = "qwen2.5-1.5b"
     connect_timeout_seconds: float = 1.0
-    read_timeout_seconds: float = 4.0
-    max_tokens_plan: int = 160
+    read_timeout_seconds: float = 8.0
+    max_tokens_plan: int = 120
     max_tokens_intent: int = 96
 
 

@@ -21,7 +21,7 @@
 - Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
 - Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
 - Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
-- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b, 4, 5, 6, 7 et 8 faites).
+- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b, 4, 5, 6, 7, 8 et 8b faites).
 - Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
 - Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
 - Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
@@ -39,15 +39,21 @@
 - Étape 8 LLM local : modèle **Qwen2.5-1.5B-Instruct GGUF Q4_K_M** (`qwen2.5-1.5b-instruct-q4_k_m.gguf`, dépôt HF `Qwen/Qwen2.5-1.5B-Instruct-GGUF`), `llama-server --alias qwen2.5-1.5b --ctx-size 2048 --threads 4 --parallel 1`, service `llm.service` (`scripts/install/install_llm.sh`, option Ministral retirée ; `MODEL_URL`/`MODEL_FILENAME` surchargeables).
 - Étape 8 `interfaces/text_normalizer.py` : `fr_numbers_to_digits` et `preprocess` portés depuis `scripts/test/eval_prompt_plan.py` (nombres en lettres -> chiffres, « N minutes » -> N*60 secondes, « N mètres » -> N*100 centimètres, « un/une » converti seulement devant une unité). Un test vérifie l'égalité avec le script (fonctions sur son corpus et `SYSTEM_PROMPT_PLAN`).
 - Étape 8 correctif `preprocess` (formes composées, converties avant les simples) : « N minute(s) [et] M seconde(s) » -> (N*60+M) secondes ; « N mètre(s) [et] M [centimètre(s)] » (M 0-99) -> (N*100+M) centimètres. Sans « centimètres », M n'est pas fusionné s'il est suivi d'une autre unité (« 1 mètre et 2 secondes », « 2 mètres 3 fois »). **Écart avec `eval_prompt_plan.py`** (qui n'a pas ce correctif) : à reporter dans le script pour évaluer ces cas. Le parseur local garde sa propre gestion des minutes.
-- Étape 8 `voice_runtime.py` : `preprocess` appliqué au texte envoyé au LLM (plan et intent unique) ; `raw_text` des Intent = texte d'origine, texte prétraité dans la trace (`normalized_text` de `plan_raw`). `SYSTEM_PROMPT_PLAN` = prompt de `eval_prompt_plan.py` ; `SYSTEM_PROMPT` = même liste d'intents, sortie `{intent,target,parameters,confidence}`, hors liste -> `unknown`. Payload : `temperature` 0.0, `max_tokens` 160 (plan) / 96 (intent), `stream` false, `cache_prompt` true, `response_format` `json_object` (HTTP 400 -> un seul nouvel essai sans). Réglages via env (`load_llm_settings()` dans `settings.py`, relus à chaque appel) : `LLM_MODEL` (qwen2.5-1.5b), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (4.0), `LLM_MAX_TOKENS_PLAN` (160), `LLM_MAX_TOKENS_INTENT` (96). Préchauffage `warm_up_llm_async()` (thread daemon, prompt du plan, `max_tokens` 1) lancé par `main()` sauf `--no-llm`.
+- Étape 8 `voice_runtime.py` : `preprocess` appliqué au texte envoyé au LLM (plan et intent unique) ; `raw_text` des Intent = texte d'origine, texte prétraité dans la trace (`normalized_text` de `plan_raw`). `SYSTEM_PROMPT_PLAN` = prompt de `eval_prompt_plan.py` ; `SYSTEM_PROMPT` = même liste d'intents, sortie `{intent,target,parameters,confidence}`, hors liste -> `unknown`. Payload : `temperature` 0.0, `max_tokens` 160 (plan, 120 depuis 8b) / 96 (intent), `stream` false, `cache_prompt` true, `response_format` `json_object` (remplacé en 8b par la chaîne de formats, voir ci-dessous). Réglages via env (`load_llm_settings()` dans `settings.py`, relus à chaque appel) : `LLM_MODEL` (qwen2.5-1.5b), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (8.0 depuis 8b, 4.0 avant), `LLM_MAX_TOKENS_PLAN` (120 depuis 8b, 160 avant), `LLM_MAX_TOKENS_INTENT` (96). Préchauffage `warm_up_llm_async()` (thread daemon, prompt du plan, `max_tokens` 1) lancé par `main()` sauf `--no-llm`.
 - Étape 8 robustesse : étape LLM non-dict ou `parameters` non-dict -> seule cette étape est ignorée (`skipped_steps` dans la trace) ; `confidence` absente/invalide -> 0.8 ; `unit` absente -> cm. `{"steps": []}` -> `([], source "llm_unsupported")` et `handle_text_as_plan` rejette (`status "rejected"`, `reason "unsupported command"`, événement de trace `plan_unsupported`, aucun mouvement, pas de repli parseur). Repli `IntentParser` seulement sur timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable (parseur appelé paresseusement).
 - Étape 8 `IntentParser` : extraction des nombres via `text_normalizer.fr_numbers_to_digits` (décimales « 1,5 » protégées) ; avance/recule : durée explicite, sinon distance (`distance`+`unit`), sinon 1 s ; rotations : durée, sinon angle en degrés, sinon 90°. Tests : `tests/unit/test_voice_runtime.py` (186 tests unit+integration verts, 1 skip).
 - Étape 8 `scripts/install/install_llm.sh` : `PROJECT_DIR` = racine du dépôt (`scripts/install/../..`, vérifie `pyproject.toml`) -> `uv sync` fonctionne ; message final -> `uv run voice-runtime`. `REFERENCE_IROBOT.md` mis à jour (§1, 5, 6, 7, 9, 10, 11 : Qwen, `llm.service`, prompts, réglages, rejet hors périmètre, R7 corrigé).
+- Étape 8b gardes déterministes (`interfaces/plan_guards.py`, portés à l'identique de `eval_prompt_plan.py`, test d'égalité) : `STOP_WORDS`, `fold`, `is_pure_stop`, `INTENT_LEXICON`, `ALLOWED_PARAMS`, `NUMERIC_KEYS`, `grounding_check`, `PLAN_SCHEMA`, `build_formats`.
+- Étape 8b `handle_text_as_plan` : phrase d'arrêt pure -> plan `[stop]` exécuté sans LLM ni prétraitement (source `local_stop`, aussi en `--no-llm`) ; « avance puis arrête » passe par le LLM. Thread d'écoute pendant une mission : `is_pure_stop` d'abord, `IntentParser` en repli.
+- Étape 8b plan LLM : étapes tolérantes (`target`->None, `parameters`->{}, synonymes canoniques via `PLAN_INTENT_SYNONYMS`) puis `grounding_check(texte prétraité)` avant validation : intent non justifié ou nombre faux (phrase avec chiffres) -> `([], source "llm_ungrounded")` -> `rejected`/`unsupported command`, aucun mouvement ni repli, `guard_reason`/`guard_notes` dans l'événement `plan_unsupported` ; stop parasite, paramètre non géré, nombre inventé (phrase sans chiffre) supprimés ; avance/recule sans valeur -> duration 1, tourne -> angle 90 ; notes dans `plan_raw`. `unit` reste normalisée ensuite par `_sanitize_primitive_intent`.
+- Étape 8b LLM : `LLM_READ_TIMEOUT_SECONDS` 8.0 et `LLM_MAX_TOKENS_PLAN` 120 par défaut ; `ResponseFormatChain` : plan `json_schema` strict -> `json_object`+schéma -> `json_object` -> sans (passage au suivant sur HTTP 400), premier format accepté mémorisé (`reset_response_format_cache()` pour les tests) ; intent unique `json_object` -> sans. Tests : `tests/unit/test_plan_guards.py` + `test_voice_runtime.py` (232 tests unit+integration verts, 1 skip).
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.
 - Exécution sécurisée par whitelist d’actions, bornes distance/angle/durée, limite nombre d’étapes.
 - En cas d’échec LLM plan (timeout, HTTP, JSON invalide, `steps` absent) : fallback immédiat parseur local (pas de double timeout). `{"steps": []}` = hors périmètre -> rejet, pas de fallback.
+- Le LLM propose, le lexique dispose : un plan LLM non justifié par la phrase prétraitée (`grounding_check`) est rejeté sans fallback ni mouvement ; un arrêt pur (« stop », « arrête toi », « halte », « pause ») ne passe jamais par le LLM.
+- Toute garde déterministe portée depuis `scripts/test/eval_prompt_plan.py` reste identique au script (test d'égalité) : modifier les deux ensemble.
 - LLM : petit modèle (1,5B) -> entrée normalisée côté Python, prompt court et statique, sortie JSON minimale ; le parseur local reste le filet de sécurité.
 - Priorité sécurité : obstacle > mouvement (arrêt prioritaire).
 - Calibration paramétrable par fichier : `config/runtime_calibration.toml`.
@@ -62,7 +68,7 @@
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
 - Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
 - Étapes 9→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
-- Mesurer sur le Pi 5 la latence/débit de Qwen2.5-1.5B (`eval_prompt_plan.py --repeat 3`) et l'effet de `cache_prompt` + préchauffage dans le budget de 4 s.
+- Mesurer sur le Pi 5 la latence/débit de Qwen2.5-1.5B (`eval_prompt_plan.py --repeat 3`) et l'effet de `cache_prompt` + préchauffage dans le budget de 8 s (`LLM_READ_TIMEOUT_SECONDS`), et le taux de faux rejets du contrôle lexical (`eval_prompt_plan.py` sans `--no-guards`).
 - Restes Ministral / `ctx-size 4096` hors chemin Pi : `install_llm_mac_portable.sh`, `run_llm_runtime_mac.sh`, `docs/guide-installation-llm-mac-portable.md`, `commandes.txt`, `tests/integration/test_voice_runtime_llm_integration.py` ; `hardware/audio/voice_assistant.py` (legacy) lit `LLM_MODEL` sans prétraitement ni timeouts ; README cite encore `uv run voice-assistant` (commandes audio).
 - Voie legacy `handle_text` : `unknown` du LLM -> repli parseur (pas de rejet comme en voie plan).
 - prépare le système pour l’utilisation des GPIO
@@ -109,7 +115,7 @@ Le projet vise un fonctionnement local, sans dépendance à un cloud.
 
 - `llama-server` écoute sur `127.0.0.1:8080`
 - modèle : Qwen2.5-1.5B-Instruct (GGUF Q4_K_M), `--ctx-size 2048`, service `llm.service`
-- API compatible OpenAI : `/v1/chat/completions` (appel non streamé, timeout lecture 4 s, `response_format` JSON, `cache_prompt`)
+- API compatible OpenAI : `/v1/chat/completions` (appel non streamé, timeout lecture 8 s, `response_format` `json_schema` avec replis, `cache_prompt`)
 - le modèle est utilisé pour générer des réponses à partir de la transcription
 - il peut aussi servir à produire une intention structurée à partir d'une phrase libre, mais le moteur de contrôle reste le planificateur de skills
 
@@ -137,7 +143,8 @@ En pratique :
 
 ### LLM
 - le chargement du modèle est lent au premier démarrage (préchauffage en arrière-plan au lancement de `voice-runtime` ; les premières commandes peuvent tomber en repli parseur)
-- certaines versions de `llama-server` refusent `response_format` (HTTP 400) : le runtime refait un appel sans
+- certaines versions de `llama-server` refusent `json_schema` ou `response_format` (HTTP 400) : le runtime essaie `json_schema` strict -> `json_object`+schéma -> `json_object` -> sans, et mémorise le premier format accepté (jusqu'au redémarrage du runtime)
+- un petit LLM range parfois une phrase hors périmètre dans l'intent le plus proche (« chante une chanson » -> `spin_360`) : c'est le rôle de `plan_guards.grounding_check` ; un mot de commande absent de `INTENT_LEXICON` provoque un faux rejet (à enrichir dans le script ET dans `plan_guards.py`)
 - les services doivent être lancés avec le bon utilisateur systemd
 - le chemin du binaire/model est critique
 

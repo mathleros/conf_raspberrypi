@@ -238,7 +238,7 @@ def test_voice_runtime_mission_timeout(monkeypatch):
     runtime.settings = runtime.settings.__class__(
         cm_per_second=runtime.settings.cm_per_second,
         deg_per_second=runtime.settings.deg_per_second,
-        step_timeout_seconds=runtime.settings.step_timeout_seconds,
+        step_timeout_seconds=0.0,
         mission_timeout_seconds=0.0,
         max_step_retries=runtime.settings.max_step_retries,
         max_plan_steps=runtime.settings.max_plan_steps,
@@ -405,3 +405,56 @@ def test_voice_runtime_rejects_whole_plan_when_one_step_invalid(monkeypatch):
     assert result["reason"] == "invalid plan step"
     assert len(result["validation_errors"]) == 1
     assert "forward" not in robot.commands
+
+
+def test_effective_step_timeout_with_and_without_duration():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    base = runtime.settings.step_timeout_seconds
+    extra = runtime.settings.search_timeout_seconds + runtime.settings.timeout_margin_seconds
+
+    assert runtime._effective_step_timeout(Intent(name="stop")) == base
+    assert runtime._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 300})) == 300 + extra
+    assert runtime._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 0})) == max(base, extra)
+
+
+def test_effective_mission_timeout_is_sum_of_steps():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    extra = runtime.settings.search_timeout_seconds + runtime.settings.timeout_margin_seconds
+    intents = [
+        Intent(name="follow_target", parameters={"duration_s": 300}),
+        Intent(name="stop"),
+    ]
+
+    expected = max(
+        runtime.settings.mission_timeout_seconds,
+        300 + extra + runtime.settings.step_timeout_seconds,
+    )
+    assert runtime._effective_mission_timeout(intents) == expected
+    assert runtime._effective_mission_timeout([Intent(name="stop")]) == runtime.settings.mission_timeout_seconds
+
+
+def test_no_retry_on_aborted_or_timeout(tmp_path):
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path))
+    calls = []
+
+    def aborted(_intent):
+        calls.append(1)
+        return {"status": "aborted", "reason": "x", "results": []}
+
+    runtime.controller.handle_intent = aborted
+    result = runtime._execute_intent_with_retry(Intent(name="stop"), tmp_path / "t.jsonl")
+
+    assert result["status"] == "aborted"
+    assert len(calls) == 1
+
+    calls.clear()
+    runtime.settings = type(runtime.settings)(step_timeout_seconds=-1.0)
+
+    def failed(_intent):
+        calls.append(1)
+        return {"status": "accepted", "results": []}
+
+    runtime.controller.handle_intent = failed
+    result = runtime._execute_intent_with_retry(Intent(name="stop"), tmp_path / "t.jsonl")
+    assert result["reason"] == "step timeout"
+    assert len(calls) == 1

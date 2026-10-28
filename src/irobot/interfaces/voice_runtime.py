@@ -361,8 +361,24 @@ class VoiceRuntime:
                 return True
         return False
 
+    def _effective_step_timeout(self, intent: Intent) -> float:
+        base = float(self.settings.step_timeout_seconds)
+        try:
+            duration_s = float((intent.parameters or {}).get("duration_s"))
+        except (TypeError, ValueError):
+            return base
+        return max(
+            base,
+            duration_s + float(self.settings.search_timeout_seconds) + float(self.settings.timeout_margin_seconds),
+        )
+
+    def _effective_mission_timeout(self, intents: list[Intent]) -> float:
+        total = sum(self._effective_step_timeout(intent) for intent in intents)
+        return max(float(self.settings.mission_timeout_seconds), total)
+
     def _execute_intent_with_retry(self, intent: Intent, trace_path: Path) -> dict[str, Any]:
         max_retries = max(0, int(self.settings.max_step_retries))
+        step_timeout = self._effective_step_timeout(intent)
         attempt = 0
         last_result: dict[str, Any] | None = None
         while attempt <= max_retries:
@@ -382,9 +398,12 @@ class VoiceRuntime:
                 },
             )
 
-            if duration > float(self.settings.step_timeout_seconds):
+            if duration > step_timeout:
                 result["status"] = "aborted"
                 result["reason"] = "step timeout"
+                return result
+
+            if result.get("status") == "aborted":
                 return result
 
             if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
@@ -777,13 +796,14 @@ class VoiceRuntime:
         self.mission.start(intents[0].name, intents[0].target, metadata={"steps_total": len(intents)})
         self.mission.begin_execution()
         execution_started_at = time.time()
+        mission_timeout = self._effective_mission_timeout(intents)
 
         steps = []
         global_status = "accepted"
         try:
             for intent in intents:
                 self.mission.state.metadata["step_index"] = len(steps)
-                if (time.time() - execution_started_at) > float(self.settings.mission_timeout_seconds):
+                if (time.time() - execution_started_at) > mission_timeout:
                     global_status = "aborted"
                     step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
                     steps.append(step_result)

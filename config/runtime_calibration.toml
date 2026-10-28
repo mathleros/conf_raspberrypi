@@ -5,9 +5,14 @@ turn_speed = 0.5
 step_timeout_seconds = 6.0
 mission_timeout_seconds = 45.0
 max_step_retries = 2
+search_timeout_seconds = 25.0
+timeout_margin_seconds = 10.0
 
 [limits]
 max_plan_steps = 20
 max_distance_cm = 300.0
 max_angle_deg = 360.0
 max_duration_sec = 12.0
+max_follow_duration_sec = 600.0
+min_stand_off_cm = 30.0
+max_stand_off_cm = 300.0

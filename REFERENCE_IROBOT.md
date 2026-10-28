@@ -30,7 +30,7 @@ Micro → arecord (16 kHz mono) → Vosk (STT fr) → texte
    → LanguageController.handle_intent → SkillPlanner → SkillExecutor → Skills → RobotController → SmartCar2WD (GPIO)
 ```
 
-Stack : Python ≥ 3.12 (`.python-version` = 3.13), `uv`, `opencv-python`, `requests`, `gpiozero` (Linux), `vosk` (Linux), `pytest`. LLM : `llama.cpp` (`llama-server`) + **Ministral-3-3B-Instruct-2512 Q4_K_M**, API OpenAI-compatible sur `127.0.0.1:8080`, service systemd `ministral.service`.
+Stack : Python ≥ 3.12 (`.python-version` = 3.13), `uv`, `opencv-python`, `requests`, `gpiozero` (Linux), `vosk` (Linux), `pytest`. LLM : `llama.cpp` (`llama-server`) + **Qwen2.5-1.5B-Instruct** (GGUF quantisé ; le dépôt analysé référençait encore Ministral-3-3B-Instruct-2512 Q4_K_M, remplacé depuis), API OpenAI-compatible sur `127.0.0.1:8080`, service systemd (nommé `ministral.service` dans le dépôt analysé).
 
 ---
 
@@ -134,7 +134,7 @@ Bornage des primitives : distance ∈ [0,1 ; 300] cm (ou [0,01 ; 3] m), angle �
 
 ## 6. Les prompts actuels (dans `voice_runtime.py`)
 
-Appel : `requests.post(LLM_URL, json=payload, timeout=(1.0, 4.0))`, non streamé, **sans `response_format`/grammaire**, modèle `"ministral-3-3b"`.
+Appel : `requests.post(LLM_URL, json=payload, timeout=(1.0, 4.0))`, non streamé, **sans `response_format`/grammaire**, modèle `"ministral-3-3b"` (dans le dépôt analysé ; remplacé par `qwen2.5-1.5b`).
 
 ### 6.1 `SYSTEM_PROMPT` — intent unique (chemin `handle_text`, secondaire)
 > Tu es un interprète de commande robotique. Réponds UNIQUEMENT en JSON valide avec les clés suivantes : intent, target, parameters, confidence. Les intents autorisées sont : follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop.
@@ -159,7 +159,7 @@ Réglages : `temperature=0.1`, `max_tokens=512`.
 ## 7. Contraintes à respecter pour écrire les prompts
 
 ### 7.1 Modèle et latence
-- Modèle 3B quantisé, CPU seul. L'audit v5 annonce **3–6 tokens/s** sur Pi 5 (mesure non vérifiée de mon côté).
+- Modèle actuel : **Qwen2.5-1.5B quantisé**, CPU seul (le dépôt analysé utilisait un 3B). L'audit v5 annonçait **3–6 tokens/s** pour le 3B sur Pi 5 ; le 1,5B sera plus rapide mais **le débit réel est à mesurer** (`eval_prompt_plan.py`). Un modèle de cette taille suit moins bien les consignes longues et convertit mal les nombres en lettres : prétraitement déterministe côté Python et prompt court.
 - Génération **non streamée** avec **timeout de lecture = 4 s** : tout ce qui n'est pas fini en ~4 s (évaluation du prompt **+** génération) déclenche le repli sur le parseur regex. À 3–6 tok/s, cela laisse seulement ~12–24 tokens de sortie. **Un plan JSON multi-étapes verbeux sortira presque toujours du budget sur le Pi** (sur Mac c'est sans doute différent).
 - Conséquences pour les prompts : **sortie la plus compacte possible** (clés courtes, pas d'espaces inutiles, pas de champ superflu comme `confidence` si on peut le remplir côté code), **system prompt court** (le temps d'évaluation du prompt est linéaire) et **statique** (placé en tête, texte utilisateur en dernier) pour profiter du cache de préfixe de `llama.cpp` (`cache_prompt`, **à vérifier** selon la version du serveur).
 - `--ctx-size` : `install_llm.sh` met 2048 ; l'audit v5 parle de 4096 → incohérence documentaire.
@@ -287,7 +287,7 @@ Fichiers de contexte à garder cohérents : `PROJECT_CONTEXT.md` (document vivan
 
 ## 12. Questions ouvertes
 
-- Les prompts doivent-ils viser **le Pi 5 en conditions réelles** (timeout 4 s, 3B) ou d'abord le Mac (confort) ? Cela change le budget de tokens.
+- Les prompts doivent-ils viser **le Pi 5 en conditions réelles** (timeout 4 s, Qwen2.5-1.5B) ou d'abord le Mac (confort) ? Cela change le budget de tokens.
 - Souhaites-tu **modifier le code** associé (défauts de durée, `stop` final, JSON contraint, timeout/streaming) ou **rester strictement sur les prompts** ?
 - Disposes-tu de **traces réelles** (`target/logs/*.jsonl`) de transcriptions Vosk pour confirmer le format des nombres ?
 - Faut-il élargir le vocabulaire (autres couleurs, vitesse, `move_circle`) ou le figer ?

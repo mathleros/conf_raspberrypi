@@ -22,3 +22,7 @@ composer.lock
 docs/
 assets/
 public/
+
+# Fichiers système
+*.DS_Store
+Thumbs.db

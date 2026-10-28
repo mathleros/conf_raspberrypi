@@ -21,3 +21,5 @@ max_stand_off_cm = 300.0
 ball_diameter_cm = 6.5
 # Focale en pixels (image 640x480 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
 focal_px = 600.0
+# Fusion avec le HC-SR04 (lue depuis detect(), jamais depuis le thread caméra)
+ultrasonic_fusion = false

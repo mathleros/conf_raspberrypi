@@ -15,12 +15,18 @@
 - Traçabilité complète : traces JSONL, `TRACE_PATH`, script replay `replay_runtime_trace_mac.sh`.
 - Préparation Mac avant Pi : scripts `run_mission_mac.sh`, `run_runtime_standard_scenarios_mac.sh`, protocoles/checklists/backlog.
 - Nettoyage doublons/doc : `detect_red_ball.py` converti en shim compat, docs centralisées.
-- Validation : suite unitaire verte (50 tests).
+- Validation : suite unitaire verte (82 tests dans `tests/unit`).
 - Étape 1 sécurité : durée par défaut injectée (1.0 s avance/recul, 90° rotation) quand aucun distance/angle/duration, bornée par `max_duration_sec`.
 - Étape 1 sécurité : normalisation des unités de distance (`m`/mètres… -> `m`, `cm`/centimètres… et inconnues -> `cm`) via `normalize_distance_unit`, au runtime et dans les primitives.
 - Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
 - Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
 - Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
+- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3 et 3b faites).
+- Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
+- Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
+- Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
+- Étape 3b fusion sans conflit GPIO : `SmartCar2WD.read_distance_cm()` et `check_obstacle()` partagent un `threading.Lock` + cache 50 ms (`time_fn`/`sleep_fn` injectables) ; `RobotController.read_distance_cm()` (None si absent/erreur). Le thread caméra ne calcule que l'estimation visuelle ; la fusion ultrason se fait dans `CameraLivePerceptionPipeline.detect()` (thread appelant), seulement si `ultrasonic_fusion=true`, balle au centre ; lecteur en erreur/None -> estimation visuelle. `voice_runtime.build_hardware_runtime` branche `distance_reader=robot.read_distance_cm`.
+- Correctif : la pipeline caméra appelait `detect_colored_objects(is_rgb=True)` (paramètre inexistant, `TypeError` avalé -> détection toujours None) ; `picamera2` et `HC_SR04` sont des imports tolérants hors Pi.
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.
@@ -28,6 +34,7 @@
 - En cas d’échec LLM plan : fallback immédiat parseur local (pas de double timeout).
 - Priorité sécurité : obstacle > mouvement (arrêt prioritaire).
 - Calibration paramétrable par fichier : `config/runtime_calibration.toml`.
+- Distance balle : estimation visuelle (diamètre apparent, frame 640x480 tournée de 90°) lissée ; ultrason optionnel, jamais lu depuis le thread caméra (HC-SR04 chronométré à la main : lectures concurrentes non sûres).
 - Organisation dépôt maintenue : `scripts/install`, `scripts/test`, `tests`, `specs/backlog`.
 
 ## 3) Restant / prochaines étapes
@@ -36,6 +43,8 @@
 - Exécuter protocole scénarios standard sur Pi (3 runs/scénario) + mesures/tolérances.
 - Produire rapport d’intégration Pi (template backlog) et décider GO/NO-GO.
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
+- Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
+- Étapes 4→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
 - prépare le système pour l’utilisation des GPIO
 
 ### `scripts/install_respeaker.sh`
@@ -99,6 +108,7 @@ En pratique :
 - le mode audio est résolu automatiquement via `resolve_input_device()`
 
 ### GPIO
+- HC-SR04 : une seule lecture à la fois (verrou dans `SmartCar2WD`, cache 50 ms) ; ne jamais le lire depuis le thread caméra
 - toutes les broches sont BCM, pas physiques
 - GND du Pi doit être relié au GND du module L298N
 - ne pas alimenter les moteurs directement via le Raspberry Pi

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import threading
 import time
 
@@ -34,7 +35,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         focal_px: float | None = None,
         smoothing_alpha: float = 0.4,
         distance_reader: DistanceReader | None = None,
-        fusion_enabled: bool = True,
+        fusion_enabled: bool | None = None,
         fusion_tolerance: float = 0.25,
         autostart: bool = True,
     ) -> None:
@@ -46,7 +47,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
         self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
         self.distance_reader = distance_reader
-        self.fusion_enabled = bool(fusion_enabled)
+        self.fusion_enabled = bool(settings.camera_ultrasonic_fusion if fusion_enabled is None else fusion_enabled)
         self.fusion_tolerance = float(fusion_tolerance)
         self._smoother = ExponentialSmoother(smoothing_alpha)
 
@@ -85,14 +86,16 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             label=label, position=position, distance_cm=None, confidence=confidence, diameter_px=diameter_px
         )
 
-    def _compute_distance_cm(self, detection: ObjectDetection) -> float | None:
-        """Estimation visuelle lissée, éventuellement remplacée par l'ultrason si concordant."""
-        is_ball = detection.label.endswith("_ball")
+    def _compute_visual_distance_cm(self, detection: ObjectDetection) -> float | None:
+        """Estimation visuelle lissée (thread caméra) ; aucune lecture capteur ici."""
         visual = None
-        if is_ball:
+        if detection.label.endswith("_ball"):
             visual = estimate_distance_cm(detection.diameter_px, self.ball_diameter_cm, self.focal_px)
-        visual = self._smoother.update(visual)
+        return self._smoother.update(visual)
 
+    def _fuse_distance_cm(self, detection: ObjectDetection) -> float | None:
+        """Fusion ultrason, appelée depuis le thread appelant de detect()."""
+        visual = detection.distance_visual_cm
         if visual is None or not self.fusion_enabled or self.distance_reader is None:
             return visual
         if detection.position != "center":
@@ -120,7 +123,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if detection is None:
             self._smoother.reset()
             return None
-        detection.distance_cm = self._compute_distance_cm(detection)
+        detection.distance_visual_cm = self._compute_visual_distance_cm(detection)
+        detection.distance_cm = detection.distance_visual_cm
         return detection
 
     @staticmethod
@@ -188,7 +192,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             label = detection.label.lower()
             if expected not in label and label not in expected:
                 return None
-        return detection
+        return dataclasses.replace(detection, distance_cm=self._fuse_distance_cm(detection))
 
     def close(self, timeout_s: float = 0.5) -> None:
         self._stop_event.set()

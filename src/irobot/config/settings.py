@@ -29,6 +29,7 @@ class RuntimeSettings:
     timeout_margin_seconds: float = 10.0
     camera_ball_diameter_cm: float = 6.5
     camera_focal_px: float = 600.0
+    camera_ultrasonic_fusion: bool = False
 
 
 def _config_file() -> Path:
@@ -63,4 +64,5 @@ def load_runtime_settings() -> RuntimeSettings:
         timeout_margin_seconds=float(runtime.get("timeout_margin_seconds", 10.0)),
         camera_ball_diameter_cm=float(camera.get("ball_diameter_cm", 6.5)),
         camera_focal_px=float(camera.get("focal_px", 600.0)),
+        camera_ultrasonic_fusion=bool(camera.get("ultrasonic_fusion", False)),
     )

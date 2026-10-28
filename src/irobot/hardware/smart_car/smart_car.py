@@ -16,6 +16,7 @@ Notes de câblage :
 """
 
 import argparse
+import threading
 import time
 
 try:
@@ -26,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - relevant on non-Pi hosts only
 
 try:
     from irobot.hardware.sensors.hc_sr04 import HC_SR04
-except ModuleNotFoundError:  # pragma: no cover
+except (ModuleNotFoundError, SystemExit):  # pragma: no cover - hc_sr04 quitte si gpiozero est absent
     HC_SR04 = None
 
 
@@ -47,6 +48,7 @@ class SmartCar2WD:
     }
 
     SENSOR_READ_ATTEMPTS = 5
+    SENSOR_CACHE_TTL_S = 0.05
 
     def __init__(
         self,
@@ -60,7 +62,11 @@ class SmartCar2WD:
         sensor_trigger_pin: int = 17,
         sensor_echo_pin: int = 27,
         require_obstacle_sensor: bool = False,
+        time_fn=time.monotonic,
+        sleep_fn=time.sleep,
     ):
+        self._time_fn = time_fn
+        self._sleep_fn = sleep_fn
         self.pins = {
             "in1": DigitalOutputDevice(in1),
             "in2": DigitalOutputDevice(in2),
@@ -72,6 +78,11 @@ class SmartCar2WD:
 
         self.speed = 1.0
         self.stop()
+
+        # Un seul lecteur à la fois sur le HC-SR04 (TRIG/ECHO chronométrés à la main).
+        self._sensor_lock = threading.Lock()
+        self._last_distance_cm: float | None = None
+        self._last_distance_at: float | None = None
 
         self.obstacle_threshold_cm = obstacle_threshold_cm
         self.require_obstacle_sensor = bool(require_obstacle_sensor)
@@ -150,6 +161,28 @@ class SmartCar2WD:
         if self.distance_sensor is not None:
             self.distance_sensor.cleanup()
 
+    def read_distance_cm(self) -> float | None:
+        """Lit le HC-SR04 sous verrou ; réutilise une mesure valide de moins de 50 ms."""
+        if self.distance_sensor is None:
+            return None
+        with self._sensor_lock:
+            now = self._time_fn()
+            if (
+                self._last_distance_cm is not None
+                and self._last_distance_at is not None
+                and 0.0 <= now - self._last_distance_at < self.SENSOR_CACHE_TTL_S
+            ):
+                return self._last_distance_cm
+
+            distance_cm = self.distance_sensor.read_distance_cm()
+            if distance_cm is None:
+                self._last_distance_cm = None
+                self._last_distance_at = None
+                return None
+            self._last_distance_cm = distance_cm
+            self._last_distance_at = self._time_fn()
+            return distance_cm
+
     def check_obstacle(self) -> bool:
         """Retourne True si un objet est détecté à moins de l seuil configuré."""
         if self.distance_sensor is None and not self.require_obstacle_sensor:
@@ -160,12 +193,12 @@ class SmartCar2WD:
         # Le HC-SR04 renvoie souvent des mesures manquantes : on réessaie avant de conclure.
         for _ in range(self.SENSOR_READ_ATTEMPTS):
             try:
-                distance_cm = self.distance_sensor.read_distance_cm()
+                distance_cm = self.read_distance_cm()
             except Exception:
                 return True
             if distance_cm is not None:
                 return distance_cm < self.obstacle_threshold_cm
-            time.sleep(0.03)
+            self._sleep_fn(0.03)
         return True
 
 

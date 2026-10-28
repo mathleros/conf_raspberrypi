@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 
 import numpy as np
 import pytest
@@ -68,6 +69,7 @@ def test_distance_reader_from_robot():
 
 
 def _pipeline(**kwargs) -> CameraLivePerceptionPipeline:
+    kwargs.setdefault("fusion_enabled", True)
     return CameraLivePerceptionPipeline(autostart=False, ball_diameter_cm=6.5, focal_px=600.0, **kwargs)
 
 
@@ -75,41 +77,104 @@ def _ball(position: str = "center", diameter_px: float = 39.0) -> ObjectDetectio
     return ObjectDetection(label="yellow_ball", position=position, confidence=0.95, diameter_px=diameter_px)
 
 
+def _publish(pipe: CameraLivePerceptionPipeline, detection: ObjectDetection) -> None:
+    """Simule ce que fait le thread caméra : estimation visuelle seule, puis publication."""
+    detection.distance_visual_cm = pipe._compute_visual_distance_cm(detection)
+    detection.distance_cm = detection.distance_visual_cm
+    pipe._last_detection = detection
+
+
 def test_pipeline_visual_distance_and_smoothing():
     pipe = _pipeline()
-    assert pipe._compute_distance_cm(_ball(diameter_px=39.0)) == pytest.approx(100.0)
+    assert pipe._compute_visual_distance_cm(_ball(diameter_px=39.0)) == pytest.approx(100.0)
     # diamètre doublé -> mesure brute 50, lissée : 0.4*50 + 0.6*100
-    assert pipe._compute_distance_cm(_ball(diameter_px=78.0)) == pytest.approx(80.0)
+    assert pipe._compute_visual_distance_cm(_ball(diameter_px=78.0)) == pytest.approx(80.0)
 
 
 def test_pipeline_no_distance_for_object():
     pipe = _pipeline()
     obj = ObjectDetection(label="yellow_object", position="center", diameter_px=39.0)
-    assert pipe._compute_distance_cm(obj) is None
+    assert pipe._compute_visual_distance_cm(obj) is None
 
 
-def test_pipeline_fusion_concordant_divergent_absent_disabled():
+def test_detect_fusion_concordant_divergent_absent_disabled():
     robot = FakeRobot()
     reader = distance_reader_from_robot(robot)
 
-    robot.ultrasound_cm = 110.0
-    assert _pipeline(distance_reader=reader)._compute_distance_cm(_ball()) == 110.0
+    def detect(**kwargs):
+        pipe = _pipeline(**kwargs)
+        _publish(pipe, _ball(kwargs.pop("position", "center")))
+        return pipe.detect()
 
+    robot.ultrasound_cm = 110.0
+    assert detect(distance_reader=reader).distance_cm == 110.0
     robot.ultrasound_cm = 200.0
-    assert _pipeline(distance_reader=reader)._compute_distance_cm(_ball()) == pytest.approx(100.0)
-
+    assert detect(distance_reader=reader).distance_cm == pytest.approx(100.0)
     robot.ultrasound_cm = 110.0
-    assert _pipeline(distance_reader=None)._compute_distance_cm(_ball()) == pytest.approx(100.0)
-    assert _pipeline(distance_reader=reader, fusion_enabled=False)._compute_distance_cm(_ball()) == pytest.approx(100.0)
-    # balle hors centre : pas de fusion
-    assert _pipeline(distance_reader=reader)._compute_distance_cm(_ball("left")) == pytest.approx(100.0)
+    assert detect(distance_reader=None).distance_cm == pytest.approx(100.0)
+    assert detect(distance_reader=reader, fusion_enabled=False).distance_cm == pytest.approx(100.0)
+
+    pipe = _pipeline(distance_reader=reader)
+    _publish(pipe, _ball("left"))
+    assert pipe.detect().distance_cm == pytest.approx(100.0)
 
 
-def test_pipeline_fusion_survives_sensor_error():
+def test_detect_does_not_mutate_published_detection():
+    pipe = _pipeline(distance_reader=lambda: 110.0)
+    _publish(pipe, _ball())
+    assert pipe.detect().distance_cm == 110.0
+    assert pipe._last_detection.distance_cm == pytest.approx(100.0)
+
+
+def test_detect_reader_exception_or_none_falls_back_to_visual():
     def broken():
         raise RuntimeError("gpio")
 
-    assert _pipeline(distance_reader=broken)._compute_distance_cm(_ball()) == pytest.approx(100.0)
+    for reader in (broken, lambda: None):
+        pipe = _pipeline(distance_reader=reader)
+        _publish(pipe, _ball())
+        assert pipe.detect().distance_cm == pytest.approx(100.0)
+
+
+def test_reader_called_from_detect_caller_thread_never_camera_thread():
+    calls: list[threading.Thread] = []
+
+    def reader():
+        calls.append(threading.current_thread())
+        return 110.0
+
+    pipe = _pipeline(distance_reader=reader)
+    pipe._stop_event.set()
+    camera_thread = threading.Thread(target=lambda: _publish(pipe, _ball()))
+    camera_thread.start()
+    camera_thread.join()
+    assert calls == []
+
+    pipe.detect()
+    assert calls == [threading.current_thread()]
+
+    results = []
+    caller = threading.Thread(target=lambda: results.append(pipe.detect()))
+    caller.start()
+    caller.join()
+    assert calls[-1] is caller and camera_thread not in calls
+
+
+def test_flag_false_reader_never_called(monkeypatch, tmp_path):
+    cfg = tmp_path / "c.toml"
+    cfg.write_text("[camera]\nultrasonic_fusion = false\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    def reader():
+        raise AssertionError("ne doit pas être appelé")
+
+    pipe = CameraLivePerceptionPipeline(autostart=False, distance_reader=reader, focal_px=600.0, ball_diameter_cm=6.5)
+    assert pipe.fusion_enabled is False
+    _publish(pipe, _ball())
+    assert pipe.detect().distance_cm == pytest.approx(100.0)
+
+    cfg.write_text("[camera]\nultrasonic_fusion = true\n", encoding="utf-8")
+    assert CameraLivePerceptionPipeline(autostart=False, distance_reader=reader).fusion_enabled is True
 
 
 def _synthetic_frame(radius: int, rotate: bool = False):
@@ -154,3 +219,4 @@ def test_camera_section_in_toml(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent.toml"))
     default = settings.load_runtime_settings()
     assert (default.camera_ball_diameter_cm, default.camera_focal_px) == (6.5, 600.0)
+    assert default.camera_ultrasonic_fusion is False

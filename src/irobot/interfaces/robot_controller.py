@@ -59,6 +59,15 @@ class RobotController:
             return bool(obstacle)
         return False
 
+    def read_distance_cm(self) -> float | None:
+        reader = getattr(self.robot, "read_distance_cm", None)
+        if not callable(reader):
+            return None
+        try:
+            return reader()
+        except Exception:
+            return None
+
     def _is_emergency_stop_requested(self) -> bool:
         detectors = (
             "is_emergency_stop_requested",

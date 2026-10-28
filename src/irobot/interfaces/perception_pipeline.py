@@ -11,6 +11,7 @@ class ObjectDetection:
     distance_cm: float | None = None
     confidence: float = 0.0
     diameter_px: float | None = None
+    distance_visual_cm: float | None = None
 
 
 class ObjectPerceptionPipeline(Protocol):

@@ -914,7 +914,9 @@ def build_hardware_runtime() -> dict[str, Any]:
     try:
         from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
 
-        perception = CameraLivePerceptionPipeline()
+        robot = runtime["robot"]
+        distance_reader = robot.read_distance_cm if robot is not None and runtime["sensor"] is not None else None
+        perception = CameraLivePerceptionPipeline(distance_reader=distance_reader)
         runtime["camera"] = perception
         runtime["perception"] = perception
     except Exception:

@@ -16,3 +16,8 @@ max_duration_sec = 12.0
 max_follow_duration_sec = 600.0
 min_stand_off_cm = 30.0
 max_stand_off_cm = 300.0
+
+[camera]
+ball_diameter_cm = 6.5
+# Focale en pixels (image 640x480 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
+focal_px = 600.0

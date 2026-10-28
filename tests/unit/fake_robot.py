@@ -13,6 +13,7 @@ class FakeRobot:
         self.commands: list[str] = []
         self.speed = 0.5
         self.obstacle_detected = False
+        self.ultrasound_cm: float | None = None
 
     def forward(self) -> None:
         self.commands.append("forward")
@@ -34,3 +35,6 @@ class FakeRobot:
 
     def check_obstacle(self) -> bool:
         return self.obstacle_detected
+
+    def read_distance_cm(self) -> float | None:
+        return self.ultrasound_cm

@@ -21,6 +21,7 @@ camera-live = "irobot.hardware.camera.camera_live:main"
 color-detector = "irobot.hardware.camera.color_detector:main"
 # Alias conservé pour compatibilité avec l'ancien nom
 balle-rouge = "irobot.hardware.camera.color_detector:main"
+calibrate-distance = "irobot.hardware.camera.calibrate_distance:main"
 voice-assistant = "irobot.hardware.audio.voice_assistant:main"
 voice-runtime = "irobot.interfaces.voice_runtime:main"
 smart-car = "irobot.hardware.smart_car.smart_car:main"

@@ -18,7 +18,7 @@ from irobot.interfaces.voice_runtime import main as voice_runtime_main
 RATE = 16000
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
-LLM_MODEL = "ministral-3-3b"
+LLM_MODEL = os.environ.get("LLM_MODEL", "qwen2.5-1.5b")
 LLM_TIMEOUT = 120
 
 SYSTEM_PROMPT = (

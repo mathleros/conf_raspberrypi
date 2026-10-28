@@ -1,5 +1,5 @@
 [runtime]
-cm_per_second = 65.0
+cm_per_second = 25.0
 deg_per_second = 360.0
 turn_speed = 0.5
 step_timeout_seconds = 6.0

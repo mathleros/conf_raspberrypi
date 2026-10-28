@@ -234,6 +234,8 @@ def run_command(args: argparse.Namespace) -> None:
             return
 
         command()
+        # Le recul n'est jamais interrompu par le capteur avant (HC-SR04 orienté vers l'avant)
+        check_obstacles = args.command != "backward"
 
         if args.duration == -1:
             print(
@@ -242,7 +244,7 @@ def run_command(args: argparse.Namespace) -> None:
                 "Appuie sur Ctrl+C pour stopper."
             )
             while True:
-                if car.check_obstacle():
+                if check_obstacles and car.check_obstacle():
                     print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
                     car.stop()
                     break
@@ -252,7 +254,7 @@ def run_command(args: argparse.Namespace) -> None:
         if args.duration > 0:
             deadline = time.monotonic() + args.duration
             while time.monotonic() < deadline:
-                if car.check_obstacle():
+                if check_obstacles and car.check_obstacle():
                     print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
                     car.stop()
                     return

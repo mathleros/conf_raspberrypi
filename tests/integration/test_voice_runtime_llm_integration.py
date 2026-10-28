@@ -19,9 +19,9 @@ def _candidate_llama_binaries() -> list[str]:
     bins = []
     for candidate in (
         shutil.which("llama-server"),
-        shutil.which("ministral-server"),
+        shutil.which("llm-server"),
         "/usr/local/bin/llama-server",
-        "/usr/local/bin/ministral-server",
+        "/usr/local/bin/llm-server",
         str(Path.home() / ".local" / "bin" / "llama-server"),
         str(Path.home() / "tools" / "llama.cpp" / "build" / "bin" / "llama-server"),
     ):

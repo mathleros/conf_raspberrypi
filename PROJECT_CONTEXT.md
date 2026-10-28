@@ -43,7 +43,7 @@
 - clone `llama.cpp`
 - compile `llama-server`
 - télécharge le modèle local
-- configure le service `ministral.service`
+- configure le service `llm.service (modèle par défaut qwen2.5-1.5b, choix via --model ou LLM_MODEL)`
 
 ### `scripts/install_bluetooth_audio.sh`
 - installe `bluez`, `pulseaudio`, `alsa-utils`

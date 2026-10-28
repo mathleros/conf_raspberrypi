@@ -37,9 +37,9 @@ from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 RATE = 16000
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
-LLM_MODEL = "ministral-3-3b"
+LLM_MODEL = os.environ.get("LLM_MODEL", "qwen2.5-1.5b")
 LLM_CONNECT_TIMEOUT_SECONDS = 1.0
-LLM_READ_TIMEOUT_SECONDS = 4.0
+LLM_READ_TIMEOUT_SECONDS = float(os.environ.get("LLM_READ_TIMEOUT_SECONDS", "60.0"))
 LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
 RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
 MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
@@ -64,7 +64,13 @@ SYSTEM_PROMPT_PLAN = (
     "(a) des intents atomiques (follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
     "ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] "
     "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
-    "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start."
+    "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start. "
+    "Pour une figure ou un motif (cercle, carré, zigzag, slalom...), approxime-le avec execute_path. "
+    "Exemple zigzag: {\"steps\": [{\"intent\": \"execute_path\", \"target\": null, \"parameters\": {\"steps\": ["
+    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}, {\"action\": \"turn_left\", \"angle\": 45}, "
+    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}, {\"action\": \"turn_right\", \"angle\": 90}, "
+    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}]}, \"confidence\": 0.9}]}. "
+    "Un cercle s'approxime par de petites avances suivies de rotations de 45 degrés."
 )
 
 
@@ -243,11 +249,12 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
             "llm_content": content,
             "llm_json": parsed,
         }
-    except Exception:
+    except Exception as exc:
         return [local_fallback], {
             "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
+            "error": f"{type(exc).__name__}: {exc}",
         }
 
 
@@ -701,6 +708,8 @@ class VoiceRuntime:
                 "source": plan_trace.get("source"),
                 "intents": [self._intent_to_dict(it) for it in intents],
                 "llm_json": plan_trace.get("llm_json"),
+                "llm_content": plan_trace.get("llm_content"),
+                "error": plan_trace.get("error"),
             },
         )
 

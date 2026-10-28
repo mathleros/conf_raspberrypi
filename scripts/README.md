@@ -21,6 +21,7 @@ Ce dossier contient les scripts d'installation et de validation du projet `irobo
 ### Tests / validation locale
 
 - `test/run_llm_runtime_mac.sh` : démarre le serveur local LLM puis exécute le runtime sur Mac, sans microphone
+- `test/check_llm_latency.py` : vérifie la connectivité locale (TCP + API `/v1/models`) et la réponse `/v1/chat/completions` dans les délais configurés
 - `test/replay_runtime_trace_mac.sh` : rejoue une trace JSONL générée par le runtime et affiche un résumé lisible
 - `test/run_runtime_standard_scenarios_mac.sh` : exécute les scénarios standards Mac et produit un rapport markdown
 - `test/run_mission_mac.sh` : prototype de commande unique mission (avec option `--replay`)

@@ -5,17 +5,36 @@ PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET_DIR="${PROJECT_ROOT}/target"
 LLAMA_DIR="${TARGET_DIR}/llama.cpp"
 MODELS_DIR="${TARGET_DIR}/models"
-MODEL_NAME="Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
-MODEL_PATH="${MODELS_DIR}/${MODEL_NAME}"
-MODEL_URL="https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/${MODEL_NAME}"
+LLM_MODEL="${LLM_MODEL:-qwen2.5-1.5b}"
 START_SERVER=false
 
-if [[ "${1:-}" == "--start" ]]; then
-    START_SERVER=true
-fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --start) START_SERVER=true; shift ;;
+        --model) LLM_MODEL="${2:?--model requiert une valeur}"; shift 2 ;;
+        --help|-h) break ;;
+        *) echo "Option inconnue : $1"; exit 1 ;;
+    esac
+done
+
+case "${LLM_MODEL}" in
+    qwen2.5-1.5b)
+        MODEL_NAME="qwen2.5-1.5b-instruct-q4_k_m.gguf"
+        MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/${MODEL_NAME}"
+        ;;
+    ministral-3-3b)
+        MODEL_NAME="Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
+        MODEL_URL="https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/${MODEL_NAME}"
+        ;;
+    *)
+        echo "Modèle inconnu : ${LLM_MODEL} (valeurs : qwen2.5-1.5b, ministral-3-3b)"
+        exit 1
+        ;;
+esac
+MODEL_PATH="${MODELS_DIR}/${MODEL_NAME}"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    echo "Usage: $0 [--start]"
+    echo "Usage: $0 [--model qwen2.5-1.5b|ministral-3-3b] [--start]"
     echo ""
     echo "Installe un LLM portable sans Homebrew sur macOS Intel."
     echo "Le binaire et le modèle sont installés dans le dossier target/ du projet."

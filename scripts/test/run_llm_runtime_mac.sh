@@ -5,7 +5,12 @@ PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 LLAMA_BINARY="${PROJECT_ROOT}/target/llama.cpp/build/bin/llama-server"
-MODEL_PATH="${PROJECT_ROOT}/target/models/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
+case "${LLM_MODEL:-qwen2.5-1.5b}" in
+    qwen2.5-1.5b) MODEL_FILE="qwen2.5-1.5b-instruct-q4_k_m.gguf" ;;
+    ministral-3-3b) MODEL_FILE="Ministral-3-3B-Instruct-2512-Q4_K_M.gguf" ;;
+    *) echo "Modèle inconnu : ${LLM_MODEL}"; exit 1 ;;
+esac
+MODEL_PATH="${PROJECT_ROOT}/target/models/${MODEL_FILE}"
 LLM_URL="http://127.0.0.1:8080/v1/models"
 PID_FILE="/tmp/irobot_llama_runtime_mac.pid"
 

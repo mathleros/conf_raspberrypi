@@ -13,8 +13,8 @@ sudo alsactl --file=/etc/wm8960-soundcard/wm8960_asound.state restore
 sudo sed -i 's/^#dtparam=spi=on$/dtparam=spi=on/' /boot/firmware/config.txt
 sudo reboot
 
-# Assistant vocal local (llama.cpp + Ministral 3 3B + vosk)
+# Assistant vocal local (llama.cpp + Qwen 2.5 1.5B (ou Ministral 3 3B via LLM_MODEL) + vosk)
 sudo ./install_llm.sh
-sudo systemctl start ministral.service
+sudo systemctl start llm.service
 curl http://127.0.0.1:8080/v1/models
 uv run --project . voice-assistant --no-llm

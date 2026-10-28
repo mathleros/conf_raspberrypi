@@ -102,6 +102,7 @@ uv run smart-car stop
 
 Pendant un déplacement, le capteur HC-SR04 (TRIG GPIO 17, ECHO GPIO 27) est lu toutes les `--obstacle-check-interval` secondes :
 - distance < `--obstacle-threshold-cm` : la voiture s'arrête et le programme se termine normalement
+- la commande `backward` ignore la détection d'obstacle (jamais interrompue)
 - mesure manquante : jusqu'à 5 lectures sont tentées avant de conclure à un obstacle
 
 ```bash

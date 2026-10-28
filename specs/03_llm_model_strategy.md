@@ -5,7 +5,7 @@
 Le projet utilise actuellement :
 - Vosk pour la transcription vocale
 - un modèle local LLM via `llama.cpp`
-- modèle installé : `Ministral 3 3B Instruct`
+- modèle installé : `Qwen2.5-1.5B-Instruct` (GGUF Q4_K_M, `qwen2.5-1.5b-instruct-q4_k_m.gguf`), `--ctx-size 2048`, service `llm.service`
 - API compatible OpenAI sur `127.0.0.1:8080`
 
 C'est une base solide pour :
@@ -18,7 +18,7 @@ C'est une base solide pour :
 
 ### Points forts
 
-- léger enough pour tourner localement sur Raspberry Pi 5
+- assez léger pour tourner localement sur Raspberry Pi 5 (CPU seul, 1,5B quantisé)
 - bon pour le français
 - utile pour le parsing de consigne simple
 - compatible avec API OpenAI locale
@@ -60,6 +60,20 @@ Les compétences de perception visuelle du projet ne passent pas par le LLM. La 
 
 Un LLM libre peut produire des réponses improvisées, des ordres illisibles ou des plans non verifiables. Cela est dangereux en robotique si on laisse le modèle décider sans l'intermédiaire d'un validateur.
 
+### 5. Petit modèle : consignes longues et nombres en lettres
+
+Un modèle de 1,5B suit mal les consignes longues et convertit mal les nombres écrits en lettres (sortie de Vosk). Sur Pi 5, l'appel est non streamé avec un timeout de lecture de 4 s : évaluation du prompt + génération doivent tenir dans ce budget.
+
+## 3.3 bis Stratégie retenue (étape 8)
+
+- **Prétraitement déterministe** (`interfaces/text_normalizer.py`, `preprocess`) : nombres en lettres -> chiffres, « N minutes » -> N×60 secondes, « N mètres » -> N×100 centimètres ; le LLM reçoit un texte déjà normalisé. Le parseur local réutilise la même conversion de nombres.
+- **Prompt court et statique** (`SYSTEM_PROMPT_PLAN`, identique à `scripts/test/eval_prompt_plan.py`) placé en tête, texte utilisateur en dernier : le préfixe reste en cache (`cache_prompt: true`, préchauffage au démarrage du runtime).
+- **Sortie JSON minimale** : `{"steps":[{"intent","target","parameters"}]}`, `confidence` remplie côté code (0,8), distances en cm sans `unit`. `response_format: {"type":"json_object"}` (nouvel essai sans si le serveur répond HTTP 400), `temperature` 0, `max_tokens` 160 (plan) / 96 (intent unique).
+- **Hors périmètre explicite** : `{"steps":[]}` -> commande rejetée (`unsupported command`), aucun mouvement, pas de repli.
+- **Filet de sécurité** : timeout, erreur HTTP, JSON invalide ou `steps` absent -> parseur local `IntentParser`. Une étape malformée est ignorée seule.
+- Réglages par variables d'environnement : `LLM_MODEL`, `LLM_CONNECT_TIMEOUT_SECONDS` (1,0), `LLM_READ_TIMEOUT_SECONDS` (4,0), `LLM_MAX_TOKENS_PLAN` (160), `LLM_MAX_TOKENS_INTENT` (96).
+- Mesure : `python3 scripts/test/eval_prompt_plan.py --repeat 3` (taux de plans corrects, latence, tokens/s).
+
 ## 3.4 Recommandation générale
 
 Le bon modèle pour ce projet n'est pas "un grand LLM directement pilotant le robot", mais un LLM de planification contrôlée.
@@ -74,7 +88,7 @@ Le bon modèle pour ce projet n'est pas "un grand LLM directement pilotant le ro
 
 ### Option A. Stratégie simple et robuste (recommandée pour la phase 1)
 
-- Garder le modèle local actuel `Ministral 3 3B`
+- Garder le modèle local actuel `Qwen2.5-1.5B-Instruct`
 - Le faire produire uniquement du JSON ou du YAML
 - Ajouter un validateur strict avant exécution
 - Utiliser des rules de sécurité déterministes
@@ -126,7 +140,7 @@ Exemple de hiérarchie :
 ## 3.6 Recommandation concrète pour ce projet
 
 ### Phase 1 : architecture de base
-- Conserver `Ministral 3 3B` comme modèle principal
+- Conserver `Qwen2.5-1.5B-Instruct` (GGUF Q4_K_M) comme modèle principal
 - exiger un schéma JSON strict
 - utiliser un planner Python déterministe
 

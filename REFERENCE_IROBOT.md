@@ -2,7 +2,7 @@
 
 > Document de référence pour l'écriture et la mise au point des **prompts LLM** du projet.
 > Basé sur une lecture du dump du dépôt (`mathleros-conf_raspberrypi-*.txt`, ~11 500 lignes).
-> Date d'analyse : 2026-10-27. Les affirmations marquées **(à vérifier)** ne sont pas démontrées par le code seul.
+> Date d'analyse : 2026-10-27, mis à jour après l'étape 8 (LLM Qwen2.5-1.5B) pour les §1, 5, 6, 7, 9 (R7, R12), 10 et 11. Les affirmations marquées **(à vérifier)** ne sont pas démontrées par le code seul.
 
 ---
 
@@ -24,13 +24,15 @@ Principe d'architecture (décision arrêtée) : **le LLM ne touche jamais le mat
 
 ```
 Micro → arecord (16 kHz mono) → Vosk (STT fr) → texte
+   → preprocess (nombres en chiffres, minutes→s, mètres→cm)
    → [LLM local : plan JSON]  ──(échec/timeout)──► IntentParser (regex, local)
+                              ──({"steps":[]})──► commande rejetée
    → normalisation des noms → expansion (execute_path, spin, square, contour, return_to_start)
    → validation + bornage → exécution étape par étape (retry, timeouts, trace JSONL)
    → LanguageController.handle_intent → SkillPlanner → SkillExecutor → Skills → RobotController → SmartCar2WD (GPIO)
 ```
 
-Stack : Python ≥ 3.12 (`.python-version` = 3.13), `uv`, `opencv-python`, `requests`, `gpiozero` (Linux), `vosk` (Linux), `pytest`. LLM : `llama.cpp` (`llama-server`) + **Qwen2.5-1.5B-Instruct** (GGUF quantisé ; le dépôt analysé référençait encore Ministral-3-3B-Instruct-2512 Q4_K_M, remplacé depuis), API OpenAI-compatible sur `127.0.0.1:8080`, service systemd (nommé `ministral.service` dans le dépôt analysé).
+Stack : Python ≥ 3.12 (`.python-version` = 3.13), `uv`, `opencv-python`, `requests`, `gpiozero` (Linux), `vosk` (Linux), `pytest`. LLM : `llama.cpp` (`llama-server`) + **Qwen2.5-1.5B-Instruct** (GGUF Q4_K_M, `qwen2.5-1.5b-instruct-q4_k_m.gguf`, alias `qwen2.5-1.5b`, `--ctx-size 2048`), API OpenAI-compatible sur `127.0.0.1:8080`, service systemd `llm.service` (`scripts/install/install_llm.sh`).
 
 ---
 
@@ -116,8 +118,8 @@ Synonymes normalisés côté runtime : `contourner_obstacle`, `avoid`, `find_obj
 ## 5. Pipeline d'exécution (`VoiceRuntime.handle_text_as_plan`)
 
 1. Trace JSONL (`target/logs/runtime_trace_<horodatage>.jsonl`), `mission.reset()`.
-2. Si `use_llm` : `ask_llm_for_intent_plan_with_trace` ; sinon `IntentParser().parse` (1 seul intent).
-3. En cas d'exception, de JSON invalide, de `steps` vide/absent → **repli immédiat** sur `IntentParser` (un seul intent, pas de 2ᵉ timeout).
+2. Si `use_llm` : `ask_llm_for_intent_plan_with_trace` (texte prétraité par `text_normalizer.preprocess`) ; sinon `IntentParser().parse_plan`.
+3. Timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable → **repli immédiat** sur `IntentParser.parse_plan` (pas de 2ᵉ timeout). `{"steps": []}` = hors périmètre → `status "rejected"`, `reason "unsupported command"`, événement `plan_unsupported`, **aucun mouvement ni repli**. Une étape malformée est ignorée seule (`skipped_steps`).
 4. `_normalize_plan_intent_names` → `_expand_execute_path` → `_expand_high_level_intents` → `_expand_return_to_start`.
 5. Plan tronqué à `max_plan_steps` (20) + `stop` ajouté.
 6. `_validate_intent_plan` : étapes non autorisées **retirées** (erreurs journalisées) ; primitives **bornées** (`_sanitize_primitive_intent`).
@@ -134,25 +136,28 @@ Bornage des primitives : distance ∈ [0,1 ; 300] cm (ou [0,01 ; 3] m), angle �
 
 ## 6. Les prompts actuels (dans `voice_runtime.py`)
 
-Appel : `requests.post(LLM_URL, json=payload, timeout=(1.0, 4.0))`, non streamé, **sans `response_format`/grammaire**, modèle `"ministral-3-3b"` (dans le dépôt analysé ; remplacé par `qwen2.5-1.5b`).
+Appel : `requests.post(LLM_URL, json=payload, timeout=(connect, read))`, non streamé, `temperature=0.0`, `cache_prompt: true`, `response_format: {"type":"json_object"}` (si le serveur répond HTTP 400 : un seul nouvel essai sans, selon la version de `llama-server`). Réglages lus à chaque appel par `load_llm_settings()` (`settings.py`) :
 
-### 6.1 `SYSTEM_PROMPT` — intent unique (chemin `handle_text`, secondaire)
-> Tu es un interprète de commande robotique. Réponds UNIQUEMENT en JSON valide avec les clés suivantes : intent, target, parameters, confidence. Les intents autorisées sont : follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop.
+| Variable d'environnement | Défaut |
+|---|---|
+| `LLM_MODEL` | `qwen2.5-1.5b` |
+| `LLM_CONNECT_TIMEOUT_SECONDS` | 1.0 |
+| `LLM_READ_TIMEOUT_SECONDS` | 4.0 |
+| `LLM_MAX_TOKENS_PLAN` | 160 |
+| `LLM_MAX_TOKENS_INTENT` | 96 |
 
-Réglages : `temperature=0.2`, `max_tokens=256`.
+Le texte utilisateur est **prétraité** avant envoi (`text_normalizer.preprocess`) ; `raw_text` des Intent reste le texte d'origine, le texte prétraité est tracé sous `normalized_text`. Préchauffage du cache de prompt au démarrage (`warm_up_llm_async()`, thread daemon, sauf `--no-llm`).
 
-### 6.2 `SYSTEM_PROMPT_PLAN` — plan multi-étapes (**chemin principal**)
-> Tu es un planificateur de commandes robotiques. Tu reçois une instruction potentiellement composée. Réponds UNIQUEMENT en JSON valide au format: {"steps": [{"intent": str, "target": str|null, "parameters": object, "confidence": float}]}. Découpe la consigne en étapes atomiques ordonnées. Tu peux utiliser: (a) des intents atomiques (follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. Si la consigne contient un retour au point de départ, utilise explicitement return_to_start.
+### 6.1 `SYSTEM_PROMPT_PLAN` — plan multi-étapes (**chemin principal**)
+Identique au prompt de `scripts/test/eval_prompt_plan.py` (un test vérifie l'égalité). Court et statique : format `{"steps":[{"intent","target","parameters"}]}` (sans `confidence`, remplie à 0,8 côté code), liste des intents avec leurs paramètres (distances en cm, durées en s, angles en degrés), valeurs par défaut (avance/recule → `duration` 1 ; tourne → `angle` 90), `jaune`→`"yellow"`, `rouge`→`"red"`, consigne hors liste → `{"steps":[]}`, 5 exemples (dont le cas d'usage et « fais un salto arrière »). `max_tokens` = 160.
 
-Réglages : `temperature=0.1`, `max_tokens=512`.
+### 6.2 `SYSTEM_PROMPT` — intent unique (chemin `handle_text`, secondaire)
+Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, « une seule action », hors liste → `intent: "unknown"`, un seul exemple. `max_tokens` = 96. Sur ce chemin, `unknown` entraîne encore un repli sur le parseur local.
 
-### 6.3 Lacunes constatées dans ces prompts
-- **Aucun schéma de paramètres** : clés (`distance`, `unit`, `angle`, `duration`, `target_object`), unités autorisées, bornes, exclusivité distance/durée.
-- **Aucune valeur de `target` imposée** (le validateur exige `null`/`"red_ball"` pour `follow_red_ball`).
-- **Intents manquants** : `spin_360`, `move_square`, `contour_obstacle` (pourtant gérés par le runtime) ; absents aussi de `SYSTEM_PROMPT` : `return_to_start`.
-- **Aucun exemple (few-shot)**, aucune règle pour l'entrée bruitée de Vosk, aucune règle pour les consignes **non supportées** (quel intent renvoyer ? aujourd'hui rien de défini).
-- **Aucune consigne de concision** alors que le débit du modèle est très faible sur Pi (voir §7).
-- **Pas de mode JSON contraint** : on compte sur le prompt + nettoyage des backticks.
+### 6.3 Lacunes restantes
+- `execute_path`, `contour_obstacle` ne sont pas proposés au modèle (le runtime les gère toujours) ; `move_square` est proposé avec `side`.
+- Débit réel du 1,5B sur Pi 5 **à mesurer** (`eval_prompt_plan.py --repeat 3`).
+- Pas de grammaire GBNF : `json_object` garantit un JSON, pas le schéma ; la validation reste côté runtime.
 
 ---
 
@@ -162,15 +167,16 @@ Réglages : `temperature=0.1`, `max_tokens=512`.
 - Modèle actuel : **Qwen2.5-1.5B quantisé**, CPU seul (le dépôt analysé utilisait un 3B). L'audit v5 annonçait **3–6 tokens/s** pour le 3B sur Pi 5 ; le 1,5B sera plus rapide mais **le débit réel est à mesurer** (`eval_prompt_plan.py`). Un modèle de cette taille suit moins bien les consignes longues et convertit mal les nombres en lettres : prétraitement déterministe côté Python et prompt court.
 - Génération **non streamée** avec **timeout de lecture = 4 s** : tout ce qui n'est pas fini en ~4 s (évaluation du prompt **+** génération) déclenche le repli sur le parseur regex. À 3–6 tok/s, cela laisse seulement ~12–24 tokens de sortie. **Un plan JSON multi-étapes verbeux sortira presque toujours du budget sur le Pi** (sur Mac c'est sans doute différent).
 - Conséquences pour les prompts : **sortie la plus compacte possible** (clés courtes, pas d'espaces inutiles, pas de champ superflu comme `confidence` si on peut le remplir côté code), **system prompt court** (le temps d'évaluation du prompt est linéaire) et **statique** (placé en tête, texte utilisateur en dernier) pour profiter du cache de préfixe de `llama.cpp` (`cache_prompt`, **à vérifier** selon la version du serveur).
-- `--ctx-size` : `install_llm.sh` met 2048 ; l'audit v5 parle de 4096 → incohérence documentaire.
+- `--ctx-size` : `install_llm.sh` met 2048 (Pi) ; l'audit v5, le script Mac et le test d'intégration utilisent encore 4096.
+- `cache_prompt` est envoyé et le serveur est préchauffé au démarrage ; l'effet réel du cache sur le Pi reste **à mesurer**.
 
 ### 7.2 Entrée : transcription Vosk (`vosk-model-small-fr-0.22`)
 - Texte en minuscules, sans ponctuation fiable, erreurs de reconnaissance fréquentes avec un petit modèle.
-- **(à vérifier sur des traces réelles)** les nombres arrivent probablement **en toutes lettres** (« cinquante centimètres », « quarante-cinq degrés »). Les regex du parseur local ne comprennent **que les chiffres** → le prompt doit demander au LLM de **convertir en chiffres**.
+- **(à vérifier sur des traces réelles)** les nombres arrivent probablement **en toutes lettres** (« cinquante centimètres », « quarante-cinq degrés »). Ils sont donc convertis **côté Python** avant le LLM (`text_normalizer.preprocess` : nombres en lettres → chiffres, « N minutes [M secondes] » → secondes, « N mètres [M] » → centimètres, « un/une » seulement devant une unité). Le parseur local utilise la même conversion des nombres (`fr_numbers_to_digits`).
 
 ### 7.3 Sortie : ce que le code accepte réellement
 - JSON objet ; backticks ```json tolérés.
-- Si `parameters` ou un `step` n'est pas un `dict` → exception → **tout le plan est abandonné** pour le repli regex.
+- Si `parameters` ou un `step` n'est pas un `dict` → **seule cette étape est ignorée** ; si aucune n'est exploitable → repli regex. `confidence` absente → 0,8 ; `unit` absente → cm.
 - `target` pour `follow_red_ball` : exactement `null` ou `"red_ball"` (sinon étape retirée).
 - `target`/`target_object` pour `search_and_approach_object` : la caméra ne sait détecter que **rouge** et **jaune** ; la correspondance se fait par sous-chaîne dans le label (`red`, `yellow`, `red_ball`…). `"rouge"`, `"balle"`, `"bouteille"` ne matchent pas.
 - Unités : `"cm"`/`"m"` pour les distances, `"degrees"` pour les angles.
@@ -229,8 +235,8 @@ La boucle d'exécution de `handle_text_as_plan` enregistre l'échec mais **conti
 ### 🟠 R6 — Le timeout d'étape est a posteriori et contredit les autres réglages
 `step_timeout_seconds` (6 s) est testé **après** l'exécution : une étape réussie mais longue est marquée `aborted`. Or `follow_target` peut durer 8 s et `max_duration_sec` autorise 12 s → un `move_forward` de 10 s ou un suivi complet sont déclarés `aborted` alors qu'ils ont abouti.
 
-### 🟠 R7 — Distances et angles perdus en repli sur le parseur local
-`IntentParser` n'extrait ni distance ni angle pour avance/recul/rotation (seulement `duration`, défaut 1 s ; angle fixe 90°). Or, sur Pi, le LLM va souvent expirer (§7.1) → « avance de 50 cm » devient « avance 1 s ». Seul le chemin LLM porte ces informations (hors `move_square`/`contour_obstacle` où le parseur extrait une distance).
+### ✅ R7 — Distances et angles en repli sur le parseur local (corrigé à l'étape 8)
+`IntentParser` extrait désormais distance (`distance`+`unit`) pour avance/recul et angle pour les rotations, y compris en lettres (« avance de cinquante centimètres », « quatre vingt dix degrés ») ; durée explicite prioritaire ; défauts inchangés (1 s, 90°).
 
 ### 🟠 R8 — La caméra ne fournit pas de distance
 `distance_cm` est toujours `None` → la condition « cible atteinte » de `follow_target` ne se déclenche jamais ; la fin dépend de l'obstacle HC-SR04 (20 cm) ou du timeout de 8 s. De plus `_iter_colors_for_target(None, …)` ignore la cible demandée et scanne toujours rouge + jaune ; l'objet est filtré ensuite par sous-chaîne du label.
@@ -245,7 +251,7 @@ Autorisé par le validateur mais sans entrée dans `INTENT_TO_SKILLS` (rejeté e
 Appelle `left()` puis `forward()` : le second écrase le premier (commande moteur « dernier gagnant ») ; `move_circle` n'est pas dans la liste blanche, donc inatteignable par la voix.
 
 ### 🟡 R12 — Dérives de documentation
-- `docs/audit-v5` décrit **ROS2, PCA9685, encodeurs en quadrature, balises AruCo, Whisper, migration Qwen 1.5B** : rien de cela n'existe dans le code (Vosk, GPIO direct, Ministral 3B). Traiter ses chiffres de performance comme **non vérifiés**.
+- `docs/audit-v5` décrit **ROS2, PCA9685, encodeurs en quadrature, balises AruCo, Whisper, migration Qwen 1.5B** : seule la migration vers Qwen2.5-1.5B a été faite (étape 8) ; le reste n'existe pas dans le code (Vosk, GPIO direct). Traiter ses chiffres de performance comme **non vérifiés**.
 - `PROJECT_CONTEXT.md` cite `docs/audit-architecture-2026.md` (le fichier est désormais dans `docs/audit-v*/`), liste les chantiers P1–P5 comme non cochés alors que des fiches existent, et sa section « 3) Restant » est tronquée dans le dump.
 - `README` recommande `uv run voice-assistant` (legacy) alors que le point d'entrée actuel est `voice-runtime`.
 - Indentation : tabulations dans `settings.py`, 4 espaces ailleurs ; `calibration_helpers.py` semble inutilisé (dupliqué par `base_motion_primitive.py`).
@@ -256,13 +262,13 @@ Appelle `left()` puis `forward()` : le second écrase le premier (commande moteu
 
 1. **Un contrat de sortie compact et strict** — par exemple :
    `{"steps":[{"i":"<intent>","t":<target|null>,"p":{...}}]}` (le code accepte aujourd'hui `intent`/`name`, `target`, `parameters`, `confidence` ; adopter des clés courtes demanderait un petit changement de parsing). `confidence` pourrait être calculée côté code pour économiser des tokens.
-2. **Activer le JSON contraint** côté serveur (`response_format: {"type":"json_object"}` ou grammaire GBNF) au lieu de se reposer sur le prompt seul — cela supprime la classe d'erreurs « JSON invalide → repli ».
+2. ✅ **JSON contraint** : `response_format: {"type":"json_object"}` activé (étape 8) ; une grammaire GBNF reste possible pour contraindre aussi le schéma.
 3. **Lister les 12 intents + `execute_path`** avec, pour chacun, les paramètres exacts et leurs unités (`cm`/`m`, `degrees`), en précisant : « distance **ou** durée, jamais aucune ».
 4. **Règles d'entrée Vosk** : convertir les nombres en chiffres, ignorer les mots parasites, tolérer les fautes de transcription proches.
 5. **Cibles** : `follow_red_ball` → `target:"red_ball"` ; `search_and_approach_object` → `target_object` ∈ {`"red"`, `"yellow"`, `null`}.
-6. **Consignes non supportées** : définir un comportement explicite (ex. un intent `unknown` ou une liste vide) plutôt que d'inventer un intent ; rappeler qu'aucune vitesse n'est pilotable.
+6. ✅ **Consignes non supportées** : `{"steps":[]}` → commande rejetée (étape 8). Reste à rappeler qu'aucune vitesse n'est pilotable.
 7. **3 à 6 exemples courts** (few-shot) couvrant : commande simple, commande composée, distance en mètres, angle, « tourne jusqu'à voir X », retour au point de départ, consigne hors périmètre.
-8. **Brièveté** : prompt système court et identique à chaque appel, sortie minimale (voir §7.1), `max_tokens` ajusté (aujourd'hui 256/512, très au-delà de ce que le timeout permet).
+8. ✅ **Brièveté** : prompt système court et statique, sortie minimale, `max_tokens` 160 (plan) / 96 (intent), `temperature` 0 (étape 8).
 9. **Jeu d'évaluation** : réutiliser `scripts/test/run_runtime_standard_scenarios_mac.sh` + `replay_runtime_trace_mac.sh` et les traces JSONL pour comparer plusieurs versions de prompt (taux de JSON valide, intents corrects, temps de réponse).
 
 ---
@@ -271,14 +277,15 @@ Appelle `left()` puis `forward()` : le second écrase le premier (commande moteu
 
 ```bash
 uv sync --project .
-pytest                                              # ~42 tests (unit + intégration LLM)
+uv run pytest -q tests/unit tests/integration        # ~186 tests (tests/hardware : Pi seulement)
 bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 bash scripts/test/run_llm_runtime_mac.sh --stop
 bash scripts/test/run_mission_mac.sh
 bash scripts/test/replay_runtime_trace_mac.sh
 uv run voice-runtime [--once] [--no-llm] [--input-device auto|bluetooth|wm8960|default]
 uv run smart-car forward --duration 1
-sudo systemctl start ministral.service && curl http://127.0.0.1:8080/v1/models   # sur le Pi
+sudo systemctl start llm.service && curl http://127.0.0.1:8080/v1/models   # sur le Pi
+python3 scripts/test/eval_prompt_plan.py --repeat 3                               # évaluation du prompt (serveur lancé)
 ```
 
 Fichiers de contexte à garder cohérents : `PROJECT_CONTEXT.md` (document vivant, règle de maintenance §16), `.github/copilot-instructions.md` (mode concis : diffs seulement, 1 question max, `/cp` = commit conventionnel + push).

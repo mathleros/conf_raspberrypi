@@ -26,3 +26,5 @@ target/
 .DS_Store
 Thumbs.db
 rapport.json
+rapport_v1_schema.json
+rapport_v2.json

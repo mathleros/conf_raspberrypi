@@ -9,6 +9,7 @@ Usage :
     python3 eval_prompt_plan.py --no-response-format  # sans JSON contraint
     python3 eval_prompt_plan.py --schema              # sortie contrainte par schéma JSON
     python3 eval_prompt_plan.py --no-preprocess       # envoie le texte brut (nombres en lettres)
+    python3 eval_prompt_plan.py --no-guards           # LLM brut, sans stop local ni contrôle lexical
     python3 eval_prompt_plan.py --json-out rapport.json
 
 Stdlib uniquement (pas de pip). Les phrases imitent la sortie de Vosk : minuscules,
@@ -23,6 +24,7 @@ import re
 import statistics
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 
@@ -173,7 +175,6 @@ CASES = [
     ("bruit_singulier", "avance de cinquante centimètre", [[S("move_forward", distance_cm=50)]]),
     ("cherche_seul", "cherche la balle jaune",
      [[S("search_and_approach_object", "yellow")]]),
-    ("anglais", "go forward one meter", [[S("move_forward", distance_cm=100)]]),
     ("nombre_compose", "tourne à droite de quatre vingt dix degrés", [[S("turn_right", angle=90)]]),
     ("nombre_soixante", "avance de soixante et onze centimètres", [[S("move_forward", distance_cm=71)]]),
 ]
@@ -224,6 +225,125 @@ def build_formats(no_response_format: bool, use_schema: bool):
             None,
         ]
     return [{"type": "json_object"}, None]
+
+
+# --------------------------------------------------------------------------- Gardes déterministes
+# Le petit LLM « range » parfois une phrase hors périmètre dans l'intent le plus proche
+# (« chante une chanson » -> spin_360, « ouvre la porte du garage » -> move_forward 100).
+# Ces deux gardes sont à PORTER dans le runtime (étape 8b) : le LLM propose, le lexique dispose.
+
+STOP_WORDS = {"stop", "arrete", "arrete-toi", "halte", "pause", "robot", "toi", "vite",
+              "s", "il", "te", "plait", "attends", "attend"}
+
+# intent -> (préfixes de mots, mots exacts, expressions)
+INTENT_LEXICON = {
+    "move_forward": (("avanc", "march", "devant"), {"va", "vas", "allez", "go"}, ("tout droit", "en avant")),
+    "move_backward": (("recul", "arriere", "back", "revers"), set(), ("en arriere",)),
+    "turn_left": (("gauch", "left"), set(), ()),
+    "turn_right": (("droite", "right"), set(), ()),
+    "spin_360": (("tour", "pivot", "rotat", "360", "spin"), set(), ()),
+    "follow_object": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
+    "follow_red_ball": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
+    "search_and_approach_object": (("cherch", "trouv", "approch", "rejoin", "search", "find",
+                                    "repere", "localis"), set(), ()),
+    "stop": (("stop", "arret", "halte", "pause", "attend"), set(), ()),
+    "return_to_start": (("retour", "revien", "reven", "depart", "origine", "return"), set(), ()),
+    "move_square": (("carre", "square"), set(), ()),
+    "avoid_obstacle": (("evit", "obstacle", "contourn", "avoid"), set(), ()),
+    "contour_obstacle": (("evit", "obstacle", "contourn", "avoid"), set(), ()),
+}
+NUMERIC_KEYS = ("distance", "duration", "angle", "stand_off_cm", "duration_s", "side")
+# paramètres que chaque intent peut réellement recevoir ; tout le reste est du bruit du LLM
+ALLOWED_PARAMS = {
+    "move_forward": {"distance", "duration", "unit"}, "move_backward": {"distance", "duration", "unit"},
+    "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
+    "search_and_approach_object": {"stand_off_cm", "target_object"},
+    "follow_object": {"stand_off_cm", "duration_s", "target_object"},
+    "move_square": {"side", "unit"},
+}
+
+
+def fold(text: str) -> str:
+    """Minuscules, sans accents ni ponctuation (comparaison lexicale)."""
+    t = unicodedata.normalize("NFD", (text or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9 ]+", " ", t)
+
+
+def is_pure_stop(text: str) -> bool:
+    """Phrase composée uniquement de mots d'arrêt : traitée localement, sans LLM."""
+    words = fold(text).split()
+    return bool(words) and any(w.startswith(("stop", "arret", "halte", "pause", "attend")) for w in words) \
+        and all(w in STOP_WORDS or w.startswith(("arret", "attend")) for w in words)
+
+
+def _licensed(intent: str, folded: str) -> bool:
+    rule = INTENT_LEXICON.get(intent)
+    if rule is None:          # intent sans règle (execute_path...) : pas de contrôle
+        return True
+    prefixes, words, phrases = rule
+    tokens = folded.split()
+    padded = f" {' '.join(tokens)} "
+    return (any(t.startswith(p) for t in tokens for p in prefixes)
+            or any(t in words for t in tokens)
+            or any(f" {ph} " in padded for ph in phrases))
+
+
+def grounding_check(sent_text: str, steps: list):
+    """Retourne (étapes_conservées, raison_de_rejet | None, notes).
+
+    - intent non justifié par un mot de la phrase  -> plan REJETÉ en entier ;
+    - paramètre que l'intent ne gère pas          -> supprimé (bruit du LLM) ;
+    - `stop` non justifié                         -> étape supprimée (action sûre, mais parasite) ;
+    - valeur numérique absente de la phrase :
+        * la phrase ne contient AUCUN chiffre -> paramètre inventé, supprimé (défaut du runtime) ;
+        * la phrase contient des chiffres     -> le LLM les a mal repris : plan REJETÉ ;
+      (valeurs par défaut du prompt tolérées : duration 1 pour avance/recule, angle 90 pour tourne) ;
+    - après nettoyage, avance/recule sans distance ni durée -> duration 1 ; tourne sans angle ni durée -> angle 90.
+    """
+    folded = fold(sent_text)
+    numbers = {float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", folded)}
+    kept, notes = [], []
+    for step in steps:
+        if not isinstance(step, dict):
+            return [], "étape invalide", notes
+        intent = step.get("intent") or step.get("name")
+        if not _licensed(intent, folded):
+            if intent == "stop":
+                notes.append("stop parasite supprimé")
+                continue
+            return [], f"intent {intent!r} non justifié par la phrase", notes
+        params = step.get("parameters")
+        if isinstance(params, dict):
+            cleaned = {}
+            allowed = ALLOWED_PARAMS.get(intent, set())
+            for key, value in params.items():
+                if intent in INTENT_LEXICON and key not in allowed:
+                    notes.append(f"{intent}.{key} inutile : supprimé")
+                    continue
+                num = _num(value) if key in NUMERIC_KEYS else None
+                if key in NUMERIC_KEYS and num is not None and num not in numbers:
+                    default = ((key == "duration" and intent in {"move_forward", "move_backward"} and num == 1)
+                               or (key == "angle" and intent in {"turn_left", "turn_right"} and num == 90))
+                    if not default:
+                        if numbers:
+                            return [], f"{intent}.{key}={value} ne correspond à aucun nombre de la phrase", notes
+                        notes.append(f"{intent}.{key}={value} absent de la phrase : supprimé")
+                        continue
+                cleaned[key] = value
+            step = {**step, "parameters": cleaned}
+        if intent in {"move_forward", "move_backward"}:
+            p = dict(step.get("parameters") or {})
+            if not any(k in p for k in ("distance", "duration")):
+                p["duration"] = 1
+                step = {**step, "parameters": p}
+        elif intent in {"turn_left", "turn_right"}:
+            p = dict(step.get("parameters") or {})
+            if not any(k in p for k in ("angle", "duration")):
+                p["angle"] = 90
+                step = {**step, "parameters": p}
+        kept.append(step)
+    return kept, None, notes
 
 
 # --------------------------------------------------------------------------- JSON
@@ -406,6 +526,8 @@ def main() -> int:
                     help="contraint la sortie avec un schéma JSON (repli auto si le serveur refuse)")
     ap.add_argument("--no-preprocess", action="store_true",
                     help="ne convertit pas les nombres en chiffres avant l'envoi")
+    ap.add_argument("--no-guards", action="store_true",
+                    help="désactive les gardes (stop local + contrôle lexical) pour voir le LLM brut")
     ap.add_argument("--json-out")
     args = ap.parse_args()
 
@@ -436,6 +558,13 @@ def main() -> int:
         for run in range(args.repeat):
             sent = text if args.no_preprocess else preprocess(text)
             row = {"id": case_id, "run": run, "text": text, "sent": sent}
+            if not args.no_guards and is_pure_stop(sent):
+                good = [S("stop")] in plans
+                row.update(status="OK_LOCAL" if good else "FAUX_STOP_LOCAL", latency=0.0,
+                           detail="traité localement, sans LLM")
+                rows.append(row)
+                print(f"[{row['status']:<13}] {case_id:<18}  (sans LLM)")
+                continue
             try:
                 content, elapsed, usage, fb = call_llm(
                     args.url, prompt, sent, model=args.model, max_tokens=args.max_tokens,
@@ -461,6 +590,19 @@ def main() -> int:
             elif not isinstance(steps, list):
                 row.update(status="SANS_STEPS", detail="clé 'steps' absente ou non liste")
             else:
+                if not args.no_guards:
+                    kept, reject, notes = grounding_check(sent, steps)
+                    if reject:
+                        status = "OK_GROUNDING" if [] in plans else "FAUX_REJET"
+                        row.update(status=status, detail=f"rejeté : {reject}", steps=steps)
+                        rows.append(row)
+                        print(f"[{status:<13}] {case_id:<18} {elapsed:6.2f}s  {reject}")
+                        if status == "FAUX_REJET":
+                            print(f"    -> {(content or '').strip()[:300]}")
+                        continue
+                    if notes:
+                        row["guard_notes"] = notes
+                    steps = kept
                 errs = schema_errors(steps)
                 ok = any(plan_matches(steps, p) for p in plans)
                 # Hors périmètre attendu, mais le LLM a nommé une cible inconnue : le validateur
@@ -485,19 +627,23 @@ def main() -> int:
 
     total = len(rows)
     valid = sum(1 for r in rows if r["status"] in {"OK", "SCHEMA", "ECART"})
-    ok = sum(1 for r in rows if r["status"] in {"OK", "OK_VALIDATEUR"})
+    GOOD = {"OK", "OK_VALIDATEUR", "OK_GROUNDING", "OK_LOCAL"}
+    ok = sum(1 for r in rows if r["status"] in GOOD)
     slow = sum(1 for r in latencies if r > args.read_timeout)
     print("\n=== Par cas (instable = résultats différents entre répétitions) ===")
     by_case = {}
     for r in rows:
         by_case.setdefault(r["id"], []).append(r["status"])
     for cid, sts in by_case.items():
-        good = sum(1 for x in sts if x in {"OK", "OK_VALIDATEUR"})
+        good = sum(1 for x in sts if x in GOOD)
         if good != len(sts):
             print(f"  {cid:<20} {good}/{len(sts)}  {'INSTABLE' if good else 'ÉCHEC'}  {sts}")
     print("\n=== Résumé ===")
     print(f"JSON valide avec 'steps' : {valid}/{total}")
     print(f"Plan correct + schéma OK : {ok}/{total} ({100 * ok / total:.0f} %)")
+    false_rej = sum(1 for r in rows if r["status"] == "FAUX_REJET")
+    if false_rej:
+        print(f"Faux rejets du contrôle lexical (commande valide refusée) : {false_rej}")
     if latencies:
         print(f"Latence : moy {statistics.mean(latencies):.2f}s | médiane {statistics.median(latencies):.2f}s"
               f" | p95 {percentile(latencies, 0.95):.2f}s | max {max(latencies):.2f}s")

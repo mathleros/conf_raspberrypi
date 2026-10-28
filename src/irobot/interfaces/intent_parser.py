@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from irobot.interfaces.text_normalizer import fr_numbers_to_digits
+
 
 @dataclass
 class Intent:
@@ -24,29 +26,18 @@ class Intent:
     raw_text: str = ""
 
 
-_FR_UNITS = {
-    "zéro": 0, "zero": 0, "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
-    "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "onze": 11, "douze": 12, "treize": 13,
-    "quatorze": 14, "quinze": 15, "seize": 16, "dix-sept": 17, "dix-huit": 18, "dix-neuf": 19, "vingt": 20,
-}
-_FR_TENS = {"vingt": 20, "trente": 30, "quarante": 40, "cinquante": 50, "soixante": 60}
-_FR_SMALL_UNITS = "un|une|deux|trois|quatre|cinq|six|sept|huit|neuf"
-_FR_NUMBER_RE = re.compile(
-    rf"\b(?:(?P<tens>{'|'.join(_FR_TENS)})(?:(?:\s+et\s+|[-\s])(?P<unit>{_FR_SMALL_UNITS}))?"
-    rf"|(?P<word>dix-sept|dix-huit|dix-neuf|{'|'.join(w for w in _FR_UNITS if '-' not in w)}))\b"
-)
+_DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
+_DECIMAL_MARK = "\ue000"
 
 
 def _replace_french_numbers(text: str) -> str:
-    """Remplace les nombres écrits en français (0-69) par des chiffres."""
+    """Nombres français en lettres -> chiffres (normaliseur partagé avec le LLM), décimales préservées.
 
-    def _sub(match: re.Match[str]) -> str:
-        if match.group("tens"):
-            unit = _FR_UNITS[match.group("unit")] if match.group("unit") else 0
-            return str(_FR_TENS[match.group("tens")] + unit)
-        return str(_FR_UNITS[match.group("word")])
-
-    return _FR_NUMBER_RE.sub(_sub, text)
+    Les conversions d'unités de `preprocess` ne sont pas appliquées : les extracteurs
+    ci-dessous gèrent déjà minutes et mètres (y compris décimaux).
+    """
+    protected = _DECIMAL_RE.sub(rf"\1{_DECIMAL_MARK}\2", text)
+    return fr_numbers_to_digits(protected).replace(_DECIMAL_MARK, ".")
 
 
 def _extract_color(text: str) -> str | None:
@@ -101,6 +92,35 @@ def _extract_distance(text: str) -> tuple[float, str] | None:
             return (max(0.1, value), "cm")
         return (max(0.01, value), "m")
     return None
+
+
+def _extract_angle(text: str) -> float | None:
+    """Extrait un angle en degrés (« de 45 degrés », « quatre vingt dix degrés »)."""
+    lowered = _replace_french_numbers(text.lower())
+    match = re.search(r"\b(\d+(?:[.,]\d+)?)\s*(?:°|degr[eé]s?|deg)(?:\b|$)", lowered)
+    if match:
+        return float(match.group(1).replace(",", "."))
+    return None
+
+
+def _motion_parameters(text: str) -> dict[str, Any]:
+    """Avance/recul : durée explicite, sinon distance, sinon 1 s par défaut."""
+    duration = _extract_duration(text)
+    if duration is not None:
+        return {"duration": duration}
+    distance = _extract_distance(text)
+    if distance is not None:
+        return {"distance": distance[0], "unit": distance[1]}
+    return {"duration": 1.0}
+
+
+def _turn_parameters(text: str) -> dict[str, Any]:
+    """Rotation : durée explicite, sinon angle, sinon 90°."""
+    duration = _extract_duration(text)
+    if duration:
+        return {"duration": duration}
+    angle = _extract_angle(text)
+    return {"angle": angle if angle is not None else 90, "unit": "degrees"}
 
 
 def _extract_stand_off_cm(text: str) -> float | None:
@@ -292,37 +312,33 @@ class IntentParser:
             )
 
         if any(token in lowered for token in ["avance", "avancer", "go forward", "forward", "move forward", "va tout droit"]):
-            duration = _extract_duration(cleaned) or 1.0
             return Intent(
                 name="move_forward",
-                parameters={"duration": duration},
+                parameters=_motion_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["recule", "reculer", "go back", "backward", "move backward", "arriere", "arrière"]):
-            duration = _extract_duration(cleaned) or 1.0
             return Intent(
                 name="move_backward",
-                parameters={"duration": duration},
+                parameters=_motion_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["gauche", "turn left", "left turn", "tourne à gauche", "tourne a gauche"]):
-            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_left",
-                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
+                parameters=_turn_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["droite", "turn right", "right turn", "tourne à droite", "tourne a droite"]):
-            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_right",
-                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
+                parameters=_turn_parameters(cleaned),
                 raw_text=text,
             )
 

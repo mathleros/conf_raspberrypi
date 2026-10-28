@@ -139,6 +139,26 @@ bash scripts/test/run_llm_runtime_mac.sh
 
 Cette commande est le point d'entrée recommandé pour vérifier que le pipeline texte -> `Intent` -> skills fonctionne bien sur un Mac sans micro.
 
+### 6. LLM local sur Raspberry Pi 5 (Qwen2.5-1.5B-Instruct)
+
+Modèle : **Qwen2.5-1.5B-Instruct**, GGUF quantisé **Q4_K_M** (~1,1 GB), servi par `llama-server` (`--ctx-size 2048`, alias `qwen2.5-1.5b`) sur `127.0.0.1:8080`.
+
+```bash
+sudo ./scripts/install/install_llm.sh
+sudo systemctl start llm.service
+curl http://127.0.0.1:8080/v1/models
+uv run voice-runtime
+```
+
+Fonctionnement du runtime (`voice_runtime.py`) :
+- la transcription est d'abord normalisée de façon déterministe (`text_normalizer.preprocess` : nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
+- prompt système court et statique, appel non streamé avec `response_format: json_object` (nouvel essai sans si le serveur répond HTTP 400) et `cache_prompt` ; préchauffage du cache au démarrage ;
+- timeout, erreur HTTP, JSON invalide ou clé `steps` absente -> repli sur le parseur local ; `{"steps": []}` -> commande rejetée (`unsupported command`), aucun mouvement.
+
+Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (4.0), `LLM_MAX_TOKENS_PLAN` (160), `LLM_MAX_TOKENS_INTENT` (96).
+
+Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
+
 ## Commandes utiles
 
 ### Caméra

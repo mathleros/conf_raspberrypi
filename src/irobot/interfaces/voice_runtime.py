@@ -12,6 +12,7 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -62,7 +63,8 @@ SYSTEM_PROMPT_PLAN = (
     "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
     "Découpe la consigne en étapes atomiques ordonnées. "
     "Tu peux utiliser: "
-    "(a) des intents atomiques (follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
+    "(a) des intents atomiques (follow_red_ball, search_and_approach_object, follow_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
+    "follow_object suit une balle (target \"yellow\" ou \"red\") avec parameters.stand_off_cm et parameters.duration_s (secondes), "
     "ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] "
     "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
     "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start. "
@@ -187,7 +189,7 @@ def ask_llm_for_intent(text: str) -> Intent:
 
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
     """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace."""
-    local_fallback = IntentParser().parse(text)
+    local_fallback_plan = IntentParser().parse_plan(text)
 
     payload = {
         "model": LLM_MODEL,
@@ -206,7 +208,7 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         content = data["choices"][0]["message"]["content"].strip()
         parsed = _parse_llm_json_payload(content)
         if not parsed:
-            return [local_fallback], {
+            return local_fallback_plan, {
                 "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": None,
@@ -214,7 +216,7 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
 
         raw_steps = parsed.get("steps")
         if not isinstance(raw_steps, list) or not raw_steps:
-            return [local_fallback], {
+            return local_fallback_plan, {
                 "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": parsed,
@@ -239,7 +241,7 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
             )
 
         if not intents:
-            return [local_fallback], {
+            return local_fallback_plan, {
                 "source": "local_parser_fast_fallback",
                 "llm_content": content,
                 "llm_json": parsed,
@@ -251,7 +253,7 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
             "llm_json": parsed,
         }
     except Exception as exc:
-        return [local_fallback], {
+        return local_fallback_plan, {
             "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
@@ -267,6 +269,22 @@ def ask_llm_for_intent_plan(text: str) -> list[Intent]:
 
 DEFAULT_MOVE_DURATION_SEC = 1.0
 DEFAULT_TURN_ANGLE_DEG = 90.0
+OBJECT_INTENTS = {"search_and_approach_object", "follow_object"}
+TARGET_COLOR_SYNONYMS = {
+    "jaune": "yellow",
+    "yellow": "yellow",
+    "balle jaune": "yellow",
+    "yellow_ball": "yellow",
+    "rouge": "red",
+    "red": "red",
+    "balle rouge": "red",
+    "red_ball": "red",
+}
+DEFAULT_STAND_OFF_CM = 100.0
+DEFAULT_FOLLOW_DURATION_SEC = 60.0
+MIN_OBJECT_DURATION_SEC = 1.0
+MIN_SEARCH_TIMEOUT_SEC = 1.0
+MAX_SEARCH_TIMEOUT_SEC = 120.0
 
 
 class VoiceRuntime:
@@ -341,6 +359,8 @@ class VoiceRuntime:
                 continue
             if intent.name in {"move_forward", "move_backward", "turn_left", "turn_right"}:
                 intent = self._sanitize_primitive_intent(intent)
+            elif intent.name in OBJECT_INTENTS:
+                intent = self._sanitize_object_intent(intent)
             sanitized.append(intent)
 
         return sanitized, errors
@@ -363,14 +383,14 @@ class VoiceRuntime:
 
     def _effective_step_timeout(self, intent: Intent) -> float:
         base = float(self.settings.step_timeout_seconds)
+        params = intent.parameters or {}
         try:
-            duration_s = float((intent.parameters or {}).get("duration_s"))
+            duration_s = float(params.get("duration_s"))
         except (TypeError, ValueError):
             return base
-        return max(
-            base,
-            duration_s + float(self.settings.search_timeout_seconds) + float(self.settings.timeout_margin_seconds),
-        )
+        search_s = self._to_float(params.get("search_timeout_s"), None)
+        search_s = float(self.settings.search_timeout_seconds) if search_s is None else search_s
+        return max(base, duration_s + search_s + float(self.settings.timeout_margin_seconds))
 
     def _effective_mission_timeout(self, intents: list[Intent]) -> float:
         total = sum(self._effective_step_timeout(intent) for intent in intents)
@@ -473,6 +493,12 @@ class VoiceRuntime:
             "search_object": "search_and_approach_object",
             "detect_object": "search_and_approach_object",
             "approach_object": "search_and_approach_object",
+            "follow": "follow_object",
+            "track": "follow_object",
+            "track_object": "follow_object",
+            "follow_target": "follow_object",
+            "suivre": "follow_object",
+            "suit": "follow_object",
             "rotate_360": "spin_360",
             "spin": "spin_360",
             "square": "move_square",
@@ -486,22 +512,72 @@ class VoiceRuntime:
         for intent in intents:
             name = intent.name.strip().lower()
             mapped = synonyms.get(name, name)
+            target = intent.target
+            parameters = dict(intent.parameters)
+            if mapped in OBJECT_INTENTS:
+                target, parameters = self._normalize_object_target(mapped, target, parameters)
             normalized.append(
                 Intent(
                     name=mapped,
-                    target=intent.target,
-                    parameters=dict(intent.parameters),
+                    target=target,
+                    parameters=parameters,
                     confidence=intent.confidence,
                     raw_text=intent.raw_text,
                 )
             )
         return normalized
 
+    @staticmethod
+    def _color_from_label(value: Any) -> str | None:
+        if value is None:
+            return None
+        return TARGET_COLOR_SYNONYMS.get(str(value).strip().lower())
+
+    def _normalize_object_target(
+        self, name: str, target: str | None, parameters: dict[str, Any]
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Ramène les couleurs de cible (jaune, balle rouge...) à `yellow`/`red`."""
+        color = self._color_from_label(target)
+        if color is None:
+            color = self._color_from_label(parameters.get("target_object"))
+        if color is not None:
+            target = color
+            parameters["target_object"] = color
+        elif target is None and parameters.get("target_object") is not None and name == "follow_object":
+            target = str(parameters["target_object"])
+        return target, parameters
+
     def _to_float(self, value: Any, default: float | None = None) -> float | None:
         try:
-            return float(value)
+            number = float(value)
         except (TypeError, ValueError):
             return default
+        return number if math.isfinite(number) else default
+
+    def _sanitize_object_intent(self, intent: Intent) -> Intent:
+        """Borne les paramètres de recherche/approche/suivi ; valeurs invalides -> défauts."""
+        params = dict(intent.parameters)
+        settings = self.settings
+
+        if "stand_off_cm" in params:
+            value = self._to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM)
+            params["stand_off_cm"] = max(
+                float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm))
+            )
+        if "duration_s" in params:
+            value = self._to_float(params["duration_s"], DEFAULT_FOLLOW_DURATION_SEC)
+            params["duration_s"] = max(MIN_OBJECT_DURATION_SEC, min(value, float(settings.max_follow_duration_sec)))
+        if "search_timeout_s" in params:
+            value = self._to_float(params["search_timeout_s"], float(settings.search_timeout_seconds))
+            params["search_timeout_s"] = max(MIN_SEARCH_TIMEOUT_SEC, min(value, MAX_SEARCH_TIMEOUT_SEC))
+
+        return Intent(
+            name=intent.name,
+            target=intent.target,
+            parameters=params,
+            confidence=intent.confidence,
+            raw_text=intent.raw_text,
+        )
 
     def _sanitize_primitive_intent(self, intent: Intent) -> Intent:
         """Normalise et borne les paramètres de primitives pour un plan sûr."""
@@ -735,7 +811,7 @@ class VoiceRuntime:
         if self.use_llm:
             intents, plan_trace = ask_llm_for_intent_plan_with_trace(text)
         else:
-            intents = [self.parser.parse(text)]
+            intents = self.parser.parse_plan(text)
             plan_trace = {"source": "local_parser", "llm_content": None, "llm_json": None}
 
         self._write_trace_event(

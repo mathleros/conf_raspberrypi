@@ -27,6 +27,7 @@ class SkillPlanner:
             "detect_obstacle",
             "stop_motion",
         ],
+        "follow_object": ["follow_object"],
         "move_forward": ["move_forward"],
         "move_backward": ["move_backward"],
         "turn_left": ["turn_left"],

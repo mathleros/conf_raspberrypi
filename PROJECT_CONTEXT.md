@@ -21,12 +21,14 @@
 - Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
 - Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
 - Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
-- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3 et 3b faites).
+- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b et 4 faites).
 - Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
 - Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
 - Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
 - Étape 3b fusion sans conflit GPIO : `SmartCar2WD.read_distance_cm()` et `check_obstacle()` partagent un `threading.Lock` + cache 50 ms (`time_fn`/`sleep_fn` injectables) ; `RobotController.read_distance_cm()` (None si absent/erreur). Le thread caméra ne calcule que l'estimation visuelle ; la fusion ultrason se fait dans `CameraLivePerceptionPipeline.detect()` (thread appelant), seulement si `ultrasonic_fusion=true`, balle au centre ; lecteur en erreur/None -> estimation visuelle. `voice_runtime.build_hardware_runtime` branche `distance_reader=robot.read_distance_cm`.
 - Correctif : la pipeline caméra appelait `detect_colored_objects(is_rgb=True)` (paramètre inexistant, `TypeError` avalé -> détection toujours None) ; `picamera2` et `HC_SR04` sont des imports tolérants hors Pi.
+- Étape 4 recherche/approche (`FollowTargetSkill`) : deux phases SEARCH (cible jamais vue/perdue) et TRACK (visible). En SEARCH le budget est `search_timeout_s` (défaut `settings.search_timeout_seconds`), puis `failed` + `data["target_lost"]=True` + arrêt ; `max_target_loss_s` n'est plus qu'une courte attente robot arrêté en TRACK avant de repasser en SEARCH ; `tracking_timeout_s` ne compte pas le temps de SEARCH.
+- Étape 4 : balayage par impulsions dans le sens de la dernière position connue (`left`/`right`), sinon droite (pause `SEARCH_SETTLE_S`=0,15 s). `stand_off_cm` synonyme de `approach_threshold_cm` (ce dernier prioritaire), borné par `min/max_stand_off_cm` ; cible atteinte si `distance_cm <= stand_off + stand_off_tolerance_cm` (défaut 10) ; avance raccourcie (min 25 %) sous 2 x stand_off. Horloge injectable : `FollowTargetSkill(settings, time_fn, sleep_fn)`. Si `detect()` renvoie None, position/distance du blackboard sont remises à None. Chemin sans `perception.detect` inchangé. Tests : `tests/unit/test_skills_behaviors.py` (93 tests unit+integration verts ; `tests/hardware` non collectable sans gpiozero).
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.
@@ -44,7 +46,7 @@
 - Produire rapport d’intégration Pi (template backlog) et décider GO/NO-GO.
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
 - Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
-- Étapes 4→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
+- Étapes 5→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
 - prépare le système pour l’utilisation des GPIO
 
 ### `scripts/install_respeaker.sh`

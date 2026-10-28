@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 
@@ -301,8 +302,12 @@ class VoiceRuntime:
         input_device: str = "auto",
         use_llm: bool = True,
         trace_dir: str | None = None,
+        threaded: bool = True,
     ):
         self.robot = robot
+        self.threaded = threaded
+        self._worker: threading.Thread | None = None
+        self.last_result: Any = None
         self.camera = camera
         self.sensor = sensor
         self.perception = perception
@@ -935,23 +940,84 @@ class VoiceRuntime:
         device = resolve_input_device(self.input_device)
         for text in transcribe_loop(device):
             print(f"\n[VOIX] {text}", flush=True)
+            self._clear_emergency_stop()
             result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {result}", flush=True)
             return result
         return {"status": "no_transcript"}
+
+    def _call_robot(self, method: str) -> None:
+        func = getattr(self.robot, method, None)
+        if callable(func):
+            try:
+                func()
+            except Exception:
+                pass
+
+    def _clear_emergency_stop(self) -> None:
+        self._call_robot("clear_emergency_stop")
+
+    def _request_emergency_stop(self) -> None:
+        if callable(getattr(self.robot, "request_emergency_stop", None)):
+            self._call_robot("request_emergency_stop")
+        else:
+            self._safe_stop()
+
+    def mission_running(self) -> bool:
+        return self._worker is not None and self._worker.is_alive()
+
+    def _is_stop_phrase(self, text: str) -> bool:
+        return self.parser.parse(text).name == "stop"
+
+    def _mission_worker(self, text: str) -> None:
+        try:
+            self.last_result = self.handle_text_as_plan(text)
+            print(f"[RUNTIME] {self.last_result}", flush=True)
+        except Exception as exc:
+            self.last_result = {"status": "failed", "error": str(exc)}
+            print(f"[RUNTIME] erreur mission : {exc}", flush=True)
+            self._safe_stop()
+
+    def handle_transcript(self, text: str):
+        """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
+        if self.mission_running():
+            if self._is_stop_phrase(text):
+                print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
+                self._request_emergency_stop()
+            else:
+                print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
+            return None
+
+        # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
+        self._clear_emergency_stop()
+        if not self.threaded:
+            self.last_result = self.handle_text_as_plan(text)
+            print(f"[RUNTIME] {self.last_result}", flush=True)
+            return self.last_result
+        self._worker = threading.Thread(target=self._mission_worker, args=(text,), name="mission-worker", daemon=True)
+        self._worker.start()
+        return None
 
     def listen_forever(self):
         device = resolve_input_device(self.input_device)
         try:
             for text in transcribe_loop(device):
                 print(f"\n[VOIX] {text}", flush=True)
-                result = self.handle_text_as_plan(text)
-                print(f"[RUNTIME] {result}", flush=True)
+                self.handle_transcript(text)
         except KeyboardInterrupt:
             print("\nInterruption clavier : arrêt du runtime vocal.")
+            self._abort_mission()
+
+    def _abort_mission(self) -> None:
+        self._request_emergency_stop()
+        worker = self._worker
+        if worker is not None and worker.is_alive() and worker is not threading.current_thread():
+            worker.join(timeout=2.0)
+        self._safe_stop()
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
+        self._abort_mission()
         if self.perception is not None and hasattr(self.perception, "close"):
             try:
                 self.perception.close()

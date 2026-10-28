@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
@@ -11,6 +12,7 @@ class RobotController:
 
     def __init__(self, robot: Any):
         self.robot = robot
+        self._emergency_event = threading.Event()
 
     def forward(self) -> None:
         if hasattr(self.robot, "forward"):
@@ -68,7 +70,19 @@ class RobotController:
         except Exception:
             return None
 
+    def request_emergency_stop(self) -> None:
+        self._emergency_event.set()
+        self.stop()
+
+    def clear_emergency_stop(self) -> None:
+        self._emergency_event.clear()
+
+    def is_emergency_stop_requested(self) -> bool:
+        return self._is_emergency_stop_requested()
+
     def _is_emergency_stop_requested(self) -> bool:
+        if self._emergency_event.is_set():
+            return True
         detectors = (
             "is_emergency_stop_requested",
             "check_emergency_stop",

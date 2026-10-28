@@ -21,7 +21,7 @@
 - Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
 - Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
 - Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
-- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b, 4, 5 et 6 faites).
+- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b, 4, 5, 6 et 7 faites).
 - Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
 - Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
 - Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
@@ -34,6 +34,8 @@
 - Étape 6 câblage `follow_object` : `IntentValidator.ALLOWED_INTENTS` += `follow_object` (target ∈ {None, "red", "yellow"}, sinon rejeté) ; `SkillPlanner.INTENT_TO_SKILLS["follow_object"] = ["follow_object"]`.
 - Étape 6 `voice_runtime.py` : synonymes `follow`/`track`/`track_object`/`follow_target`/`suivre`/`suit` -> `follow_object` ; normalisation des cibles (`jaune`/`balle jaune`/`yellow_ball` -> `yellow`, `rouge`/`balle rouge`/`red_ball` -> `red`) pour `follow_object` et `search_and_approach_object` (`follow_red_ball` garde `red_ball`) ; `_sanitize_object_intent` appelée dans `_validate_intent_plan` : `stand_off_cm` borné [`min`,`max_stand_off_cm`] (défaut 100), `duration_s` [1, `max_follow_duration_sec`] (défaut 60), `search_timeout_s` [1, 120] (défaut `search_timeout_seconds`), non numérique/NaN -> défaut, clé absente reste absente. `_effective_step_timeout` tient compte de `search_timeout_s`. Prompt plan LLM mentionne `follow_object`.
 - Étape 6 `IntentParser` (repli sans LLM) : `_extract_duration` gère minutes et nombres français 0-69 (-> secondes, `duration` des primitives inchangé) ; `_extract_stand_off_cm` (« à 1 m », « à un mètre », « à 50 cm » -> cm) ; « suis/suit/suivre » -> `follow_object` (target, `duration_s`, `stand_off_cm`) ; approche -> `search_and_approach_object` avec `stand_off_cm`. `parse_plan(text)` découpe sur « puis », « ensuite », « et puis », « , » (pas les virgules décimales), reporte cible et `stand_off_cm` aux segments « la/le/-la », fusionne cherche+approche ; utilisé en repli dans `ask_llm_for_intent_plan_with_trace` et quand `use_llm=False`. Tests : `tests/unit/test_follow_object_wiring.py` (135 tests unit+integration verts, plan complet via VoiceRuntime + FakeRobot).
+- Étape 7 arrêt d'urgence : `RobotController` porte un `threading.Event` interne ; `request_emergency_stop()` (set + `stop()`), `clear_emergency_stop()`, `is_emergency_stop_requested()` ; `_is_emergency_stop_requested()` est vrai si l'événement est levé OU si le robot sous-jacent expose un détecteur (`is_emergency_stop_requested`/`check_emergency_stop`/`emergency_stop_requested`/`stop_requested`). `FollowTargetSkill` (boucle fermée) teste l'urgence à chaque tour : stop + `success` + `data["emergency_stop"]=True` + phase `blocked` (convention identique à `follow_object` : un stop demandé est une fin normale, pas une erreur ; `aborted` non utilisé).
+- Étape 7 `VoiceRuntime` : paramètre `threaded=True` ; `handle_transcript(text)` lance `handle_text_as_plan` dans un thread daemon `mission-worker` ; pendant une mission, une phrase reconnue `stop` par `IntentParser` appelle `request_emergency_stop()` immédiatement, toute autre est ignorée avec un message ; `clear_emergency_stop()` est appelé dans le thread principal au démarrage d'une mission (et dans `listen_once`). `threaded=False` = chemin synchrone (tests, `--once`). Ctrl+C et `close()` -> `_abort_mission()` : urgence + `join(2 s)` du worker + `stop()`. Tests : `tests/unit/test_emergency_stop.py` (141 tests unit+integration verts, 1 skip).
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.
@@ -51,7 +53,7 @@
 - Produire rapport d’intégration Pi (template backlog) et décider GO/NO-GO.
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
 - Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
-- Étapes 7→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
+- Étapes 8→10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir une par une).
 - prépare le système pour l’utilisation des GPIO
 
 ### `scripts/install_respeaker.sh`

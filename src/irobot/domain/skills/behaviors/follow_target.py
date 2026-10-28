@@ -200,6 +200,23 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
                     break
                 iterations += 1
 
+                # Même convention que follow_object : arrêt d'urgence = "success" + data["emergency_stop"].
+                if self._is_emergency_stop_requested(context):
+                    self._stop_robot(context)
+                    context.state["motion"] = "stop"
+                    context.state["follow_target_state"] = {
+                        "phase": "blocked",
+                        "iterations": iterations,
+                        "reason": "emergency_stop",
+                    }
+                    return SkillResult(
+                        status="success",
+                        message="Arrêt d'urgence demandé pendant le suivi.",
+                        data={"emergency_stop": True, "iterations": iterations},
+                        confidence=0.99,
+                        next_action="stop_motion",
+                    )
+
                 if self._check_obstacle_fail_safe(context):
                     self._stop_robot(context)
                     context.state["motion"] = "stop"

@@ -37,6 +37,7 @@ La logique recommandée est :
 - `01_skills_inventory.md` : inventaire des skills existantes et manquantes
 - `02_functional_technical_architecture.md` : architecture du besoin et schéma technique
 - `03_llm_model_strategy.md` : analyse des modèles, contraintes et recommandations
+- [Étude et backlog du suivi humain avec marqueur](backlog/07_suivi_humain_marqueur_backlog.md) : nouveau besoin « suis-moi », réutilisation de l'existant, écarts, sécurité et plan de validation ; cadrage sans implémentation.
 
 ## Niveau de maturité actuel
 

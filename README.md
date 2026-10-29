@@ -86,80 +86,160 @@ Skills / RobotController / hardware
 
 ## Prérequis
 
-- Raspberry Pi 4 ou 5
-- Raspberry Pi OS 64 bits
+- Raspberry Pi 5 recommandé (Pi 4 possible selon le matériel)
+- Raspberry Pi OS 64 bits ; le guide LLM a été rédigé pour Raspberry Pi OS Bookworm
 - Python >= 3.12
-- `uv` pour la gestion du projet
-- outils système selon le matériel utilisé
+- Connexion réseau et environ 6 Go d'espace disque libre pour compiler llama.cpp et télécharger les modèles
+- `uv` (installé à l'étape 3 ci-dessous)
 
-## Démarrage rapide
+### Scripts d'installation
 
-### 1. Installer les dépendances Python
+Depuis la racine du dépôt, utiliser les scripts selon le matériel et la plateforme :
+
+| Script | Fonction | Quand l'utiliser |
+|---|---|---|
+| [`install_rpigpio.sh`](scripts/install/install_rpigpio.sh) | Installe les dépendances système de `gpiozero` pour piloter le GPIO. | Sur le Raspberry Pi avant d'utiliser les composants matériels (moteurs, capteurs, etc.). |
+| [`install_llm.sh`](scripts/install/install_llm.sh) | Compile `llama.cpp`, installe le modèle Qwen et Vosk, synchronise les dépendances Python et configure `llm.service`. | Sur le Pi pour installer le LLM local et le runtime vocal. |
+| [`install_bluetooth_audio.sh`](scripts/install/install_bluetooth_audio.sh) | Installe BlueZ et les composants audio Bluetooth. | Sur le Pi si un casque Bluetooth, par exemple un Jabra, sert de microphone. |
+| [`connect_jabra_bt.sh`](scripts/install/connect_jabra_bt.sh) | Recherche, appaire et connecte le casque Bluetooth. | Après l'installation Bluetooth, pour associer le casque choisi au Pi. |
+| [`install_respeaker.sh`](scripts/install/install_respeaker.sh) | Configure l'overlay audio et les outils du HAT ReSpeaker 2-Mic. | Sur le Pi avec le HAT ReSpeaker connecté, en alternative au casque Bluetooth. Un redémarrage est nécessaire. |
+| [`install_llm_mac_portable.sh`](scripts/install/install_llm_mac_portable.sh) | Installe le LLM portable pour les tests locaux sans Homebrew. | Sur macOS uniquement ; ne configure pas le matériel du Raspberry Pi. |
+
+## Installation et configuration sur Raspberry Pi
+
+### 1. Préparer Raspberry Pi OS
+
+Avec Raspberry Pi Imager, installer Raspberry Pi OS 64 bits et configurer un utilisateur, le réseau Wi-Fi et SSH si le Pi sera administré à distance. Démarrer le Pi, se connecter avec cet utilisateur, puis mettre le système à jour :
 
 ```bash
-cd /path/to/conf_raspberrypi
-uv sync --project .
+sudo apt update
+sudo apt full-upgrade -y
+sudo reboot
 ```
 
-### 2. Installer le LLM local sur macOS (portable)
+Après le redémarrage, se reconnecter et installer les outils de base :
+
+```bash
+sudo apt install -y git curl
+```
+
+### 2. Récupérer le projet
+
+Cloner le dépôt de l'équipe (remplacer `<URL_DU_DEPOT>` par son URL), ou copier le projet sur le Pi :
+
+```bash
+git clone <URL_DU_DEPOT> ~/conf_raspberrypi
+cd ~/conf_raspberrypi
+```
+
+Exécuter les commandes suivantes depuis la racine `conf_raspberrypi`.
+
+### 3. Installer uv
+
+Le script d'installation du LLM lance `uv sync` pour installer le projet et ses dépendances Python. Installer `uv` pour l'utilisateur courant :
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source "$HOME/.local/bin/env"
+uv python install 3.12
+uv --version
+```
+
+Cette commande installe aussi Python 3.12, requis par le projet même si la version fournie par le système est plus ancienne. Si `uv` n'est pas trouvé après l'installation, ouvrir un nouveau terminal ou ajouter `~/.local/bin` au `PATH`.
+
+### 4. Installer le support GPIO
+
+Cette étape installe les paquets système nécessaires à `gpiozero` sur le Pi :
+
+```bash
+sudo ./scripts/install/install_rpigpio.sh
+```
+
+### 5. Installer le LLM et le runtime vocal
+
+L'installateur compile `llama.cpp` pour le Pi, télécharge Qwen2.5-1.5B-Instruct (GGUF Q4_K_M) et le modèle Vosk français, installe les dépendances Python du projet, puis configure `llm.service` pour démarrer au boot. Le téléchargement et la compilation nécessitent une connexion Internet et plusieurs Go d'espace disque.
+
+```bash
+sudo ./scripts/install/install_llm.sh
+```
+
+Démarrer le serveur LLM et vérifier son état et son API locale :
+
+```bash
+sudo systemctl start llm.service
+sudo systemctl status llm.service --no-pager
+curl http://127.0.0.1:8080/v1/models
+```
+
+Le chargement initial du modèle peut prendre 20 à 30 secondes. Pour consulter les journaux ou gérer le service :
+
+```bash
+journalctl -u llm.service -f
+sudo systemctl restart llm.service
+sudo systemctl stop llm.service
+```
+
+Le service est activé au démarrage par l'installateur. Pour essayer l'assistant vocal sur le Pi une fois le microphone configuré, lancer `uv run voice-runtime` depuis la racine du projet (Ctrl+C pour quitter).
+
+### 6. Configurer le matériel et les paramètres du runtime
+
+Choisir et installer **une** configuration micro selon le matériel :
+
+```bash
+# Casque Bluetooth (optionnel)
+sudo ./scripts/install/install_bluetooth_audio.sh
+sudo reboot
+./scripts/install/connect_jabra_bt.sh scan
+./scripts/install/connect_jabra_bt.sh <ADRESSE_MAC_DU_CASQUE>
+bluetoothctl info <ADRESSE_MAC_DU_CASQUE>
+uv run voice-assistant --once --input-device bluetooth
+```
+
+Pour le HAT **ReSpeaker 2-Mic** à la place du casque Bluetooth :
+
+```bash
+sudo ./scripts/install/install_respeaker.sh
+sudo reboot
+aplay -l
+arecord -l
+uv run voice-assistant --once --input-device wm8960
+```
+
+Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son overlay audio. Les scripts Bluetooth et ReSpeaker ne sont pas nécessaires pour le runtime texte/LLM.
+
+Les paramètres du robot et de la perception sont dans [config/runtime_calibration.toml](config/runtime_calibration.toml). Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier. Garder `ultrasonic_fusion = false` tant que le capteur ultrason n'est pas installé et validé.
+
+**Sécurité matériel :** avant tout essai susceptible de commander les moteurs, placer le robot sur un support stable avec les roues dégagées, puis vérifier l'arrêt d'urgence et le câblage.
+
+### Installation et tests sur macOS
+
+Pour installer le LLM portable sur Mac et tester le pipeline sans microphone ni matériel robot :
 
 ```bash
 cd /path/to/conf_raspberrypi
 bash scripts/install/install_llm_mac_portable.sh
-```
-
-### 3. Tester le runtime sans microphone sur Mac
-
-```bash
-cd /path/to/conf_raspberrypi
 bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 ```
 
-### 4. Lancer un test de runtime complet
+Pour lancer la validation complète du runtime Mac :
 
 ```bash
 bash scripts/test/run_llm_runtime_mac.sh
 ```
 
-### 5. Tester le runtime LLM local sur Mac sans microphone
+Cette commande démarre le serveur local et valide le pipeline texte -> `Intent` -> skills.
 
-Pour valider la logique end-to-end avec le LLM local en envoyant directement un texte de commande :
+### LLM et runtime sur Raspberry Pi
 
-```bash
-cd /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
-bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
-```
-
-Version plus complète, qui lance le serveur puis exécute plusieurs validations :
-
-```bash
-cd /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
-bash scripts/test/run_llm_runtime_mac.sh
-```
-
-Cette commande est le point d'entrée recommandé pour vérifier que le pipeline texte -> `Intent` -> skills fonctionne bien sur un Mac sans micro.
-
-### 6. LLM local sur Raspberry Pi 5 (Qwen2.5-1.5B-Instruct)
-
-Modèle : **Qwen2.5-1.5B-Instruct**, GGUF quantisé **Q4_K_M** (~1,1 GB), servi par `llama-server` (`--ctx-size 2048`, alias `qwen2.5-1.5b`) sur `127.0.0.1:8080`.
-
-```bash
-sudo ./scripts/install/install_llm.sh
-sudo systemctl start llm.service
-curl http://127.0.0.1:8080/v1/models
-uv run voice-runtime
-```
+Le Pi sert **Qwen2.5-1.5B-Instruct** quantisé **Q4_K_M** (~1,1 Go) via `llama-server`, sur `127.0.0.1:8080` (alias `qwen2.5-1.5b`, contexte 2048). Pour les étapes d'installation manuelle, les réglages de performance ou le dépannage avancé, voir [docs/guide-installation-llm-local-pi5.md](docs/guide-installation-llm-local-pi5.md).
 
 Fonctionnement du runtime (`voice_runtime.py`) :
-- la transcription est d'abord normalisée de façon déterministe (`text_normalizer.preprocess` : nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
-- prompt système court et statique, appel non streamé avec `response_format` contraint par schéma (`json_schema`, replis `json_object` puis sans sur HTTP 400, format accepté mémorisé) et `cache_prompt` ; préchauffage du cache au démarrage ;
-- « stop », « arrête toi », « halte », « pause » : arrêt local immédiat, sans LLM ;
-- contrôle lexical du plan LLM (`plan_guards.grounding_check`) : intent ou nombre non justifié par la phrase -> commande rejetée, aucun mouvement ;
-- timeout, erreur HTTP, JSON invalide ou clé `steps` absente -> repli sur le parseur local ; `{"steps": []}` -> commande rejetée (`unsupported command`), aucun mouvement.
+- la transcription est normalisée de façon déterministe (nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
+- les commandes d'arrêt (« stop », « arrête toi », « halte », « pause ») sont traitées localement, sans LLM ;
+- le plan LLM est contrôlé lexicalement ; toute intention ou valeur numérique non justifiée par la phrase est rejetée ;
+- en cas de timeout, d'erreur HTTP, de JSON invalide ou de réponse incomplète, le parseur local prend le relais ; une liste d'étapes vide est rejetée.
 
-Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (8.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_MAX_TOKENS_INTENT` (96).
-
-Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
+Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_MAX_TOKENS_INTENT` (96), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
 
 ## Commandes utiles
 

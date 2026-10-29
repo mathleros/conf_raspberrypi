@@ -535,7 +535,8 @@ def fake_llm(monkeypatch):
     vr.reset_response_format_cache()
 
     for key in ("LLM_MODEL", "LLM_CONNECT_TIMEOUT_SECONDS", "LLM_READ_TIMEOUT_SECONDS",
-                "LLM_MAX_TOKENS_PLAN", "LLM_MAX_TOKENS_INTENT"):
+                "LLM_MAX_TOKENS_PLAN", "LLM_MAX_TOKENS_INTENT", "LLM_RESPONSE_FORMAT",
+                "LLM_WARMUP_WAIT_SECONDS"):
         monkeypatch.delenv(key, raising=False)
     return _install
 
@@ -652,7 +653,7 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     assert payload["response_format"]["type"] == "json_schema"
     assert payload["response_format"]["json_schema"]["strict"] is True
     assert payload["response_format"]["json_schema"]["schema"] == PLAN_SCHEMA
-    assert llm.calls[0]["timeout"] == (1.0, 8.0)
+    assert llm.calls[0]["timeout"] == (1.0, 10.0)
 
     assert result["status"] == "accepted", result
     assert result["source"] == "llm_plan"
@@ -820,7 +821,7 @@ def test_load_llm_settings_defaults_and_invalid_values():
     assert load_llm_settings({}) == LLMSettings(
         model="qwen2.5-1.5b",
         connect_timeout_seconds=1.0,
-        read_timeout_seconds=8.0,
+        read_timeout_seconds=10.0,
         max_tokens_plan=120,
         max_tokens_intent=96,
     )
@@ -1117,7 +1118,7 @@ def test_read_timeout_default_and_env_override(fake_llm, monkeypatch):
     monkeypatch.setenv("LLM_READ_TIMEOUT_SECONDS", "3")
     vr.ask_llm_for_intent_plan_with_trace("stop")
 
-    assert llm.calls[0]["timeout"] == (1.0, 8.0)
+    assert llm.calls[0]["timeout"] == (1.0, 10.0)
     assert llm.calls[1]["timeout"] == (1.0, 3.0)
     assert llm.calls[0]["json"]["max_tokens"] == 120
 
@@ -1138,3 +1139,197 @@ def test_emergency_listener_checks_pure_stop_before_parser(monkeypatch):
     assert runtime._is_stop_phrase("stop maintenant")
     assert calls == ["stop maintenant"]
     assert not runtime._is_stop_phrase("avance")
+
+
+# --------------------------------------------------------------------------- Étape 8c : diagnostic et démarrage à froid
+
+
+def _plan_raw(result) -> dict:
+    return next(e for e in _events(result) if e["event"] == "plan_raw")
+
+
+def test_read_timeout_default_is_ten_seconds():
+    assert LLMSettings().read_timeout_seconds == 10.0
+    assert load_llm_settings({}).read_timeout_seconds == 10.0
+
+
+def test_timeout_trace_has_latency_attempts_and_error_type(fake_llm, tmp_path, capsys):
+    import requests
+
+    fake_llm(requests.ReadTimeout("read timeout"))
+
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path)).handle_text_as_plan("recule")
+
+    raw = _plan_raw(result)
+    assert raw["source"] == "local_parser_fast_fallback"
+    assert raw["error_type"] == "ReadTimeout"
+    assert raw["llm_attempts"] == 1
+    assert raw["llm_response_format"] == "json_schema"
+    assert isinstance(raw["llm_latency_seconds"], float) and raw["llm_latency_seconds"] >= 0
+    assert raw["warmup_status"] == "skipped"
+    assert "LLM trop lent (> 10s), repli sur le parseur local" in capsys.readouterr().out
+
+
+def test_unreachable_server_console_message(fake_llm, capsys):
+    import requests
+
+    fake_llm(requests.ConnectionError("refused"))
+
+    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+
+    assert trace["error_type"] == "ConnectionError"
+    assert "serveur LLM injoignable, repli sur le parseur local" in capsys.readouterr().out
+
+
+def test_invalid_json_console_message(fake_llm, capsys):
+    fake_llm("pas du json")
+
+    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+
+    assert trace["source"] == "local_parser_fast_fallback"
+    assert trace["llm_attempts"] == 1
+    assert "JSON invalide, repli sur le parseur local" in capsys.readouterr().out
+
+
+class _FakeResponseWithStats(_FakeResponse):
+    def json(self):
+        data = super().json()
+        data["usage"] = {"prompt_tokens": 412, "completion_tokens": 37, "total_tokens": 449}
+        data["timings"] = {"prompt_per_second": 150.5, "predicted_per_second": 9.8, "predicted_n": 37}
+        return data
+
+
+def test_trace_records_usage_timings_and_attempts_with_format_fallback(fake_llm, tmp_path):
+    plan = json_dumps({"steps": [{"intent": "move_backward", "target": None, "parameters": {"duration": 1}}]})
+    fake_llm(_FakeResponse(status_code=400), _FakeResponseWithStats(plan))
+
+    result = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path)).handle_text_as_plan("recule")
+
+    raw = _plan_raw(result)
+    assert raw["source"] == "llm_plan"
+    assert raw["llm_attempts"] == 2
+    assert raw["llm_response_format"] == "json_object_schema"
+    assert raw["llm_prompt_tokens"] == 412
+    assert raw["llm_completion_tokens"] == 37
+    assert raw["llm_timings"] == {"prompt_per_second": 150.5, "predicted_per_second": 9.8, "predicted_n": 37}
+    assert raw["error_type"] is None
+
+
+def test_response_format_none_sends_no_response_format(fake_llm, monkeypatch):
+    llm = fake_llm({"steps": [{"intent": "stop"}]})
+    monkeypatch.setenv("LLM_RESPONSE_FORMAT", "none")
+
+    _, trace = vr.ask_llm_for_intent_plan_with_trace("stop")
+    vr.ask_llm_for_intent("stop")
+
+    assert all("response_format" not in call["json"] for call in llm.calls)
+    assert trace["llm_response_format"] == "none"
+
+
+def test_response_format_json_object_sends_simple_format_only(fake_llm, monkeypatch):
+    llm = fake_llm(_FakeResponse(status_code=400))
+    monkeypatch.setenv("LLM_RESPONSE_FORMAT", "json_object")
+
+    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+
+    assert [call["json"]["response_format"] for call in llm.calls] == [{"type": "json_object"}]
+    assert trace["llm_response_format"] == "json_object"
+    assert trace["source"] == "local_parser_fast_fallback"
+
+
+def test_response_format_unknown_value_keeps_schema_chain(fake_llm, monkeypatch):
+    llm = fake_llm({"steps": [{"intent": "stop"}]})
+    monkeypatch.setenv("LLM_RESPONSE_FORMAT", "grammar")
+
+    vr.ask_llm_for_intent_plan_with_trace("stop")
+
+    assert llm.calls[0]["json"]["response_format"]["type"] == "json_schema"
+
+
+class _SlowWarmupLLM:
+    """requests.post : le préchauffage (max_tokens 1) dure `delay` s ou échoue ; le plan répond tout de suite."""
+
+    def __init__(self, delay: float = 0.3, warmup_error: Exception | None = None):
+        self.delay = delay
+        self.warmup_error = warmup_error
+        self.events: list[str] = []
+
+    def __call__(self, url, json=None, timeout=None):
+        import time
+
+        if json["max_tokens"] == 1:
+            self.events.append("warmup_start")
+            time.sleep(self.delay)
+            self.events.append("warmup_end")
+            if self.warmup_error is not None:
+                raise self.warmup_error
+            return _FakeResponse(json_dumps({"steps": []}))
+        self.events.append("plan")
+        return _FakeResponse(json_dumps({"steps": [{"intent": "move_backward", "parameters": {"duration": 1}}]}))
+
+
+def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
+    monkeypatch.setattr(vr.requests, "post", llm)
+    monkeypatch.setattr(vr, "build_hardware_runtime",
+                        lambda: {"robot": FakeRobot(), "camera": None, "sensor": None, "perception": None})
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
+    vr.main()
+    traces = sorted((tmp_path / "target" / "logs").glob("runtime_trace_*.jsonl"))
+    assert len(traces) == 1
+    events = [json.loads(line) for line in traces[0].read_text(encoding="utf-8").splitlines()]
+    return next(e for e in events if e["event"] == "plan_raw")
+
+
+def test_text_mode_sends_real_request_after_warmup(fake_llm, monkeypatch, tmp_path):
+    llm = _SlowWarmupLLM(delay=0.3)
+
+    raw = _run_main_text(monkeypatch, tmp_path, llm)
+
+    assert llm.events == ["warmup_start", "warmup_end", "plan"]
+    assert raw["warmup_status"] == "done"
+    assert raw["source"] == "llm_plan"
+
+
+def test_text_mode_failed_warmup_still_processes_command(fake_llm, monkeypatch, tmp_path, capsys):
+    import requests
+
+    llm = _SlowWarmupLLM(delay=0.0, warmup_error=requests.ConnectionError("refused"))
+
+    raw = _run_main_text(monkeypatch, tmp_path, llm)
+
+    assert llm.events == ["warmup_start", "warmup_end", "plan"]
+    assert raw["warmup_status"] == "failed"
+    assert raw["source"] == "llm_plan"
+    assert [i["name"] for i in raw["intents"]] == ["move_backward"]
+    assert "Préchauffage en échec" in capsys.readouterr().out
+
+
+def test_text_mode_warmup_wait_timeout_still_processes_command(fake_llm, monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_WARMUP_WAIT_SECONDS", "0.05")
+    llm = _SlowWarmupLLM(delay=0.5)
+
+    raw = _run_main_text(monkeypatch, tmp_path, llm)
+
+    assert llm.events[:2] == ["warmup_start", "plan"]
+    assert raw["warmup_status"] == "timeout"
+    assert raw["source"] == "llm_plan"
+
+
+def test_continuous_mode_does_not_wait_for_warmup(fake_llm, monkeypatch, tmp_path):
+    llm = _SlowWarmupLLM(delay=0.5)
+    monkeypatch.setattr(vr.requests, "post", llm)
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
+    runtime.warmup = vr.LLMWarmup().start()
+
+    result = runtime.handle_text_as_plan("recule")
+
+    assert llm.events[:2] == ["warmup_start", "plan"]
+    assert _plan_raw(result)["warmup_status"] == "running"
+
+
+def test_llm_warmup_wait_seconds_env():
+    assert vr.llm_warmup_wait_seconds({}) == 60.0
+    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "15"}) == 15.0
+    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "abc"}) == 60.0
+    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "-1"}) == 60.0

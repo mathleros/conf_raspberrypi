@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_DIR="${PROJECT_ROOT}/target"
 LLAMA_DIR="${TARGET_DIR}/llama.cpp"
 MODELS_DIR="${TARGET_DIR}/models"
@@ -87,8 +87,17 @@ else
     git -C "${LLAMA_DIR}" pull --ff-only || true
 fi
 
-cmake -S "${LLAMA_DIR}" -B "${LLAMA_DIR}/build" -DCMAKE_BUILD_TYPE=Release
-cmake --build "${LLAMA_DIR}/build" --config Release -j"$(sysctl -n hw.ncpu)"
+# Seul llama-server est nécessaire : on évite de compiler les tests/exemples upstream,
+# qui cassent parfois la compilation sur macOS.
+# Sur Mac Intel, l'initialisation Metal (compilation des shaders) peut bloquer le serveur :
+# on reste sur le backend CPU.
+METAL_FLAG="ON"
+if [[ "$(uname -m)" == "x86_64" ]]; then
+    METAL_FLAG="OFF"
+fi
+cmake -S "${LLAMA_DIR}" -B "${LLAMA_DIR}/build" -DCMAKE_BUILD_TYPE=Release \
+    -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DGGML_METAL="${METAL_FLAG}"
+cmake --build "${LLAMA_DIR}/build" --config Release -j"$(sysctl -n hw.ncpu)" --target llama-server
 
 echo "[4/4] Téléchargement du modèle GGUF"
 if [[ ! -f "${MODEL_PATH}" ]]; then

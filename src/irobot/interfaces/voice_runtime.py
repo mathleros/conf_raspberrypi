@@ -49,6 +49,10 @@ LLM_CONNECT_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.connect_timeout_seconds
 LLM_READ_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.read_timeout_seconds
 LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
 LLM_WARMUP_READ_TIMEOUT_SECONDS = 120.0
+# Attente max du préchauffage en mode une seule commande (--once / --text), surchargeable par env.
+LLM_WARMUP_WAIT_SECONDS = 60.0
+# LLM_RESPONSE_FORMAT : schema (chaîne de repli 8b) | json_object | none.
+LLM_RESPONSE_FORMAT_MODES = ("schema", "json_object", "none")
 LLM_DEFAULT_CONFIDENCE = 0.8
 RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
 MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
@@ -207,23 +211,100 @@ def reset_response_format_cache() -> None:
     INTENT_RESPONSE_FORMATS.reset()
 
 
-def _post_llm_chat(payload: dict[str, Any], timeout: tuple[float, float], formats: ResponseFormatChain) -> str:
-    """Appel non streamé ; format suivant sur HTTP 400 ; retourne le contenu texte de la réponse."""
-    candidates = formats.candidates()
-    response = None
-    index = 0
-    for position, (index, fmt) in enumerate(candidates):
-        body = dict(payload)
-        if fmt is not None:
-            body["response_format"] = fmt
-        response = requests.post(LLM_URL, json=body, timeout=timeout)
-        if getattr(response, "status_code", 200) == 400 and position < len(candidates) - 1:
-            continue
-        break
-    response.raise_for_status()
-    formats.accept(index)
-    data = response.json()
-    return str(data["choices"][0]["message"]["content"]).strip()
+def llm_response_format_mode(environ: Any = None) -> str:
+    """Lit LLM_RESPONSE_FORMAT (schema | json_object | none) ; valeur absente ou inconnue -> schema."""
+    env = os.environ if environ is None else environ
+    mode = (env.get("LLM_RESPONSE_FORMAT") or "").strip().lower()
+    return mode if mode in LLM_RESPONSE_FORMAT_MODES else "schema"
+
+
+def _select_formats(schema_chain: ResponseFormatChain) -> ResponseFormatChain:
+    mode = llm_response_format_mode()
+    if mode == "json_object":
+        return ResponseFormatChain([{"type": "json_object"}])
+    if mode == "none":
+        return ResponseFormatChain([None])
+    return schema_chain
+
+
+def _response_format_kind(fmt: dict[str, Any] | None) -> str:
+    """json_schema | json_object_schema | json_object | none."""
+    if fmt is None:
+        return "none"
+    kind = str(fmt.get("type"))
+    if kind == "json_object" and "schema" in fmt:
+        return "json_object_schema"
+    return kind
+
+
+def llm_warmup_wait_seconds(environ: Any = None) -> float:
+    """Lit LLM_WARMUP_WAIT_SECONDS (>= 0) ; valeur absente ou invalide -> 60 s."""
+    env = os.environ if environ is None else environ
+    try:
+        value = float(env["LLM_WARMUP_WAIT_SECONDS"])
+    except (KeyError, TypeError, ValueError):
+        return LLM_WARMUP_WAIT_SECONDS
+    return value if math.isfinite(value) and value >= 0 else LLM_WARMUP_WAIT_SECONDS
+
+
+def _post_llm_chat(
+    payload: dict[str, Any],
+    timeout: tuple[float, float],
+    formats: ResponseFormatChain,
+    meta: dict[str, Any] | None = None,
+) -> str:
+    """Appel non streamé ; format suivant sur HTTP 400 ; retourne le contenu texte de la réponse.
+
+    `meta` (optionnel) reçoit la durée réelle, le nombre de requêtes, le format utilisé et
+    `usage`/`timings` de llama-server, y compris quand l'appel échoue.
+    """
+    meta = {} if meta is None else meta
+    meta.update(
+        llm_latency_seconds=None,
+        llm_response_format=None,
+        llm_attempts=0,
+        llm_prompt_tokens=None,
+        llm_completion_tokens=None,
+        llm_timings=None,
+    )
+    started = time.monotonic()
+    try:
+        candidates = formats.candidates()
+        response = None
+        index = 0
+        for position, (index, fmt) in enumerate(candidates):
+            body = dict(payload)
+            if fmt is not None:
+                body["response_format"] = fmt
+            meta["llm_attempts"] += 1
+            meta["llm_response_format"] = _response_format_kind(fmt)
+            response = requests.post(LLM_URL, json=body, timeout=timeout)
+            if getattr(response, "status_code", 200) == 400 and position < len(candidates) - 1:
+                continue
+            break
+        response.raise_for_status()
+        formats.accept(index)
+        data = response.json()
+        usage = data.get("usage") if isinstance(data, dict) else None
+        if isinstance(usage, dict):
+            meta["llm_prompt_tokens"] = usage.get("prompt_tokens")
+            meta["llm_completion_tokens"] = usage.get("completion_tokens")
+        timings = data.get("timings") if isinstance(data, dict) else None
+        if isinstance(timings, dict):
+            meta["llm_timings"] = dict(timings)
+        return str(data["choices"][0]["message"]["content"]).strip()
+    finally:
+        meta["llm_latency_seconds"] = round(time.monotonic() - started, 3)
+
+
+def _llm_error_reason(exc: Exception, read_timeout: float) -> str:
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return "serveur LLM injoignable"
+    if isinstance(exc, requests.exceptions.Timeout):
+        return f"LLM trop lent (> {read_timeout:g}s)"
+    if isinstance(exc, requests.exceptions.HTTPError):
+        return f"erreur HTTP du serveur LLM ({exc})"
+    return f"erreur LLM ({type(exc).__name__}: {exc})"
 
 
 def _llm_confidence(value: Any) -> float:
@@ -263,7 +344,9 @@ def ask_llm_for_intent(text: str) -> Intent:
     payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
     try:
         content = _post_llm_chat(
-            payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds), INTENT_RESPONSE_FORMATS
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(INTENT_RESPONSE_FORMATS),
         )
         parsed = _parse_llm_json_payload(content)
         intent = _intent_from_llm_step(parsed, text) if parsed else None
@@ -301,32 +384,42 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     normalized_text = preprocess(text)
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
+    meta: dict[str, Any] = {}
 
-    def _fallback(**trace: Any) -> tuple[list[Intent], dict[str, Any]]:
+    def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
+        print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
         return IntentParser().parse_plan(text), {
             "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
             "normalized_text": normalized_text,
+            **meta,
             **trace,
         }
 
     try:
         content = _post_llm_chat(
-            payload, (settings.connect_timeout_seconds, settings.read_timeout_seconds), PLAN_RESPONSE_FORMATS
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(PLAN_RESPONSE_FORMATS),
+            meta,
         )
     except Exception as exc:
-        return _fallback(error=f"{type(exc).__name__}: {exc}")
+        return _fallback(
+            _llm_error_reason(exc, settings.read_timeout_seconds),
+            error=f"{type(exc).__name__}: {exc}",
+            error_type=type(exc).__name__,
+        )
 
     parsed = _parse_llm_json_payload(content)
     if not parsed:
-        return _fallback(llm_content=content, reason="invalid json")
+        return _fallback("JSON invalide", llm_content=content, reason="invalid json")
 
     raw_steps = parsed.get("steps")
     if not isinstance(raw_steps, list):
-        return _fallback(llm_content=content, llm_json=parsed, reason="missing steps")
+        return _fallback("réponse sans « steps »", llm_content=content, llm_json=parsed, reason="missing steps")
 
-    trace: dict[str, Any] = {"llm_content": content, "llm_json": parsed, "normalized_text": normalized_text}
+    trace: dict[str, Any] = {"llm_content": content, "llm_json": parsed, "normalized_text": normalized_text, **meta}
     if not raw_steps:
         return [], {"source": "llm_unsupported", **trace}
 
@@ -340,7 +433,10 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         steps.append(normalized_step)
 
     if not steps:
-        return _fallback(llm_content=content, llm_json=parsed, reason="no usable step", skipped_steps=skipped)
+        return _fallback(
+            "aucune étape exploitable", llm_content=content, llm_json=parsed, reason="no usable step",
+            skipped_steps=skipped,
+        )
 
     # Le LLM propose, le lexique dispose : contrôle sur le texte réellement envoyé au LLM.
     kept, guard_reason, guard_notes = grounding_check(normalized_text, steps)
@@ -361,11 +457,48 @@ def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
         _post_llm_chat(
             payload,
             timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS),
-            PLAN_RESPONSE_FORMATS,
+            _select_formats(PLAN_RESPONSE_FORMATS),
         )
         return True
     except Exception:
         return False
+
+
+class LLMWarmup:
+    """Préchauffage en thread daemon ; `wait()` le rend bloquant (mode une seule commande).
+
+    Statuts : skipped (non lancé) | running | done | failed | timeout (attente expirée, définitif).
+    """
+
+    def __init__(self) -> None:
+        self._thread: threading.Thread | None = None
+        self._result: bool | None = None
+        self._timed_out = False
+
+    def start(self) -> "LLMWarmup":
+        self._thread = threading.Thread(target=self._run, name="llm-warmup", daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        self._result = warm_up_llm()
+
+    def wait(self, timeout: float) -> str:
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                self._timed_out = True
+        return self.status
+
+    @property
+    def status(self) -> str:
+        if self._thread is None:
+            return "skipped"
+        if self._timed_out:
+            return "timeout"
+        if self._thread.is_alive():
+            return "running"
+        return "done" if self._result else "failed"
 
 
 def warm_up_llm_async() -> threading.Thread:
@@ -464,7 +597,25 @@ class VoiceRuntime:
         self.parser = IntentParser()
         self.validator = IntentValidator()
         self.mission = MissionStateMachine()
+        # Renseignés par main() : préchauffage LLM et attente bloquante en mode une seule commande.
+        self.warmup: LLMWarmup | None = None
+        self.wait_for_warmup = False
 
+    def _await_warmup(self) -> str:
+        """Attend le préchauffage si demandé (mode une commande) ; ne lève jamais, retourne le statut."""
+        if self.warmup is None:
+            return "skipped"
+        if not self.wait_for_warmup:
+            return self.warmup.status
+        wait_seconds = llm_warmup_wait_seconds()
+        if self.warmup.status == "running":
+            print(f"[LLM] Préchauffage du modèle en cours (attente max {wait_seconds:g}s)...", flush=True)
+        status = self.warmup.wait(wait_seconds)
+        if status == "timeout":
+            print(f"[LLM] Préchauffage non terminé après {wait_seconds:g}s, envoi de la commande quand même.", flush=True)
+        elif status == "failed":
+            print("[LLM] Préchauffage en échec, envoi de la commande quand même.", flush=True)
+        return status
     def _trace_path(self) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         return self.trace_dir / f"runtime_trace_{stamp}.jsonl"
@@ -929,11 +1080,13 @@ class VoiceRuntime:
         self._write_trace_event(trace_path, {"event": "input", "text": text})
         self.mission.reset()
 
+        warmup_status = self.warmup.status if self.warmup is not None else "skipped"
         if is_pure_stop(text):
             # Sécurité : arrêt pur traité localement, sans LLM ni normalisation des nombres.
             intents = [Intent(name="stop", raw_text=text, confidence=1.0)]
             plan_trace = {"source": "local_stop", "llm_content": None, "llm_json": None, "normalized_text": None}
         elif self.use_llm:
+            warmup_status = self._await_warmup()
             intents, plan_trace = ask_llm_for_intent_plan_with_trace(text)
         else:
             intents = self.parser.parse_plan(text)
@@ -954,8 +1107,16 @@ class VoiceRuntime:
                 "llm_json": plan_trace.get("llm_json"),
                 "llm_content": plan_trace.get("llm_content"),
                 "error": plan_trace.get("error"),
+                "error_type": plan_trace.get("error_type"),
                 "guard_notes": plan_trace.get("guard_notes"),
                 "guard_reason": plan_trace.get("guard_reason"),
+                "llm_latency_seconds": plan_trace.get("llm_latency_seconds"),
+                "llm_response_format": plan_trace.get("llm_response_format"),
+                "llm_attempts": plan_trace.get("llm_attempts"),
+                "llm_prompt_tokens": plan_trace.get("llm_prompt_tokens"),
+                "llm_completion_tokens": plan_trace.get("llm_completion_tokens"),
+                "llm_timings": plan_trace.get("llm_timings"),
+                "warmup_status": warmup_status,
             },
         )
 
@@ -1240,12 +1401,16 @@ def main():
         choices=["auto", "bluetooth", "wm8960", "default"],
         help="Source audio utilisée pour l'enregistrement.",
     )
+    parser.add_argument(
+        "--text",
+        default=None,
+        help="Traite cette phrase (sans micro) puis s'arrête.",
+    )
     args = parser.parse_args()
 
     runtime = None
     try:
-        if not args.no_llm:
-            warm_up_llm_async()
+        warmup = LLMWarmup().start() if not args.no_llm else None
         hardware = build_hardware_runtime()
         runtime = VoiceRuntime(
             robot=hardware["robot"],
@@ -1255,6 +1420,14 @@ def main():
             input_device=args.input_device,
             use_llm=not args.no_llm,
         )
+        runtime.warmup = warmup
+        # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.
+        runtime.wait_for_warmup = bool(args.once or args.text)
+        if args.text:
+            runtime._clear_emergency_stop()
+            result = runtime.handle_text_as_plan(args.text)
+            print(f"[RUNTIME] {result}", flush=True)
+            return
         if args.once:
             runtime.listen_once()
             return

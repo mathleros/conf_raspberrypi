@@ -444,6 +444,87 @@ def test_effective_mission_timeout_is_sum_of_steps():
     assert runtime._effective_mission_timeout([Intent(name="stop")]) == runtime.settings.mission_timeout_seconds
 
 
+@pytest.mark.parametrize("name", ["search_and_approach_object", "follow_red_ball"])
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({}, 43.0),
+        ({"tracking_timeout_s": 12, "search_timeout_s": 40}, 62.0),
+        ({"tracking_timeout_s": "invalid", "search_timeout_s": None}, 43.0),
+        ({"tracking_timeout_s": 0, "search_timeout_s": 0}, 10.2),
+    ],
+)
+def test_approach_timeout_covers_search_tracking_and_margin(name, params, expected):
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    runtime.settings = RuntimeSettings()
+
+    assert runtime._effective_step_timeout(Intent(name=name, parameters=params)) == pytest.approx(expected)
+
+
+def test_approach_timeout_preserves_larger_base():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    runtime.settings = RuntimeSettings(step_timeout_seconds=60)
+
+    for name in ("search_and_approach_object", "follow_red_ball", "stop", "move_forward", "turn_right"):
+        assert runtime._effective_step_timeout(Intent(name=name)) == 60.0
+
+
+@pytest.mark.parametrize("name", ["stop", "move_forward", "move_backward", "turn_left", "turn_right"])
+def test_approach_timeout_does_not_change_simple_command_budgets(name):
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    runtime.settings = RuntimeSettings()
+
+    assert runtime._effective_step_timeout(Intent(name=name)) == 6.0
+
+
+def test_effective_mission_timeout_includes_approach_budget():
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
+    runtime.settings = RuntimeSettings()
+    intents = [
+        Intent(name="search_and_approach_object"),
+        Intent(name="follow_object", parameters={"duration_s": 300}),
+    ]
+
+    assert runtime._effective_mission_timeout(intents) == 43.0 + 335.0
+
+
+@pytest.mark.parametrize(
+    ("elapsed", "skill_status", "expected_status", "attempts"),
+    [
+        (13.5, "success", "accepted", 1),
+        (33.0, "in_progress", "incomplete", 3),
+        (44.0, "success", "aborted", 1),
+    ],
+)
+def test_approach_retry_uses_its_own_timeout(
+    monkeypatch, tmp_path, elapsed, skill_status, expected_status, attempts
+):
+    from irobot.domain.skills.base_skill import SkillResult
+
+    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path))
+    runtime.settings = RuntimeSettings()
+    clock = [0.0]
+    calls = []
+    monkeypatch.setattr(vr.time, "time", lambda: clock[0])
+
+    def execute(intent):
+        calls.append(intent.name)
+        clock[0] += elapsed
+        return {"status": "accepted", "results": [SkillResult(status=skill_status)]}
+
+    monkeypatch.setattr(runtime.controller, "handle_intent", execute)
+    result = runtime._execute_intent_with_retry(
+        Intent(name="search_and_approach_object"), tmp_path / "approach.jsonl"
+    )
+
+    assert result["status"] == expected_status
+    assert len(calls) == attempts
+    if expected_status == "aborted":
+        assert result["reason"] == "step timeout"
+    elif expected_status == "incomplete":
+        assert result["reason"] == "max retries reached"
+
+
 def test_no_retry_on_aborted_or_timeout(tmp_path):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path))
     calls = []

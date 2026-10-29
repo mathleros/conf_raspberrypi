@@ -31,6 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - macOS/tests
 from irobot.config.settings import RuntimeSettings, load_llm_settings, load_runtime_settings
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
 from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
@@ -700,6 +701,17 @@ class VoiceRuntime:
     def _effective_step_timeout(self, intent: Intent) -> float:
         base = float(self.settings.step_timeout_seconds)
         params = intent.parameters or {}
+        if intent.name in {"search_and_approach_object", "follow_red_ball"}:
+            tracking_s = FollowTargetSkill._to_float(
+                params.get("tracking_timeout_s"), FollowTargetSkill.DEFAULT_MAX_TRACKING_S
+            )
+            search_s = FollowTargetSkill._to_float(
+                params.get("search_timeout_s"), float(self.settings.search_timeout_seconds)
+            )
+            return max(
+                base,
+                max(0.1, tracking_s) + max(0.1, search_s) + float(self.settings.timeout_margin_seconds),
+            )
         try:
             duration_s = float(params.get("duration_s"))
         except (TypeError, ValueError):

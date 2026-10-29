@@ -374,6 +374,8 @@ Présenter la balle initialement décalée, à environ 150 cm, puis recommencer 
 
 L'approche dispose d'un budget de poursuite court distinct de la recherche : si la cible est trop lointaine pour être atteinte, documenter le résultat au lieu d'allonger les délais sans justification. L'audit signale qu'un premier `detect_object` en échec peut provoquer un retry : consigner tentatives et délai avant recherche, ne pas les cacher.
 
+Le timeout d'étape de recherche/approche couvre désormais la recherche, la poursuite et la marge : `max(6, 25 + 8 + 10) = 43 s` par tentative avec les réglages livrés, pour `search_and_approach_object` et `follow_red_ball`. Les paramètres `search_timeout_s` et `tracking_timeout_s` sont pris en compte lorsqu'ils sont fournis. Ce budget externe ne prolonge pas les budgets internes de la skill et ne constitue pas un watchdog : le dépassement est contrôlé après exécution. Une poursuite non terminée peut encore provoquer un retry ; plusieurs recherches après pertes de cible peuvent aussi dépasser ce budget. Les commandes simples gardent leur timeout de base.
+
 ### E02 — Suivi court : 30 s
 
 ```bash

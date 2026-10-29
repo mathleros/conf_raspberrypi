@@ -9,3 +9,4 @@ Ce dossier contient le backlog opérationnel pour passer de la logique validée 
 - [03_pre_run_checklist_mac_to_pi.md](03_pre_run_checklist_mac_to_pi.md) : check-list opérationnelle avant passage Mac -> Pi.
 - [04_standard_scenarios_protocol_mac.md](04_standard_scenarios_protocol_mac.md) : protocole de validation des scénarios standards sur Mac.
 - [05_measurements_tolerance_sheet.md](05_measurements_tolerance_sheet.md) : feuille de mesure/tolérance à compléter pendant les tests terrain.
+- [06_calibration_non_lineaire_pi.md](06_calibration_non_lineaire_pi.md) : optimisation différée des conversions distance/angle selon l'amplitude demandée, avec observations terrain et critères de validation.

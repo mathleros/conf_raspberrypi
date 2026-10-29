@@ -98,15 +98,17 @@ Exemple de contrat de sortie attendu :
 
 ```json
 {
-  "intent": "follow_target",
-  "target": "red_ball",
-  "skills": ["detect_red_ball", "align_to_target", "approach_target"],
-  "max_duration": 20,
-  "stop_conditions": ["target_lost", "obstacle_close", "manual_stop"]
+  "steps": [
+    {
+      "intent": "follow_object",
+      "target": "yellow",
+      "parameters": {"stand_off_cm": 100, "duration_s": 300}
+    }
+  ]
 }
 ```
 
-Ce mode est viable et réaliste pour commencer le codage.
+Ce contrat est implémenté : le runtime valide et borne les paramètres avant le planner. Le modèle ne fournit ni liste de skills ni commandes moteur. Pour une recherche/approche préalable, ajouter un intent `search_and_approach_object` avec la même cible et `stand_off_cm`. `search_timeout_s` peut préciser le budget de recherche ; limites et sécurité sont définies dans [l'inventaire](01_skills_inventory.md#contrat-runtime-livré-2026-10-29).
 
 ### Option B. Modèle plus puissant local (si besoin de plus de puissance)
 
@@ -192,10 +194,10 @@ Exemple :
 
 Autre exemple :
 
-- Entrée : "suit la balle rouge"
-- Intention LLM : `follow_target`
-- Plan : `detect_red_ball -> align_to_target -> move_forward -> stop_on_loss_or_obstacle`
-- Exécution : primitives du mouvement combinées aux skills de perception
+- Entrée : "suis la balle jaune à 1 m pendant 5 min"
+- Intention LLM : `follow_object`, cible `yellow`, `stand_off_cm=100`, `duration_s=300`
+- Plan : skill `follow_object`, boucle déterministe de suivi à distance constante
+- Exécution : perception -> impulsions via `RobotController` ; arrêt sur urgence/obstacle, échec si recherche épuisée, fin normale après 300 s
 
 ### Règles de bonnes pratiques
 

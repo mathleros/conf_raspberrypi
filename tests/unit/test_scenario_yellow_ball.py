@@ -17,7 +17,7 @@ from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
-SENTENCE = "cherche la balle jaune, approche toi à 1m de la balle jaune puis suit la pendant 5 min"
+SENTENCE = "cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min"
 
 LINEAR_CM_S = RuntimeSettings().cm_per_second
 TURN_DEG_S = 120.0

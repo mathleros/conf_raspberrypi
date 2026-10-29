@@ -15,13 +15,13 @@
 - Traçabilité complète : traces JSONL, `TRACE_PATH`, script replay `replay_runtime_trace_mac.sh`.
 - Préparation Mac avant Pi : scripts `run_mission_mac.sh`, `run_runtime_standard_scenarios_mac.sh`, protocoles/checklists/backlog.
 - Nettoyage doublons/doc : `detect_red_ball.py` converti en shim compat, docs centralisées.
-- Validation : suite unitaire verte (82 tests dans `tests/unit`).
+- Validation finale Mac (étape 10) : `uv run pytest -q tests/unit tests/integration` -> **252 passed** (dont 2 nouveaux tests du script). `bash -n scripts/test/run_runtime_standard_scenarios_mac.sh` et `git diff --check` passent. `uv run pytest -q` inclut les scripts matériels et échoue à la collecte sur Mac (code 3) : `gpiozero` absent, puis `SystemExit` dans `tests/hardware/test_hardware_distance.py` ; aucun échec métier dans la suite portable.
 - Étape 1 sécurité : durée par défaut injectée (1.0 s avance/recul, 90° rotation) quand aucun distance/angle/duration, bornée par `max_duration_sec`.
 - Étape 1 sécurité : normalisation des unités de distance (`m`/mètres… -> `m`, `cm`/centimètres… et inconnues -> `cm`) via `normalize_distance_unit`, au runtime et dans les primitives.
 - Étape 1 sécurité : `robot.stop()` garanti en fin de mission (`try/finally`, exceptions ignorées).
 - Étape 1 sécurité : arrêt de l'exécution après une étape `rejected`/`failed`/`incomplete`/`aborted`.
 - Étape 1 sécurité : plan rejeté en entier si une étape est invalide (`reason: "invalid plan step"`, `validation_errors` conservé).
-- Objectif en cours : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la 5 min » (étapes 1→10 ; étapes 3, 3b, 4, 5, 6, 7, 8, 8b, 8c et 9 faites).
+- Objectif logiciel finalisé : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min » (étapes 1→10 terminées sans matériel ; validation physique Pi restante).
 - Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
 - Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
 - Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
@@ -52,6 +52,10 @@
 - Étape 9 `RobotController(robot, time_fn=time.monotonic, sleep_fn=time.sleep)` : horloge injectable pour `*_for`. `FakeRobot(time_fn=None)` : `timed_commands` horodatées si `time_fn` fourni.
 - Étape 9 `VoiceRuntime._execute_intent_with_retry` : après chaque tentative, arrêt de sécurité détecté (drapeau d'urgence du robot, `data["emergency_stop"]` ou `data["obstacle_detected"] is True` d'une skill) -> étape `aborted` (reason `"emergency stop"` | `"obstacle"`), pas de retry, événement de trace `emergency_stop` | `obstacle_stop`, mission `aborted` sans étapes suivantes (les skills gardent leur convention `success`). « obstacle prioritized » inchangé.
 - Constat étape 9 (non corrigé) : dans `search_and_approach_object`, `detect_object` échoue si la balle n'est pas encore visible, ce qui déclenche une 2ᵉ tentative (instantanée si la cible est déjà atteinte) ; `step_result` trace le statut brut de `handle_intent` (`accepted` même si une skill a échoué).
+- Étape 10 finalisation : README et specs alignés sur le contrat `search_and_approach_object` -> `follow_object` (cible `yellow`, `stand_off_cm=100`, `duration_s=300`, `search_timeout_s` optionnel). Les limites runtime sont 30–300 cm, 1–600 s de suivi et 1–120 s de recherche avec le TOML livré ; `follow_target` reste la skill d'approche, pas l'intent de suivi à durée déterminée.
+- Configuration TOML du scénario : `[runtime] search_timeout_seconds=25.0`, `timeout_margin_seconds=10.0` ; `[limits] max_follow_duration_sec=600.0`, `min_stand_off_cm=30.0`, `max_stand_off_cm=300.0` ; `[camera] ball_diameter_cm=6.5`, `focal_px=600.0` (valeur initiale à calibrer), `ultrasonic_fusion=false`. Distance visuelle : `focal_px * ball_diameter_cm / diameter_px`, lissage exponentiel ; fusion ultrason optionnelle au centre et si cohérente à ±25 %.
+- Sécurité finale : écoute continue pendant la mission pour « stop », événement d'urgence dans `RobotController`, arrêt moteur garanti en sortie ; urgence/obstacle -> mission `aborted`, sans retry ni étape suivante. Le suivi peut reculer pour rétablir le stand-off : aucun capteur arrière, essais physiques en zone dégagée uniquement.
+- Scénarios standards Mac : ajout « Yellow ball (mock, 300 s simulated) » dans `scripts/test/run_runtime_standard_scenarios_mac.sh`, réutilisant `SimWorld(FakeRobot)` de l'étape 9, vraie validation/intents/skills/RobotController, perception et horloge simulées, sans LLM pour ce cas. Le script vérifie durée, distance finale, cible et arrêt, puis ajoute statut et trace au rapport ; tests unitaires du rapport et de la propagation des erreurs.
 
 ## 2) Choix techniques/métiers arrêtés
 - Le LLM n’accède jamais au hardware directement : il produit un plan/intents validé par le runtime.
@@ -67,12 +71,11 @@
 
 ## 3) Restant / prochaines étapes
 - Finaliser passage Pi réel : câblage moteur réel + calibration terrain (distance/angle).
-- Brancher perception caméra live (remplacer simulation/mock) et valider approche objet en boucle fermée.
+- Valider sur Pi la perception caméra live déjà câblée dans `build_hardware_runtime` : recherche, approche à 1 m, suivi 5 min, perte/réacquisition et arrêt vocal pendant une mission.
 - Exécuter protocole scénarios standard sur Pi (3 runs/scénario) + mesures/tolérances.
 - Produire rapport d’intégration Pi (template backlog) et décider GO/NO-GO.
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
 - Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
-- Étape 10 de la commande vocale « cherche/approche à 1 m/suis 5 min » (à fournir).
 - Mesurer sur le Pi 5 la latence/débit de Qwen2.5-1.5B (`eval_prompt_plan.py --repeat 3`) et l'effet de `cache_prompt` + préchauffage dans le budget de 10 s (`LLM_READ_TIMEOUT_SECONDS`), comparer `LLM_RESPONSE_FORMAT` schema/json_object/none via `llm_timings` de la trace, et le taux de faux rejets du contrôle lexical (`eval_prompt_plan.py` sans `--no-guards`).
 - Restes Ministral / `ctx-size 4096` hors chemin Pi : `install_llm_mac_portable.sh`, `run_llm_runtime_mac.sh`, `docs/guide-installation-llm-mac-portable.md`, `commandes.txt`, `tests/integration/test_voice_runtime_llm_integration.py` ; `hardware/audio/voice_assistant.py` (legacy) lit `LLM_MODEL` sans prétraitement ni timeouts ; README cite encore `uv run voice-assistant` (commandes audio).
 - Voie legacy `handle_text` : `unknown` du LLM -> repli parseur (pas de rejet comme en voie plan).

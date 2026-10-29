@@ -248,7 +248,13 @@ Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNEC
 ```bash
 uv run camera-live
 uv run color-detector
+# Sur Pi : balle jaune centrée à 100 cm mesurés depuis la caméra
+uv run calibrate-distance --color yellow --ball-diameter-cm 6.5 --known-distance-cm 100
+# Après avoir reporté focal_px dans [camera], vérifier l'estimation en direct
+uv run calibrate-distance --color yellow
 ```
+
+`calibrate-distance` prend 30 mesures par défaut (`--samples` pour changer ce nombre) et affiche la focale à reporter manuellement dans [config/runtime_calibration.toml](config/runtime_calibration.toml). Renseigner aussi le diamètre réel `ball_diameter_cm` dans ce fichier. La distance visuelle est estimée par `focal_px * ball_diameter_cm / diameter_px`, puis lissée dans la perception live. La fusion ultrason reste optionnelle (`ultrasonic_fusion = false` par défaut), uniquement pour une cible centrée et des mesures cohérentes à ±25 %.
 
 ### Smart Car
 
@@ -263,15 +269,35 @@ uv run smart-car stop
 ### Assistant vocal / runtime
 
 ```bash
-uv run voice-assistant --once
-uv run voice-assistant --once --input-device bluetooth
+uv run voice-runtime
+uv run voice-runtime --input-device bluetooth
 ```
+
+En écoute continue sur le Pi, dire : **« cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min »**. Le runtime valide et borne un plan `search_and_approach_object` puis `follow_object`, avec cible `yellow`, `stand_off_cm=100` et `duration_s=300`. Le LLM ne pilote jamais le matériel : `Intent` -> validation/bornage -> skills -> `RobotController`.
+
+Paramètres objet :
+- `stand_off_cm` : distance de consigne (défaut 100 cm), bornée par `[limits] min_stand_off_cm` / `max_stand_off_cm` (30–300 cm) ;
+- `duration_s` : durée du suivi (défaut 60 s), recherche comprise, bornée à 1–`max_follow_duration_sec` (600 s) ;
+- `search_timeout_s` : budget de recherche, borné à 1–120 s ; défaut `[runtime] search_timeout_seconds` (25 s).
+
+`[runtime] timeout_margin_seconds` (10 s) ajoute une marge au budget d'une étape avec `duration_s` ; le budget mission tient compte des étapes. Pendant une mission en écoute continue, **« stop »** déclenche immédiatement l'arrêt d'urgence ; les autres commandes ne lancent pas de mission concurrente. Ctrl+C arrête aussi le robot. Une urgence ou un obstacle interrompt le plan (`aborted`), sans retry ni étape suivante ; arrêt moteur garanti en sortie. Le suivi peut reculer : **aucun capteur arrière**, garder une zone dégagée.
+
+Validation Mac sans matériel :
+
+```bash
+bash scripts/test/run_runtime_standard_scenarios_mac.sh
+uv run pytest -q tests/unit/test_scenario_yellow_ball.py
+```
+
+Le scénario « balle jaune » du script utilise une perception mock et un `FakeRobot` avec horloge virtuelle : 300 s simulées sans attendre cinq minutes, sans LLM pour ce cas. Les quatre autres scénarios utilisent le serveur LLM local. Statuts et traces sont consignés dans `target/logs/scenario_runs/`.
 
 ### Tests Python
 
 ```bash
-pytest
+uv run pytest -q tests/unit tests/integration
 ```
+
+Sur Mac, `uv run pytest -q` sans sélection tente aussi de collecter les scripts de `tests/hardware/` et échoue si `gpiozero` est absent. Ces scripts sont à exécuter sur le Pi avec le matériel adapté.
 
 ## Concepts clés
 

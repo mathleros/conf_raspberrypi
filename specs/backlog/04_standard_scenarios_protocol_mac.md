@@ -11,6 +11,7 @@ Valider la logique runtime/LLM/orchestration avant exécution physique.
 2. Rotation droite
 3. Search and approach (avec mock objet)
 4. Contournement obstacle
+5. Balle jaune : recherche, approche à 1 m, suivi 5 min (perception et horloge simulées, `FakeRobot`, sans LLM pour ce cas)
 
 ## Procédure
 1. Lancer le script.
@@ -18,9 +19,12 @@ Valider la logique runtime/LLM/orchestration avant exécution physique.
 3. Vérifier pour chaque scénario :
    - statut non `rejected`
    - trace présente (`TRACE_PATH`)
+   - pour la balle jaune : statut `accepted`, suivi de 300 s simulées, distance finale à 100 ± 15 cm et arrêt moteur final (contrôlés par le script)
 4. Rejouer au moins une trace avec `replay_runtime_trace_mac.sh`.
 
 ## Critères de validation
-- 4/4 scénarios exécutés
+- 5/5 scénarios exécutés
 - aucun crash runtime
 - traces exploitables présentes
+
+Le scénario balle jaune réutilise le monde simulé de `tests/unit/test_scenario_yellow_ball.py` ; il ne valide ni la calibration réelle ni la latence du LLM. Test ciblé sans serveur ni matériel : `uv run pytest -q tests/unit/test_scenario_yellow_ball.py tests/unit/test_standard_scenarios_script.py`.

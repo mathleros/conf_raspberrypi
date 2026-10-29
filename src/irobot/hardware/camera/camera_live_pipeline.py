@@ -157,9 +157,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         camera = None
         try:
             camera = Picamera2(self.camera_index)
-            # Configuration matérielle explicite en basse résolution 640x480 RGB
+            # Picamera2 BGR888 fournit des octets R, G, B à _process_frame.
             config = camera.create_preview_configuration(
-                main={"size": (640, 480), "format": "RGB888"}
+                main={"size": (640, 480), "format": "BGR888"}
             )
             camera.configure(config)
             camera.start()

@@ -52,7 +52,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit("Picamera2 indisponible : à lancer sur le Raspberry Pi.")
 
     camera = Picamera2(CAMERA_INDEX)
-    camera.configure(camera.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
+    # Picamera2 BGR888 fournit des octets R, G, B au détecteur is_rgb=True.
+    camera.configure(camera.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"}))
     camera.start()
     samples: list[float] = []
     try:
@@ -78,7 +79,10 @@ def main(argv: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         print()
     finally:
-        camera.stop()
+        try:
+            camera.stop()
+        finally:
+            camera.close()
 
 
 if __name__ == "__main__":

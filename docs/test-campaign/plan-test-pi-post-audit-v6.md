@@ -148,6 +148,8 @@ Si une ancienne version du [script matériel](../../tests/hardware/test_hardware
 
 ### H02 — Caméra et distance visuelle
 
+Si `color-detector --color red --debug` reconnaît la cible mais que la calibration ne la détecte pas, vérifier que le correctif d'ordre des canaux est présent : calibration et perception runtime demandent le format Picamera2 `BGR888`, dont les tableaux sont en ordre RGB, conformément à leur traitement `is_rgb=True`. L'ancien format `RGB888` fournissait des tableaux BGR interprétés à tort comme RGB (rouge et bleu inversés). Ne pas compenser ce défaut par une modification des seuils HSV ; récupérer le correctif et refaire la calibration.
+
 Moteurs hors tension ; balle jaune de diamètre mesuré, éclairage et montage identiques aux essais futurs :
 
 ```bash

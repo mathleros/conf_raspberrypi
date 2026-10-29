@@ -686,7 +686,7 @@ class VoiceRuntime:
 
     def _safety_stop_reason(self, step_result: dict[str, Any]) -> str | None:
         if step_result.get("reason") == "obstacle prioritized":
-            return None
+            return "obstacle"
         if self._emergency_stop_requested():
             return "emergency stop"
         for result in step_result.get("results") or []:
@@ -1369,16 +1369,12 @@ class VoiceRuntime:
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
         self._abort_mission()
-        if self.perception is not None and hasattr(self.perception, "close"):
-            try:
+        try:
+            if self.perception is not None and hasattr(self.perception, "close"):
                 self.perception.close()
-            except Exception:
-                pass
-        if self.robot is not None and hasattr(self.robot, "stop"):
-            try:
+        finally:
+            if self.robot is not None and hasattr(self.robot, "stop"):
                 self.robot.stop()
-            except Exception:
-                pass
 
 def build_hardware_runtime() -> dict[str, Any]:
     """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""

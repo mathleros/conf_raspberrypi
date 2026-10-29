@@ -238,12 +238,16 @@ Une commande à la fois, observation avant de poursuivre. **PASS :** deux roues 
 
 Roues levées, surface plane et légère manipulée hors des roues :
 
-1. Surface loin devant (> 50 cm), lancer `run_case H06 uv run voice-runtime --no-llm --text "avance pendant cinq secondes"`.
+1. Surface loin devant (> 50 cm), lancer `run_case H06-r1 uv run voice-runtime --no-llm --text "avance pendant cinq secondes"` ; utiliser `H06-r2` et `H06-r3` aux répétitions pour ne pas écraser le journal précédent.
 2. Pendant le mouvement, placer la surface à environ **10–15 cm du HC-SR04** (seuil livré : `< 20 cm`). Chronométrer introduction → arrêt physique.
 3. Retirer la surface après arrêt : le robot ne doit pas reprendre la commande. Répéter 3 fois.
 4. Relancer avec la surface déjà proche : aucun mouvement soutenu ne doit se produire ; noter toute impulsion.
 
-**PASS :** arrêt physique ≤ 1 s après présentation de l'obstacle, pas de reprise ni retry après l'arrêt de sécurité ; résultat final `aborted`, événement `obstacle_stop` si le runtime remonte ce chemin. Toute incohérence entre arrêt physique et statut est à consigner comme FAIL de contrat, pas à masquer.
+**PASS :** arrêt physique ≤ 1 s après présentation de l'obstacle, pas de reprise ni retry après l'arrêt de sécurité ; résultat final `aborted`, événement `obstacle_stop`, y compris si l'obstacle est présent avant le démarrage. Toute incohérence entre arrêt physique et statut est à consigner comme FAIL de contrat, pas à masquer.
+
+Sur une livraison antérieure au correctif H06, un obstacle apparu pendant la primitive pouvait arrêter les moteurs tout en laissant un résultat `accepted`, message « Le robot avance. ». Le motif d'interruption est désormais remonté par le contrôleur à la skill puis au runtime, sans relire un obstacle qui pourrait avoir disparu. Rejouer ces cas après récupération du correctif ; ne pas accepter les anciens résultats comme preuve.
+
+La sortie du processus doit aussi être propre : aucun `FATAL: exception not rethrown`. Le pipeline attend désormais la fin de son thread de capture et libère la caméra avant de rendre la main ; une fermeture bloquée reste un échec à investiguer, pas une réussite. Cette correction logicielle doit être confirmée sur le matériel réel.
 
 Le seuil de 1 s est un maximum de recette sur support, **pas** une distance de freinage sûre. Au sol, conserver une marge bien supérieure à la course parcourue pendant ce délai.
 

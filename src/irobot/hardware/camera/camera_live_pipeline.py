@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import threading
-import time
 
 import cv2
 
@@ -20,6 +20,8 @@ from irobot.hardware.camera.distance_estimator import (
     fuse_with_ultrasound,
 )
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
+
+logger = logging.getLogger(__name__)
 
 
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
@@ -54,7 +56,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._last_detection: ObjectDetection | None = None
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
-        self._thread = threading.Thread(target=self._capture_loop, name="camera-live-perception", daemon=True)
+        self._thread = threading.Thread(target=self._capture_loop, name="camera-live-perception", daemon=False)
         if autostart:
             self._thread.start()
 
@@ -170,8 +172,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     self._last_detection = detection
 
                 if self.poll_interval_s > 0.0:
-                    time.sleep(self.poll_interval_s)
+                    self._stop_event.wait(self.poll_interval_s)
         except Exception:
+            logger.exception("Échec de la capture caméra.")
             with self._lock:
                 self._last_detection = None
         finally:
@@ -179,7 +182,11 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 try:
                     camera.stop()
                 except Exception:
-                    pass
+                    logger.exception("Échec de l'arrêt de la caméra.")
+                try:
+                    camera.close()
+                except Exception:
+                    logger.exception("Échec de la fermeture de la caméra.")
 
     def detect(self, *, target: str | None = None) -> ObjectDetection | None:
         with self._lock:
@@ -194,7 +201,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 return None
         return dataclasses.replace(detection, distance_cm=self._fuse_distance_cm(detection))
 
-    def close(self, timeout_s: float = 0.5) -> None:
+    def close(self, timeout_s: float | None = None) -> None:
         self._stop_event.set()
         if self._thread.is_alive():
-            self._thread.join(timeout=max(0.0, float(timeout_s)))
+            self._thread.join(timeout=None if timeout_s is None else max(0.0, float(timeout_s)))
+            if self._thread.is_alive():
+                raise TimeoutError("Le thread caméra n'est pas arrêté.")

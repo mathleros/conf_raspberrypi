@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé, aucun développement engagé.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; exigences et protocole SH-02 validés, conception des protections et qualification ouvertes ; aucun développement engagé.
 
 ## 1. Besoin et décision de cadrage
 
@@ -223,6 +223,70 @@ Réutiliser les contrats, traces et helpers éprouvés, mais **ne pas activer le
 | Encodeurs/IMU | Candidats si le contrôle temporel ne tient pas les critères ; pas déclarés disponibles ni imposés sans mesure |
 | Détection de vide | Absente des capacités constatées ; exclusion physique des escaliers et rebords, sinon matériel et périmètre à revoir |
 
+### SH-02 — Inventaire réel déclaré le 2026-10-30
+
+L'utilisateur confirme que le matériel décrit dans le dépôt a été installé et testé. Cet inventaire reprend sa déclaration ; aucun nouveau test physique ni accès au Pi n'a été effectué pendant cette étude. Les essais antérieurs ne démontrent pas à eux seuls les propriétés requises pour le suivi humain.
+
+| Élément | Installation déclarée | Reste à qualifier pour le suivi humain |
+|---|---|---|
+| Calculateur et base | Raspberry Pi 5, Smart Car 2WD avec L298N, installés et testés | RAM, refroidissement, charge simultanée vision/audio/LLM, masse/gabarit et vitesse physique à relever ou mesurer |
+| Caméra | Caméra CSI à l'avant de la Smart Car, installée et testée ; centre de l'objectif à 6 cm du sol ; carte verticale, objectif regardant droit devant, axe approximativement horizontal, confirmé par l'utilisateur | Référence précise, champ vertical/horizontal après rotation de l'image, fixation et réglage éventuel, champ utile sur le marqueur porté, calibration à la résolution/orientation réelles |
+| Obstacles | HC-SR04 à l'avant, installé et testé | Position et couverture effective, obstacles bas/latéraux et volume balayé en rotation ; aucun capteur supplémentaire n'est confirmé par cet inventaire |
+| Arrêts logiciels existants | L'utilisateur confirme que les moteurs s'arrêtent déjà sur détection d'obstacle et sur commande vocale d'arrêt ; ces capacités sont présentes dans le code inspecté | Réutiliser ces mécanismes, sans les recréer ; mesurer leurs délais et distances d'arrêt dans les conditions du suivi humain et vérifier le stop pendant les annonces audio |
+| Coupure physique actuelle et cible | Précision utilisateur : déconnexion d'un fil entre la batterie et le L298N ; Pi alimenté séparément ; un interrupteur physique est prévu en cible, pas déclaré installé | Qualifier l'étendue effective de la coupure et l'interrupteur prévu : adéquation électrique, accessibilité sans approcher les roues, immobilisation et absence de redémarrage au rétablissement. Ne pas assimiler cette coupure à un arrêt d'urgence qualifié |
+| Audio | Casque Jabra Bluetooth ; micro/commandes vocales et lecture audio depuis le Pi dans le casque vérifiés séparément par l'utilisateur, pas simultanément | Qualifier le fonctionnement simultané micro/sortie, le stop pendant une annonce, la portée et la détection de perte de chaque sens audio ; la vérification séparée ne démontre pas le fonctionnement simultané |
+| Alimentation | Batterie reliée au L298N ; Pi 5 alimenté par une source distincte embarquée sur le robot, sans câble secteur, confirmé par l'utilisateur | Caractéristiques des deux alimentations à relever ; fixation et cheminement des câbles, coupure effective, comportement sur perte/rétablissement et variations de batterie à documenter |
+| Watchdog indépendant | Non confirmé | Identifier un dispositif existant ou prévoir une solution ; ne pas déduire sa présence du stop logiciel |
+
+Les arrêts sur obstacle et commande vocale sont des acquis fonctionnels, pas des fonctionnalités manquantes. La qualification complémentaire porte sur leurs limites physiques et sur les cas distincts où le logiciel, le capteur ou la liaison audio ne peut plus transmettre l'arrêt ; elle ne remet pas en cause leur existence.
+
+**Précision sur la coupure physique :** l'emplacement de la déconnexion actuelle (batterie → L298N) et l'intention d'y substituer un interrupteur sont confirmés par l'utilisateur. L'exigence d'inhibition au rétablissement est validée ci-dessous ; sa réalisation, le montage électrique définitif et l'accès à la coupure pendant le suivi restent à concevoir et qualifier. Couper la puissance n'implique pas une immobilisation instantanée ; la distance d'arrêt doit être mesurée. Un interrupteur manuel ne remplace pas un arrêt automatique sur blocage du logiciel.
+
+**Alimentations séparées confirmées :** la coupure batterie → L298N ne coupe pas, par principe, l'alimentation distincte du Pi. Le maintien effectif du calculateur et de l'audio reste à vérifier sur le montage. Cette séparation ne prouve pas que le logiciel détecte la coupure motrice : la détection et le verrouillage empêchant la réapplication d'une commande au rétablissement restent à définir. Aucun redémarrage spontané ne doit être permis.
+
+Le casque porté peut être le canal des annonces : le contrat SH-01 n'impose pas de haut-parleur sur le robot. Sa qualification doit néanmoins démontrer que l'utilisateur entend les messages tout en donnant ses commandes et que les pertes audio détectées provoquent le comportement validé.
+
+### SH-02 — Exigences cibles et preuves à fournir
+
+La validation d'une exigence ne prouve ni sa réalisation ni son fonctionnement. Les décisions suivantes complètent l'inventaire ; la qualification physique reste ouverte.
+
+| Sujet | Statut de spécification | Exigence cible | Preuve de qualification attendue |
+|---|---|---|---|
+| Rétablissement de la puissance motrice | Validé par l'utilisateur le 2026-10-30 | Toute coupure motrice termine la mission ; le rétablissement laisse les moteurs inhibés. Réarmement manuel distinct, puis nouvelle commande nécessaires pour repartir. Détection de coupure et mécanisme d'inhibition restent à concevoir ; un simple interrupteur coupure/marche ne démontre pas cette garantie | Sur banc protégé, coupure pendant une commande active puis rétablissement : aucun mouvement, aucune reprise de mission ; réarmement seul sans nouvelle commande : aucun mouvement |
+| Perte du contrôle logiciel | Validé par l'utilisateur le 2026-10-30 | Surveillance indépendante du programme de pilotage imposant l'inhibition motrice si le programme ne répond plus, si le Pi se bloque ou perd son alimentation. Mission terminée ; retour du programme sans reprise automatique, réarmement manuel puis nouvelle commande. Dispositif et délai maximal à déterminer avec le budget d'arrêt ; matériel non confirmé installé | Injection de perte du programme et de son signal de supervision sur banc protégé, vérification du cas Pi indisponible/perte d'alimentation selon protocole adapté ; délai et distance d'arrêt mesurés ; retour à la normale sans mouvement spontané |
+| Organisation et accès à la coupure | Contrainte utilisateur recueillie ; emplacement confirmé, accessibilité non qualifiée | Essais souhaités seul, à proximité du robot, avec casque Bluetooth ; interrupteur prévu sur le robot, nécessitant de s'en approcher. Aucun second opérateur confirmé. La proximité déclarée et le casque ne démontrent pas un accès sûr et suffisamment rapide à la coupure physique depuis la position de suivi ; cette limite du montage doit être résolue avant les essais mobiles avec porteur | Vérification de l'accès depuis la position réelle, sans se pencher vers les roues ni entrer dans la trajectoire, d'abord moteurs déconnectés ; essais mobiles avec porteur non autorisés tant que cet accès et les autres protections ne sont pas qualifiés |
+| Géométrie caméra et visibilité du porteur | Montage déclaré ; visibilité non qualifiée | Objectif frontal à 6 cm du sol, regard horizontal. Ne pas présumer qu'un marqueur au dos ou à la ceinture entre dans le champ ; hauteur du marqueur, inclinaison/réhausse éventuelle et fixation à déterminer avec les essais optiques SH-03 | Moteurs déconnectés : relever le champ effectif après orientation de l'image, vérifier les coins du marqueur aux distances demandables et lors de virages doux ; montage final documenté avant calibration |
+| Protection obstacle et mouvements autorisés | Validé par l'utilisateur le 2026-10-30 | Conserver le HC-SR04 frontal ; autoriser uniquement les mouvements dont tout le volume balayé est protégé dans le domaine d'essai, rotations comprises. Angle mort incompatible : restriction du trajet/mouvement ou protection complémentaire avant roulage près du porteur. La caméra de suivi n'est pas un détecteur général d'obstacles. Lecture absente, périmée ou en erreur : refus de départ ou arrêt/suspension, reprise explicite après correction. Seuil et âge maximal à déduire du budget d'arrêt, sans reprise aveugle du seuil actuel ; aucun achat imposé à ce stade | Essais avec obstacles inertes de hauteurs/positions représentatives ; couverture et angles morts cartographiés, défauts de lecture injectés, latences et freinage mesurés ; domaine et mouvements permis explicités |
+| Disponibilité audio et Jabra | Validé par l'utilisateur le 2026-10-30 | Entrée vocale et sortie audio opérationnelles avant départ ; statut Bluetooth connecté insuffisant comme preuve. Stop pris en compte pendant les annonces, sans auto-commande vocale. Perte détectée d'un sens audio : arrêt/suspension ; reconnexion puis reprise explicite avec vérifications. Si le profil/casque ne tient pas ces exigences, solution audio à revoir avant essais humains. Moyens de détection et délais à documenter, sans garantie de détection de toute panne acoustique silencieuse | Essais des deux sens simultanés, stop pendant lecture, absence d'auto-commande, perte de chaque sens et reconnexion sans mouvement spontané ; portée, intelligibilité et délais mesurés |
+| Protocole et décision Go/No-Go | Validé par l'utilisateur le 2026-10-30 | Relevés matériels, essais sans propulsion, banc protégé, cible inerte puis porteur après qualification des protections. Mesurer les maxima de réaction et distances d'arrêt sur sols, charges et états de batterie retenus, rotations comprises ; en déduire seuils obstacle, délais de surveillance et distance minimale avant essais humains. Aucun dépassement du plafond cible de 0,15 m/s ; si la base n'est pas contrôlable à cette vitesse, revoir matériel ou contrat. Aucun Go mobile humain avec l'accès actuel à la coupure non résolu | Fiche de configuration, protocole, résultats et échecs, budget d'arrêt et décision motivée ; le seuil provisoire de 0,8 m n'est pas une validation. Conception et essais requis même après validation documentaire |
+
+### SH-02 — Livrables de qualification et points restant ouverts
+
+Les exigences et l'ordre des essais sont validés. Les inconnues suivantes sont des travaux de relevé, de conception ou de qualification, pas des capacités présumées acquises.
+
+| Action restante | Livrable attendu | Critère de clôture |
+|---|---|---|
+| Relever la configuration matérielle | Référence caméra, champ/fixation, RAM/refroidissement, gabarit/masse, caractéristiques des deux alimentations embarquées, câbles et fixation | Montage identifié et reproductible ; valeurs inconnues relevées, pas inventées |
+| Concevoir la coupure, le réarmement et la surveillance indépendante | Choix des composants/dispositifs, schéma, états d'inhibition, détection de coupure, défaillances couvertes et délais | Mécanismes répondant aux exigences validées puis éprouvés sur banc ; aucun redémarrage au rétablissement ou au réarmement seul |
+| Résoudre l'accès physique en essai solo | Solution et protocole compatibles avec le porteur devant le robot | Accès sûr démontré sans rejoindre la trajectoire ou les roues ; l'interrupteur embarqué actuel n'est pas considéré suffisant sur la seule proximité déclarée |
+| Vérifier le domaine visuel sans propulsion | Champ réel et géométrie du montage ; données d'entrée pour le choix du marqueur SH-03 | Visibilité non supposée à partir de la seule présence de caméra ; choix final et calibration détaillée en SH-03 |
+| Qualifier les obstacles | Mesures de couverture/angles morts et domaine des mouvements permis | Volume balayé protégé ou restrictions/protections complémentaires définies et vérifiées |
+| Qualifier le Jabra | Résultats simultanéité, stop pendant annonce, perte/reconnexion, moyens et limites de détection | Exigences audio démontrées dans le domaine retenu, pas seulement micro et sortie testés séparément |
+| Mesurer la dynamique et fixer les seuils | Vitesses, maxima de latence, distances de freinage et budget conservateur, sur conditions retenues | Seuils et délais numériques justifiés ; plafond respecté ; toute insuffisance entraîne restriction ou révision explicite avant essai humain |
+| Statuer sur le passage aux essais | Rapport avec configuration/version, moyens de mesure, résultats bruts, maxima, échecs, restrictions et verdict | Aucun Go mobile humain tant qu'une protection obligatoire ou l'accès à la coupure reste non qualifié |
+
+Ordre validé : moteurs déconnectés pour caméra/audio ; banc protégé pour coupure, réarmement et perte de contrôle ; cible inerte pour couverture obstacle et dynamique ; porteur humain uniquement après qualification des protections. Les essais sous puissance exigent leur propre protocole protégé ; ce document n'autorise pas de manipulations improvisées.
+
+**Statut de sortie documentaire :** le cadre d'exigences et le protocole de SH-02 sont spécifiés et validés, mais la conception détaillée des protections, les relevés et les mesures ne sont pas terminés. SH-02 reste donc ouvert pour sa qualification. Les données visuelles peuvent préparer SH-03 sans propulsion ; cela ne supprime pas sa dépendance à SH-02 pour la qualification complète ni n'autorise un suivi mobile.
+
+### SH-03 — Spécification progressive sans propulsion
+
+Spécification engagée avec l'utilisateur le 2026-10-30 ; aucun code, acquisition caméra ou essai physique réalisé. SH-02 reste ouvert. Cette préparation documentaire et optique ne clôture pas la dépendance de qualification.
+
+| Sujet | Décision / statut | Suite requise |
+|---|---|---|
+| Géométrie caméra–marqueur | L'utilisateur souhaite décider après observation du champ réel, moteurs déconnectés ; ni rehausse/inclinaison caméra ni emplacement porté plus bas ne sont choisis | Relever référence caméra et champ après orientation de l'image ; observer les emplacements candidats aux distances d'usage, puis choisir et documenter le montage avant calibration |
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -252,7 +316,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes**, selon la section 4 ; la **spécification de SH-03 est engagée sans propulsion**, sans clôture de sa dépendance à SH-02 ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|

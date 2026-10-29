@@ -318,6 +318,7 @@ Le dépôt couvre plusieurs axes de test :
 
 ## Documentation
 
+- [Campagne de tests bout en bout sur Raspberry Pi après audit V6](docs/test-campaign/plan-test-pi-post-audit-v6.md) : étapes de recette physique, critères Go/No-Go et modèle de compte rendu.
 - `docs/guide-installation-llm-mac-portable.md` : installation portable du LLM sur Mac
 - `docs/guide-installation-llm-local-pi5.md` : installation locale sur Raspberry Pi
 - `PROJECT_CONTEXT.md` : contexte technique et règles de structure du dépôt

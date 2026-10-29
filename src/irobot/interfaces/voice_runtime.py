@@ -675,6 +675,28 @@ class VoiceRuntime:
                 return True
         return False
 
+    def _emergency_stop_requested(self) -> bool:
+        detector = getattr(self.robot, "is_emergency_stop_requested", None)
+        if not callable(detector):
+            return False
+        try:
+            return bool(detector())
+        except Exception:
+            return True
+
+    def _safety_stop_reason(self, step_result: dict[str, Any]) -> str | None:
+        if step_result.get("reason") == "obstacle prioritized":
+            return None
+        if self._emergency_stop_requested():
+            return "emergency stop"
+        for result in step_result.get("results") or []:
+            data = getattr(result, "data", None) or {}
+            if data.get("emergency_stop"):
+                return "emergency stop"
+            if data.get("obstacle_detected") is True:
+                return "obstacle"
+        return None
+
     def _effective_step_timeout(self, intent: Intent) -> float:
         base = float(self.settings.step_timeout_seconds)
         params = intent.parameters or {}
@@ -711,6 +733,21 @@ class VoiceRuntime:
                     "duration_seconds": round(duration, 4),
                 },
             )
+
+            safety_reason = self._safety_stop_reason(result)
+            if safety_reason is not None:
+                # Arrêt d'urgence ou obstacle : la skill s'arrête proprement, mais la mission est interrompue.
+                result["status"] = "aborted"
+                result["reason"] = safety_reason
+                self._write_trace_event(
+                    trace_path,
+                    {
+                        "event": "emergency_stop" if safety_reason == "emergency stop" else "obstacle_stop",
+                        "reason": safety_reason,
+                        "intent": self._intent_to_dict(intent),
+                    },
+                )
+                return result
 
             if duration > step_timeout:
                 result["status"] = "aborted"

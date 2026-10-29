@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 
@@ -10,8 +11,15 @@ class RobotController:
 
     CONTROL_LOOP_PERIOD_S = 0.02
 
-    def __init__(self, robot: Any):
+    def __init__(
+        self,
+        robot: Any,
+        time_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], None] = time.sleep,
+    ):
         self.robot = robot
+        self.time_fn = time_fn
+        self.sleep_fn = sleep_fn
         self._emergency_event = threading.Event()
 
     def forward(self) -> None:
@@ -109,17 +117,17 @@ class RobotController:
             self.stop()
             return
 
-        deadline = time.monotonic() + duration
+        deadline = self.time_fn() + duration
         while True:
             if self._is_emergency_stop_requested() or (check_obstacle and self.check_obstacle()):
                 self.stop()
                 return
 
-            remaining = deadline - time.monotonic()
+            remaining = deadline - self.time_fn()
             if remaining <= 0.0:
                 break
 
-            time.sleep(min(self.CONTROL_LOOP_PERIOD_S, remaining))
+            self.sleep_fn(min(self.CONTROL_LOOP_PERIOD_S, remaining))
 
         self.stop()
 

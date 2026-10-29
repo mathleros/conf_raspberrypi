@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from irobot.interfaces.text_normalizer import fr_numbers_to_digits
+
 
 @dataclass
 class Intent:
@@ -24,18 +26,53 @@ class Intent:
     raw_text: str = ""
 
 
+_DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
+_DECIMAL_MARK = "\ue000"
+
+
+def _replace_french_numbers(text: str) -> str:
+    """Nombres français en lettres -> chiffres (normaliseur partagé avec le LLM), décimales préservées.
+
+    Les conversions d'unités de `preprocess` ne sont pas appliquées : les extracteurs
+    ci-dessous gèrent déjà minutes et mètres (y compris décimaux).
+    """
+    protected = _DECIMAL_RE.sub(rf"\1{_DECIMAL_MARK}\2", text)
+    return fr_numbers_to_digits(protected).replace(_DECIMAL_MARK, ".")
+
+
+def _extract_color(text: str) -> str | None:
+    lowered = text.lower()
+    if re.search(r"\b(?:jaune|yellow)\b", lowered):
+        return "yellow"
+    if re.search(r"\b(?:rouge|red)\b", lowered):
+        return "red"
+    return None
+
+
 def _extract_duration(text: str) -> float | None:
-    """Extrait une durée en secondes depuis une phrase libre."""
+    """Extrait une durée en secondes (secondes ou minutes) depuis une phrase libre."""
+    lowered = _replace_french_numbers(text.lower())
+    total = 0.0
+    found = False
+
+    minutes = re.search(r"\b(\d+(?:[.,]\d+)?)\s*(?:minutes?|mins?)\b", lowered)
+    if minutes:
+        total += float(minutes.group(1).replace(",", ".")) * 60.0
+        found = True
+
     patterns = [
         r"(?:pendant|pour|durant)\s*(\d+(?:[.,]\d+)?)\s*(?:seconde|secondes|sec|secs|s)\b",
         r"(?:for|during)\s*(\d+(?:[.,]\d+)?)\s*(?:second|seconds|sec|secs|s)\b",
         r"\b(\d+(?:[.,]\d+)?)\s*(?:s|sec|second|seconde|seconds|secondes)\b",
     ]
     for pattern in patterns:
-        match = re.search(pattern, text.lower())
+        match = re.search(pattern, lowered)
         if match:
-            return max(0.1, float(match.group(1).replace(",", ".")))
-    return None
+            total += float(match.group(1).replace(",", "."))
+            found = True
+            break
+
+    return max(0.1, total) if found else None
 
 
 def _extract_distance(text: str) -> tuple[float, str] | None:
@@ -44,7 +81,7 @@ def _extract_distance(text: str) -> tuple[float, str] | None:
         r"\b(\d+(?:[.,]\d+)?)\s*(cm|centim[eè]tre|centim[eè]tres)\b",
         r"\b(\d+(?:[.,]\d+)?)\s*(m|m[eè]tre|m[eè]tres)\b",
     ]
-    lowered = text.lower()
+    lowered = _replace_french_numbers(text.lower())
     for pattern in patterns:
         match = re.search(pattern, lowered)
         if not match:
@@ -55,6 +92,50 @@ def _extract_distance(text: str) -> tuple[float, str] | None:
             return (max(0.1, value), "cm")
         return (max(0.01, value), "m")
     return None
+
+
+def _extract_angle(text: str) -> float | None:
+    """Extrait un angle en degrés (« de 45 degrés », « quatre vingt dix degrés »)."""
+    lowered = _replace_french_numbers(text.lower())
+    match = re.search(r"\b(\d+(?:[.,]\d+)?)\s*(?:°|degr[eé]s?|deg)(?:\b|$)", lowered)
+    if match:
+        return float(match.group(1).replace(",", "."))
+    return None
+
+
+def _motion_parameters(text: str) -> dict[str, Any]:
+    """Avance/recul : durée explicite, sinon distance, sinon 1 s par défaut."""
+    duration = _extract_duration(text)
+    if duration is not None:
+        return {"duration": duration}
+    distance = _extract_distance(text)
+    if distance is not None:
+        return {"distance": distance[0], "unit": distance[1]}
+    return {"duration": 1.0}
+
+
+def _turn_parameters(text: str) -> dict[str, Any]:
+    """Rotation : durée explicite, sinon angle, sinon 90°."""
+    duration = _extract_duration(text)
+    if duration:
+        return {"duration": duration}
+    angle = _extract_angle(text)
+    return {"angle": angle if angle is not None else 90, "unit": "degrees"}
+
+
+def _extract_stand_off_cm(text: str) -> float | None:
+    """Extrait une distance d'approche (« à 1 m », « à 50 cm ») convertie en cm."""
+    lowered = _replace_french_numbers(text.lower())
+    match = re.search(
+        r"(?:\bà|\ba|\bde|\bat)\s+(\d+(?:[.,]\d+)?)\s*(cm|centim[eè]tres?|m[eè]tres?|m)\b", lowered
+    )
+    if match:
+        value = float(match.group(1).replace(",", "."))
+        return value if match.group(2).startswith(("cm", "centim")) else value * 100.0
+    distance = _extract_distance(text)
+    if distance is None:
+        return None
+    return distance[0] if distance[1] == "cm" else distance[0] * 100.0
 
 
 def _extract_target_object(text: str) -> str | None:
@@ -124,6 +205,25 @@ class IntentParser:
         if any(token in lowered for token in ["retour au point de départ", "reviens au point de départ", "point de départ", "point de depart"]):
             return Intent(name="return_to_start", confidence=0.9, raw_text=text)
 
+        if re.search(r"\b(?:suis|suit|suivre|suivez|follow)\b", lowered):
+            color = _extract_color(lowered)
+            parameters: dict[str, Any] = {}
+            if color:
+                parameters["target_object"] = color
+            duration_s = _extract_duration(cleaned)
+            if duration_s is not None:
+                parameters["duration_s"] = duration_s
+            stand_off_cm = _extract_stand_off_cm(cleaned)
+            if stand_off_cm is not None:
+                parameters["stand_off_cm"] = stand_off_cm
+            return Intent(
+                name="follow_object",
+                target=color,
+                parameters=parameters,
+                confidence=0.88,
+                raw_text=text,
+            )
+
         if any(token in lowered for token in ["tour sur toi", "tourne sur toi", "rotation complète", "rotation complete", "360"]):
             return Intent(
                 name="spin_360",
@@ -176,6 +276,24 @@ class IntentParser:
                 raw_text=text,
             )
 
+        color = _extract_color(lowered)
+        has_approach_verb = re.search(r"\b(?:approche|approcher|rapproche|rapprocher)\b", lowered)
+        has_search_verb_local = re.search(r"\b(?:cherche|chercher|recherche|trouve|look for|find)\b", lowered)
+        if has_approach_verb or (color == "yellow" and has_search_verb_local):
+            parameters = {"search": True, "approach": True}
+            if color:
+                parameters["target_object"] = color
+            stand_off_cm = _extract_stand_off_cm(cleaned) if has_approach_verb else None
+            if stand_off_cm is not None:
+                parameters["stand_off_cm"] = stand_off_cm
+            return Intent(
+                name="search_and_approach_object",
+                target=color,
+                parameters=parameters,
+                confidence=0.87,
+                raw_text=text,
+            )
+
         if any(token in lowered for token in ["balle rouge", "rouge", "cible rouge", "red ball"]):
             return Intent(
                 name="follow_red_ball",
@@ -194,37 +312,33 @@ class IntentParser:
             )
 
         if any(token in lowered for token in ["avance", "avancer", "go forward", "forward", "move forward", "va tout droit"]):
-            duration = _extract_duration(cleaned) or 1.0
             return Intent(
                 name="move_forward",
-                parameters={"duration": duration},
+                parameters=_motion_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["recule", "reculer", "go back", "backward", "move backward", "arriere", "arrière"]):
-            duration = _extract_duration(cleaned) or 1.0
             return Intent(
                 name="move_backward",
-                parameters={"duration": duration},
+                parameters=_motion_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["gauche", "turn left", "left turn", "tourne à gauche", "tourne a gauche"]):
-            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_left",
-                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
+                parameters=_turn_parameters(cleaned),
                 confidence=0.88,
                 raw_text=text,
             )
 
         if any(token in lowered for token in ["droite", "turn right", "right turn", "tourne à droite", "tourne a droite"]):
-            duration = _extract_duration(cleaned)
             return Intent(
                 name="turn_right",
-                parameters={"duration": duration} if duration else {"angle": 90, "unit": "degrees"},
+                parameters=_turn_parameters(cleaned),
                 raw_text=text,
             )
 
@@ -238,6 +352,58 @@ class IntentParser:
 
         return Intent(name="unknown", confidence=0.0, raw_text=text)
 
+    _SEGMENT_SPLIT_RE = re.compile(r"\s*(?:(?<!\d),(?!\d)|\bet puis\b|\bpuis\b|\bensuite\b)\s*")
+    _PRONOUN_RE = re.compile(r"\b(?:la|le|l'|lui)\b|-(?:la|le|lui)\b")
+
+    def parse_plan(self, text: str) -> list[Intent]:
+        """Découpe une phrase composée en segments et retourne la liste d'intents ordonnée."""
+        segments = [seg for seg in self._SEGMENT_SPLIT_RE.split((text or "").strip()) if seg.strip()]
+        if len(segments) <= 1:
+            return [self.parse(text)]
+
+        plan: list[Intent] = []
+        last_target: str | None = None
+        last_stand_off: float | None = None
+        for segment in segments:
+            intent = self.parse(segment)
+            intent.raw_text = text
+            lowered = segment.lower()
+
+            # « cherche la balle rouge » suivi d'une approche/suivi : recherche, pas poursuite directe.
+            if intent.name == "follow_red_ball" and re.search(r"\b(?:cherche|recherche)\b", lowered):
+                intent = Intent(
+                    name="search_and_approach_object",
+                    target="red",
+                    parameters={"search": True, "approach": True, "target_object": "red"},
+                    confidence=intent.confidence,
+                    raw_text=text,
+                )
+
+            if intent.name in {"search_and_approach_object", "follow_object"}:
+                if intent.target is None and last_target and self._PRONOUN_RE.search(lowered):
+                    intent.target = last_target
+                    intent.parameters["target_object"] = last_target
+                if intent.name == "follow_object" and "stand_off_cm" not in intent.parameters and last_stand_off:
+                    intent.parameters["stand_off_cm"] = last_stand_off
+                if intent.target in {"yellow", "red"}:
+                    last_target = intent.target
+                if "stand_off_cm" in intent.parameters:
+                    last_stand_off = float(intent.parameters["stand_off_cm"])
+
+            previous = plan[-1] if plan else None
+            if (
+                previous is not None
+                and previous.name == intent.name == "search_and_approach_object"
+                and (previous.target is None or intent.target is None or previous.target == intent.target)
+            ):
+                previous.parameters.update(intent.parameters)
+                previous.target = intent.target or previous.target
+                previous.confidence = min(previous.confidence, intent.confidence)
+                continue
+            plan.append(intent)
+
+        return plan
+
 
 class IntentValidator:
     """Valide qu'une intention est cohérente et autorisée."""
@@ -246,6 +412,7 @@ class IntentValidator:
         "follow_red_ball",
         "avoid_obstacle",
         "search_and_approach_object",
+        "follow_object",
         "contour_obstacle",
         "spin_360",
         "move_square",
@@ -262,4 +429,6 @@ class IntentValidator:
             return False
         if intent.name == "follow_red_ball":
             return intent.target in {None, "red_ball"}
+        if intent.name == "follow_object":
+            return intent.target in {None, "red", "yellow"}
         return True

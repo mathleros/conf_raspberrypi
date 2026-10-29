@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 
@@ -9,8 +11,16 @@ class RobotController:
 
     CONTROL_LOOP_PERIOD_S = 0.02
 
-    def __init__(self, robot: Any):
+    def __init__(
+        self,
+        robot: Any,
+        time_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], None] = time.sleep,
+    ):
         self.robot = robot
+        self.time_fn = time_fn
+        self.sleep_fn = sleep_fn
+        self._emergency_event = threading.Event()
 
     def forward(self) -> None:
         if hasattr(self.robot, "forward"):
@@ -59,7 +69,28 @@ class RobotController:
             return bool(obstacle)
         return False
 
+    def read_distance_cm(self) -> float | None:
+        reader = getattr(self.robot, "read_distance_cm", None)
+        if not callable(reader):
+            return None
+        try:
+            return reader()
+        except Exception:
+            return None
+
+    def request_emergency_stop(self) -> None:
+        self._emergency_event.set()
+        self.stop()
+
+    def clear_emergency_stop(self) -> None:
+        self._emergency_event.clear()
+
+    def is_emergency_stop_requested(self) -> bool:
+        return self._is_emergency_stop_requested()
+
     def _is_emergency_stop_requested(self) -> bool:
+        if self._emergency_event.is_set():
+            return True
         detectors = (
             "is_emergency_stop_requested",
             "check_emergency_stop",
@@ -78,39 +109,41 @@ class RobotController:
                 return True
         return False
 
-    def _run_motion_for(self, start_motion, duration_seconds: float, check_obstacle: bool = True) -> None:
+    def _run_motion_for(self, start_motion, duration_seconds: float, check_obstacle: bool = True) -> str | None:
         duration = max(0.0, float(duration_seconds))
-        start_motion()
-
-        if duration <= 0.0:
-            self.stop()
-            return
-
-        deadline = time.monotonic() + duration
-        while True:
-            if self._is_emergency_stop_requested() or (check_obstacle and self.check_obstacle()):
-                self.stop()
+        try:
+            if self._is_emergency_stop_requested():
+                return "emergency_stop"
+            if check_obstacle and self.check_obstacle():
+                return "obstacle"
+            start_motion()
+            if duration <= 0.0:
                 return
+            deadline = self.time_fn() + duration
+            while True:
+                if self._is_emergency_stop_requested():
+                    return "emergency_stop"
+                if check_obstacle and self.check_obstacle():
+                    return "obstacle"
 
-            remaining = deadline - time.monotonic()
-            if remaining <= 0.0:
-                break
+                remaining = deadline - self.time_fn()
+                if remaining <= 0.0:
+                    return
+                self.sleep_fn(min(self.CONTROL_LOOP_PERIOD_S, remaining))
+        finally:
+            self.stop()
 
-            time.sleep(min(self.CONTROL_LOOP_PERIOD_S, remaining))
+    def forward_for(self, duration_seconds: float) -> str | None:
+        return self._run_motion_for(self.forward, duration_seconds)
 
-        self.stop()
+    def backward_for(self, duration_seconds: float) -> str | None:
+        return self._run_motion_for(self.backward, duration_seconds, check_obstacle=False)
 
-    def forward_for(self, duration_seconds: float) -> None:
-        self._run_motion_for(self.forward, duration_seconds)
+    def left_for(self, duration_seconds: float) -> str | None:
+        return self._run_motion_for(self.left, duration_seconds)
 
-    def backward_for(self, duration_seconds: float) -> None:
-        self._run_motion_for(self.backward, duration_seconds, check_obstacle=False)
-
-    def left_for(self, duration_seconds: float) -> None:
-        self._run_motion_for(self.left, duration_seconds)
-
-    def right_for(self, duration_seconds: float) -> None:
-        self._run_motion_for(self.right, duration_seconds)
+    def right_for(self, duration_seconds: float) -> str | None:
+        return self._run_motion_for(self.right, duration_seconds)
 
     def __getattr__(self, name: str):
         return getattr(self.robot, name)

@@ -1,5 +1,23 @@
 # 1. Inventaire des skills existants et des écarts
 
+## Contrat runtime livré (2026-10-29)
+
+Les sections suivantes conservent le cadrage historique ; le contrat implémenté pour la mission balle est :
+
+| Intent validé | Skills du planner | Paramètres |
+|---|---|---|
+| `search_and_approach_object` | `detect_object`, `follow_target`, `detect_obstacle`, `stop_motion` | cible `red`/`yellow`, `stand_off_cm`, `search_timeout_s` |
+| `follow_object` | `follow_object` | cible `red`/`yellow`, `stand_off_cm`, `duration_s`, `search_timeout_s` |
+| `follow_red_ball` (compatibilité) | `detect_object`, `follow_target`, `detect_obstacle`, `stop_motion` | cible `red_ball` ou absente |
+
+`follow_target` assure recherche, alignement et approche jusqu'à la distance de consigne ; `follow_object` maintient ensuite cette distance par impulsions avant/arrière et rotations, pendant la durée demandée. La perte de cible provoque un arrêt puis un balayage ; l'épuisement du budget de recherche échoue avec `target_lost=True`. Urgence/obstacle arrête la skill et le runtime classe la mission `aborted`, sans retry ni poursuite du plan.
+
+Bornes du TOML livré : `stand_off_cm` 30–300 cm (`min_stand_off_cm`/`max_stand_off_cm`), `duration_s` 1–600 s (`max_follow_duration_sec`), `search_timeout_s` 1–120 s (défaut `search_timeout_seconds=25`). La durée de suivi inclut la recherche ; tolérance de suivi par défaut 15 cm. `timeout_margin_seconds=10` intervient dans le budget d'étape avec durée explicite.
+
+La perception live estime la distance par diamètre apparent (`focal_px * ball_diameter_cm / diameter_px`) avec lissage ; `[camera]` expose `ball_diameter_cm`, `focal_px` et `ultrasonic_fusion` (désactivée par défaut). Calibration sur Pi : `uv run calibrate-distance --color yellow --known-distance-cm 100`. Aucun capteur arrière : le recul du suivi exige une zone dégagée.
+
+Le LLM ne choisit pas les commandes moteur : `Intent` -> validation/bornage -> planner/skills -> `RobotController`. Les boucles sont testées sans matériel avec `FakeRobot`, `time_fn` et `sleep_fn`.
+
 ## 1.1 Méthode d'inventaire
 
 L'inventaire a été réalisé à partir des modules du dépôt :
@@ -145,6 +163,7 @@ Elles sont simples, courtes et déterministes, et servent de briques de base pou
 Ce sont des séquences de skills primitives couplées à de la perception, par exemple :
 
 - `follow_target`
+- `follow_object` (suivi à distance constante pendant `duration_s`)
 - `align_to_target`
 - `approach_target`
 - `avoid_obstacle`

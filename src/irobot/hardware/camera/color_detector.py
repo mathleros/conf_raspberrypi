@@ -32,7 +32,11 @@ else:
 
 import cv2
 import numpy as np
-from picamera2 import Picamera2
+
+try:
+    from picamera2 import Picamera2
+except ModuleNotFoundError:  # pragma: no cover - environnements hors Raspberry Pi
+    Picamera2 = None
 
 CAMERA_INDEX = 0
 
@@ -157,12 +161,14 @@ def classify_colored_contour(contour, frame, color_name, debug=False):
     return None
 
 
-def detect_colored_objects(frame, color_name="red", debug=False):
+def detect_colored_objects(frame, color_name="red", debug=False, is_rgb=False):
     """Retourne les contours détectés pour une couleur donnée.
 
-    Chaque candidat est classé avec `kind` = "ball", "object" ou ignoré.
+    Chaque candidat est classé avec `kind` = "ball", "object" ou ignoré, et
+    expose `bbox`, `area` et `diameter_px` (diamètre du cercle de même aire,
+    invariant à la rotation de l'image).
     """
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV if is_rgb else cv2.COLOR_BGR2HSV)
     mask = build_mask_for_color(hsv, color_name)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
@@ -179,10 +185,12 @@ def detect_colored_objects(frame, color_name="red", debug=False):
             continue
 
         x, y, w, h = cv2.boundingRect(contour)
+        area = cv2.contourArea(contour)
         candidates.append({
             "kind": kind,
             "bbox": (x, y, w, h),
-            "area": cv2.contourArea(contour),
+            "area": area,
+            "diameter_px": float(np.sqrt(4.0 * area / np.pi)),
         })
 
     if debug:
@@ -234,8 +242,17 @@ def choose_best_result(candidates, color_name, frame_shape, robotic=False):
     La logique privilégie en premier lieu les balles puis les objets.
     En mode robotique, la sortie est réduite à un verdict compact.
     """
+    return choose_best_result_with_metrics(candidates, color_name, frame_shape, robotic=robotic)[0]
+
+
+def choose_best_result_with_metrics(candidates, color_name, frame_shape, robotic=False):
+    """Comme `choose_best_result`, mais retourne `(verdict, métriques)`.
+
+    Les métriques (`kind`, `bbox`, `area`, `diameter_px`) sont celles du
+    candidat retenu, ou None si rien n'a été détecté.
+    """
     if not candidates:
-        return None
+        return None, None
 
     ball_candidates = [c for c in candidates if c["kind"] == "ball"]
     if ball_candidates:
@@ -243,8 +260,8 @@ def choose_best_result(candidates, color_name, frame_shape, robotic=False):
         x, y, w, h = ball["bbox"]
         position = get_object_position(ball["bbox"], frame_shape)
         if robotic:
-            return f"BALL_{color_name.upper()}_{position}"
-        return f"RESULTAT: BALLE_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) area={ball['area']}"
+            return f"BALL_{color_name.upper()}_{position}", ball
+        return f"RESULTAT: BALLE_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) area={ball['area']}", ball
 
     object_candidates = [c for c in candidates if c["kind"] == "object"]
     if object_candidates:
@@ -252,10 +269,13 @@ def choose_best_result(candidates, color_name, frame_shape, robotic=False):
         x, y, w, h = obj["bbox"]
         position = get_object_position(obj["bbox"], frame_shape)
         if robotic:
-            return f"OBJECT_{color_name.upper()}_{position}"
-        return f"RESULTAT: OBJET_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) area={obj['area']} -> pas une balle"
+            return f"OBJECT_{color_name.upper()}_{position}", obj
+        return (
+            f"RESULTAT: OBJET_{color_name.upper()} position={position} bbox=({x},{y},{w},{h}) "
+            f"area={obj['area']} -> pas une balle"
+        ), obj
 
-    return None
+    return None, None
 
 
 def get_object_position(bbox, frame_shape):

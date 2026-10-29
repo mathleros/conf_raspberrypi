@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Any
 
+from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
+from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
 
 
-class FollowTargetSkill(Skill):
+class FollowTargetSkill(TargetTrackingMixin, Skill):
     """Behavior composite : suit une cible détectée.
 
     Ce behavior est un exemple de logique de niveau supérieur : il combine
@@ -22,84 +25,44 @@ class FollowTargetSkill(Skill):
     DEFAULT_MAX_TRACKING_S = 8.0
     DEFAULT_MAX_TARGET_LOSS_S = 1.0
     DEFAULT_APPROACH_THRESHOLD_CM = 20.0
+    DEFAULT_STAND_OFF_TOLERANCE_CM = 10.0
+    MIN_FORWARD_SCALE = 0.25
+    PHASE_SEARCH = "search"
+    PHASE_TRACK = "track"
 
-    @staticmethod
-    def _to_float(value: Any, default: float) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
+    def __init__(
+        self,
+        settings: RuntimeSettings | None = None,
+        time_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._settings = settings
+        self.time_fn = time_fn
+        self.sleep_fn = sleep_fn
 
-    @staticmethod
-    def _normalize_position(position: Any) -> str | None:
-        if position is None:
-            return None
-        normalized = str(position).strip().lower()
-        if normalized in {"center", "centre", "middle"}:
-            return "center"
-        if normalized in {"left", "right"}:
-            return normalized
-        if normalized in {"unknown", "none", ""}:
-            return None
-        return None
+    @property
+    def settings(self) -> RuntimeSettings:
+        if self._settings is None:
+            self._settings = load_runtime_settings()
+        return self._settings
 
-    def _check_obstacle_fail_safe(self, context: SkillContext) -> bool:
-        if bool(context.state.get("obstacle_detected", False)):
-            return True
+    def _resolve_stand_off_cm(self, params: dict[str, Any]) -> float:
+        raw = params.get("approach_threshold_cm")
+        if raw is None:
+            raw = params.get("stand_off_cm")
+        if raw is None:
+            return self.DEFAULT_APPROACH_THRESHOLD_CM
+        value = self._to_float(raw, self.DEFAULT_APPROACH_THRESHOLD_CM)
+        low = float(self.settings.min_stand_off_cm)
+        high = float(self.settings.max_stand_off_cm)
+        return min(max(value, low), high)
 
-        checker = getattr(context.robot, "check_obstacle", None)
-        if checker is None:
-            return False
-
-        try:
-            reading = checker()
-        except Exception:
-            return True
-
-        if reading is None:
-            return True
-        return bool(reading)
-
-    def _stop_robot(self, context: SkillContext) -> None:
-        stop = getattr(context.robot, "stop", None)
-        if callable(stop):
-            stop()
-
-    def _pulse_motion(self, context: SkillContext, direction: str, duration_s: float) -> None:
-        duration = max(0.0, float(duration_s))
-        directional_for = getattr(context.robot, f"{direction}_for", None)
-        if callable(directional_for):
-            directional_for(duration)
-            return
-
-        directional = getattr(context.robot, direction, None)
-        if callable(directional):
-            directional()
-            if duration > 0.0:
-                time.sleep(duration)
-
-    def _detect_target(self, context: SkillContext) -> tuple[str | None, float | None]:
-        params = dict(context.state.get("active_intent_parameters") or {})
-        target_object = params.get("target_object") or context.state.get("target_object")
-        detector = getattr(context.perception, "detect", None)
-
-        if callable(detector):
-            detection = detector(target=target_object)
-            if detection is not None:
-                context.state["target_object"] = getattr(detection, "label", target_object) or target_object
-                context.state["last_object_position"] = getattr(detection, "position", None)
-                context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
-
-        raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")
-        position = self._normalize_position(raw_position)
-
-        distance_raw = context.state.get("last_object_distance_cm")
-        distance_cm: float | None
-        try:
-            distance_cm = float(distance_raw) if distance_raw is not None else None
-        except (TypeError, ValueError):
-            distance_cm = None
-        return position, distance_cm
+    def _forward_step(self, base_step_s: float, distance_cm: float | None, stand_off_cm: float) -> float:
+        # Impulsions raccourcies à l'approche pour ne pas dépasser le stand-off.
+        if distance_cm is None or stand_off_cm <= 0.0 or distance_cm >= 2.0 * stand_off_cm:
+            return base_step_s
+        ratio = (distance_cm - stand_off_cm) / stand_off_cm
+        return base_step_s * min(1.0, max(self.MIN_FORWARD_SCALE, ratio))
 
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
@@ -120,10 +83,16 @@ class FollowTargetSkill(Skill):
             max_target_loss_s = self._to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S)
             align_step_s = self._to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
             forward_step_s = self._to_float(params.get("forward_step_s"), self.DEFAULT_FORWARD_STEP_S)
-            approach_threshold_cm = self._to_float(
-                params.get("approach_threshold_cm"),
-                self.DEFAULT_APPROACH_THRESHOLD_CM,
+            search_timeout_s = self._to_float(
+                params.get("search_timeout_s"),
+                float(self.settings.search_timeout_seconds),
             )
+            stand_off_cm = self._resolve_stand_off_cm(params)
+            tolerance_cm = max(
+                0.0,
+                self._to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_STAND_OFF_TOLERANCE_CM),
+            )
+            reached_threshold_cm = max(1.0, stand_off_cm + tolerance_cm)
             has_live_perception = callable(getattr(context.perception, "detect", None))
 
             if not has_live_perception:
@@ -140,7 +109,7 @@ class FollowTargetSkill(Skill):
                     )
 
                 target_position, distance_cm = self._detect_target(context)
-                if distance_cm is not None and distance_cm <= max(1.0, approach_threshold_cm):
+                if distance_cm is not None and distance_cm <= reached_threshold_cm:
                     self._stop_robot(context)
                     context.state["motion"] = "stop"
                     context.state["close_enough"] = True
@@ -216,12 +185,37 @@ class FollowTargetSkill(Skill):
                     next_action="detect_object",
                 )
 
-            tracking_started_at = time.monotonic()
-            last_seen_at = tracking_started_at
+            now = self.time_fn
+            tracking_started_at = now()
+            phase = self.PHASE_SEARCH
+            phase_since = tracking_started_at
+            search_spent_s = 0.0
+            last_seen_at: float | None = None
+            sweep_direction = "right"
             iterations = 0
 
-            while (time.monotonic() - tracking_started_at) <= max(0.1, max_tracking_s):
+            while True:
+                searching_s = (now() - phase_since) if phase == self.PHASE_SEARCH else 0.0
+                if (now() - tracking_started_at - search_spent_s - searching_s) > max(0.1, max_tracking_s):
+                    break
                 iterations += 1
+
+                # Même convention que follow_object : arrêt d'urgence = "success" + data["emergency_stop"].
+                if self._is_emergency_stop_requested(context):
+                    self._stop_robot(context)
+                    context.state["motion"] = "stop"
+                    context.state["follow_target_state"] = {
+                        "phase": "blocked",
+                        "iterations": iterations,
+                        "reason": "emergency_stop",
+                    }
+                    return SkillResult(
+                        status="success",
+                        message="Arrêt d'urgence demandé pendant le suivi.",
+                        data={"emergency_stop": True, "iterations": iterations},
+                        confidence=0.99,
+                        next_action="stop_motion",
+                    )
 
                 if self._check_obstacle_fail_safe(context):
                     self._stop_robot(context)
@@ -240,86 +234,90 @@ class FollowTargetSkill(Skill):
                     )
 
                 target_position, distance_cm = self._detect_target(context)
+                current = now()
+
                 if target_position is not None:
-                    last_seen_at = time.monotonic()
+                    if phase == self.PHASE_SEARCH:
+                        search_spent_s += current - phase_since
+                        phase = self.PHASE_TRACK
+                    last_seen_at = current
+                    if target_position in {"left", "right"}:
+                        sweep_direction = target_position
 
-                if distance_cm is not None and distance_cm <= max(1.0, approach_threshold_cm):
-                    self._stop_robot(context)
-                    context.state["motion"] = "stop"
-                    context.state["close_enough"] = True
-                    context.state["follow_target_state"] = {
-                        "phase": "target_reached",
-                        "iterations": iterations,
-                        "distance_cm": distance_cm,
-                    }
-                    return SkillResult(
-                        status="success",
-                        message=f"Cible atteinte à {distance_cm:.1f} cm.",
-                        data={
-                            "target_position": target_position,
-                            "distance_cm": distance_cm,
-                            "close_enough": True,
-                        },
-                        confidence=0.95,
-                        next_action="stop_motion",
-                    )
-
-                if target_position is None:
-                    if (time.monotonic() - last_seen_at) >= max(0.1, max_target_loss_s):
+                    if distance_cm is not None and distance_cm <= reached_threshold_cm:
                         self._stop_robot(context)
-                        context.state["motion"] = "search_target"
+                        context.state["motion"] = "stop"
+                        context.state["close_enough"] = True
                         context.state["follow_target_state"] = {
-                            "phase": "lost_target",
+                            "phase": "target_reached",
                             "iterations": iterations,
-                            "lost_for_s": round(time.monotonic() - last_seen_at, 3),
+                            "distance_cm": distance_cm,
                         }
                         return SkillResult(
-                            status="failed",
-                            message="Perte prolongée de la cible : arrêt du suivi.",
-                            data={"target_position": None, "obstacle_detected": False, "target_lost": True},
-                            confidence=0.1,
+                            status="success",
+                            message=f"Cible atteinte à {distance_cm:.1f} cm.",
+                            data={
+                                "target_position": target_position,
+                                "distance_cm": distance_cm,
+                                "close_enough": True,
+                            },
+                            confidence=0.95,
                             next_action="stop_motion",
                         )
 
-                    self._pulse_motion(context, "right", align_step_s)
+                    if target_position in {"left", "right"}:
+                        self._pulse_motion(context, target_position, align_step_s)
+                        context.state["motion"] = f"align_{target_position}"
+                        context.state["follow_target_state"] = {
+                            "phase": "aligning",
+                            "direction": target_position,
+                            "iterations": iterations,
+                        }
+                    else:
+                        step_s = self._forward_step(forward_step_s, distance_cm, stand_off_cm)
+                        self._pulse_motion(context, "forward", step_s)
+                        context.state["motion"] = "follow_target"
+                        context.state["follow_target_state"] = {
+                            "phase": "approaching",
+                            "iterations": iterations,
+                            "distance_cm": distance_cm,
+                        }
+                    self.sleep_fn(self.CONTROL_LOOP_PERIOD_S)
+                    continue
+
+                # Cible non visible
+                if phase == self.PHASE_TRACK:
+                    lost_for_s = current - (last_seen_at if last_seen_at is not None else current)
+                    if lost_for_s < max(0.1, max_target_loss_s):
+                        self._stop_robot(context)
+                        context.state["motion"] = "search_target"
+                        context.state["follow_target_state"] = {
+                            "phase": "target_lost_grace",
+                            "iterations": iterations,
+                            "lost_for_s": round(lost_for_s, 3),
+                        }
+                        self.sleep_fn(self.CONTROL_LOOP_PERIOD_S)
+                        continue
+                    phase = self.PHASE_SEARCH
+                    phase_since = current
+
+                if (current - phase_since) >= max(0.1, search_timeout_s):
+                    self._stop_robot(context)
                     context.state["motion"] = "search_target"
                     context.state["follow_target_state"] = {
-                        "phase": "searching",
+                        "phase": "lost_target",
                         "iterations": iterations,
+                        "searched_for_s": round(current - phase_since, 3),
                     }
-                    time.sleep(self.CONTROL_LOOP_PERIOD_S)
-                    continue
+                    return SkillResult(
+                        status="failed",
+                        message="Cible introuvable : recherche épuisée, arrêt.",
+                        data={"target_position": None, "obstacle_detected": False, "target_lost": True},
+                        confidence=0.1,
+                        next_action="stop_motion",
+                    )
 
-                if target_position == "left":
-                    self._pulse_motion(context, "left", align_step_s)
-                    context.state["motion"] = "align_left"
-                    context.state["follow_target_state"] = {
-                        "phase": "aligning",
-                        "direction": "left",
-                        "iterations": iterations,
-                    }
-                    time.sleep(self.CONTROL_LOOP_PERIOD_S)
-                    continue
-
-                if target_position == "right":
-                    self._pulse_motion(context, "right", align_step_s)
-                    context.state["motion"] = "align_right"
-                    context.state["follow_target_state"] = {
-                        "phase": "aligning",
-                        "direction": "right",
-                        "iterations": iterations,
-                    }
-                    time.sleep(self.CONTROL_LOOP_PERIOD_S)
-                    continue
-
-                self._pulse_motion(context, "forward", forward_step_s)
-                context.state["motion"] = "follow_target"
-                context.state["follow_target_state"] = {
-                    "phase": "approaching",
-                    "iterations": iterations,
-                    "distance_cm": distance_cm,
-                }
-                time.sleep(self.CONTROL_LOOP_PERIOD_S)
+                self._sweep_step(context, sweep_direction, align_step_s, iterations)
 
             self._stop_robot(context)
             context.state["follow_target_state"] = {

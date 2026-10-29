@@ -11,6 +11,9 @@ Les scénarios cibles incluent notamment :
 - "fait un rond"
 - "avance jusqu'à l'objet rouge puis tourne à gauche"
 - "évite les obstacles et suit la cible"
+- "cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min"
+
+Le contrat livré pour ce dernier scénario est `search_and_approach_object` puis `follow_object` (`target="yellow"`, `stand_off_cm=100`, `duration_s=300`, `search_timeout_s` optionnel). Voir [l'inventaire à jour](01_skills_inventory.md#contrat-runtime-livré-2026-10-29) pour les skills, limites, estimation de distance et arrêts de sécurité. Les descriptions de phases de transition ci-dessous sont le cadrage historique, pas des fonctionnalités encore à implémenter.
 
 ## Livrables du cadrage
 
@@ -73,6 +76,7 @@ Le cadrage a été ajusté pour aligner la hiérarchie des skills sur le besoin 
 
 #### C. Behaviors composites
 - `follow_target`
+- `follow_object`
 - `align_to_target`
 - `approach_target`
 - `move_circle`

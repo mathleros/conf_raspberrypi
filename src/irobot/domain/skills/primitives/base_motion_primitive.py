@@ -7,6 +7,16 @@ from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
 SETTINGS = load_runtime_settings()
 
+_METER_UNITS = {"m", "meter", "meters", "metre", "metres", "mètre", "mètres"}
+
+
+def normalize_distance_unit(unit: Any) -> str:
+    """Ramène une unité libre à "m" ou "cm" (inconnue -> "cm")."""
+    text = str(unit if unit is not None else "cm").strip().lower()
+    if text in _METER_UNITS:
+        return "m"
+    return "cm"
+
 
 class BaseMotionPrimitiveSkill(Skill):
     """Classe de base factorisée pour les primitives de mouvement."""
@@ -46,22 +56,25 @@ class BaseMotionPrimitiveSkill(Skill):
             }
 
         distance = params.get("distance", params.get("side"))
-        unit = str(params.get("unit", "cm")) if distance is not None else None
+        unit = normalize_distance_unit(params.get("unit")) if distance is not None else None
         distance_value = self._to_float(distance)
         duration_value = self._to_float(params.get("duration"))
         if duration_value is None and distance_value is not None:
             distance_cm = distance_value * 100.0 if unit == "m" else distance_value
-            duration_value = max(0.1, distance_cm / SETTINGS.cm_per_second)
+            speed = SETTINGS.cm_per_second
+            if self.motion == "backward" and SETTINGS.backward_cm_per_second is not None:
+                speed = SETTINGS.backward_cm_per_second
+            duration_value = max(0.1, distance_cm / speed)
         return {
             "distance": distance_value,
             "unit": unit,
             "duration": duration_value,
         }
 
-    def _execute_motion(self, context: SkillContext, duration_value: float | None) -> bool:
+    def _execute_motion(self, context: SkillContext, duration_value: float | None) -> tuple[bool, str | None]:
         command = getattr(context.robot, self.command_method, None)
         if not callable(command):
-            return False
+            return False, None
 
         command_for = getattr(context.robot, self.command_for_method, None)
         previous_speed = getattr(context.robot, "speed", None)
@@ -69,28 +82,47 @@ class BaseMotionPrimitiveSkill(Skill):
         use_turn_speed = self.parameter_mode == "angle" and callable(set_speed)
         if use_turn_speed:
             set_speed(SETTINGS.turn_speed)
+        stop_reason = None
         try:
             if duration_value is not None and callable(command_for):
-                command_for(duration_value)
+                outcome = command_for(duration_value)
+                if isinstance(outcome, str) and outcome in {"obstacle", "emergency_stop"}:
+                    stop_reason = outcome
             else:
                 command()
         finally:
             if use_turn_speed and previous_speed is not None and duration_value is not None:
                 set_speed(previous_speed)
-        return True
+        return True, stop_reason
 
     def execute(self, context: SkillContext) -> SkillResult:
         try:
             payload = self._resolve_motion_parameters(context)
             duration_value = self._to_float(payload.get("duration"))
 
-            if not self._execute_motion(context, duration_value):
+            executed, stop_reason = self._execute_motion(context, duration_value)
+            if not executed:
                 return SkillResult(
                     status="failed",
                     message=self.failure_message,
                     data={"skill": self.name},
                     confidence=0.0,
                     next_action=None,
+                )
+
+            if stop_reason is not None:
+                context.state["motion"] = "stop"
+                return SkillResult(
+                    status="success",
+                    message="Mouvement interrompu par un arrêt de sécurité.",
+                    data={
+                        **payload,
+                        "motion": "stop",
+                        "obstacle_detected": stop_reason == "obstacle",
+                        "emergency_stop": stop_reason == "emergency_stop",
+                    },
+                    confidence=1.0,
+                    next_action="stop_motion",
                 )
 
             context.state["motion"] = self.motion

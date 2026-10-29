@@ -12,10 +12,12 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 
@@ -26,52 +28,73 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - macOS/tests
     vosk = None
 
-from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.config.settings import RuntimeSettings, load_llm_settings, load_runtime_settings
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
+from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
+from irobot.interfaces.plan_guards import build_formats, grounding_check, is_pure_stop
+from irobot.interfaces.text_normalizer import preprocess
 
 RATE = 16000
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen2.5-1.5b")
-LLM_CONNECT_TIMEOUT_SECONDS = 1.0
-LLM_READ_TIMEOUT_SECONDS = float(os.environ.get("LLM_READ_TIMEOUT_SECONDS", "60.0"))
+# Valeurs lues au démarrage (informatif) ; chaque appel relit l'environnement via load_llm_settings().
+_LLM_SETTINGS_AT_IMPORT = load_llm_settings()
+LLM_MODEL = _LLM_SETTINGS_AT_IMPORT.model
+LLM_CONNECT_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.connect_timeout_seconds
+LLM_READ_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.read_timeout_seconds
 LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
+LLM_WARMUP_READ_TIMEOUT_SECONDS = 120.0
+# Attente max du préchauffage en mode une seule commande (--once / --text), surchargeable par env.
+LLM_WARMUP_WAIT_SECONDS = 60.0
+# LLM_RESPONSE_FORMAT : schema (chaîne de repli 8b) | json_object | none.
+LLM_RESPONSE_FORMAT_MODES = ("schema", "json_object", "none")
+LLM_DEFAULT_CONFIDENCE = 0.8
 RUNTIME_SETTINGS: RuntimeSettings = load_runtime_settings()
 MAX_PLAN_STEPS = RUNTIME_SETTINGS.max_plan_steps
 MAX_DISTANCE_CM = RUNTIME_SETTINGS.max_distance_cm
 MAX_ANGLE_DEG = RUNTIME_SETTINGS.max_angle_deg
 MAX_DURATION_SEC = RUNTIME_SETTINGS.max_duration_sec
-SYSTEM_PROMPT = (
-    "Tu es un interprète de commande robotique. "
-    "Réponds UNIQUEMENT en JSON valide avec les clés suivantes : "
-    "intent, target, parameters, confidence. "
-    "Les intents autorisées sont : follow_red_ball, search_and_approach_object, avoid_obstacle, "
-    "move_forward, move_backward, turn_left, turn_right, stop."
-)
+# Prompts courts et statiques (préfixe identique à chaque appel -> cache de prompt de llama-server).
+# L'entrée utilisateur est déjà normalisée par text_normalizer.preprocess.
+SYSTEM_PROMPT = """Tu convertis une consigne vocale pour un robot en JSON strict, sans aucun texte autour.
+Format : {"intent":"...","target":null,"parameters":{},"confidence":0.9}
+Intents :
+- move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
+- turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
+- stop
+- search_and_approach_object : target "red" ou "yellow", parameters {"stand_off_cm":cm}
+- follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
+- follow_red_ball : target "red_ball"
+- avoid_obstacle, spin_360, return_to_start
+- move_square : parameters {"side":cm}
+Règles : une seule action. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"intent":"unknown","target":null,"parameters":{},"confidence":0}.
+Exemple :
+« avance de 50 centimètres » -> {"intent":"move_forward","target":null,"parameters":{"distance":50},"confidence":0.9}"""
 
-SYSTEM_PROMPT_PLAN = (
-    "Tu es un planificateur de commandes robotiques. "
-    "Tu reçois une instruction potentiellement composée. "
-    "Réponds UNIQUEMENT en JSON valide au format: "
-    "{\"steps\": [{\"intent\": str, \"target\": str|null, \"parameters\": object, \"confidence\": float}]}. "
-    "Découpe la consigne en étapes atomiques ordonnées. "
-    "Tu peux utiliser: "
-    "(a) des intents atomiques (follow_red_ball, search_and_approach_object, avoid_obstacle, move_forward, move_backward, turn_left, turn_right, stop, return_to_start), "
-    "ou (b) un intent execute_path avec parameters.steps=[{action, distance?, unit?, angle?, duration?}] "
-    "où action est uniquement dans {move_forward, move_backward, turn_left, turn_right, stop}. "
-    "Si la consigne contient un retour au point de départ, utilise explicitement return_to_start. "
-    "Pour une figure ou un motif (cercle, carré, zigzag, slalom...), approxime-le avec execute_path. "
-    "Exemple zigzag: {\"steps\": [{\"intent\": \"execute_path\", \"target\": null, \"parameters\": {\"steps\": ["
-    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}, {\"action\": \"turn_left\", \"angle\": 45}, "
-    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}, {\"action\": \"turn_right\", \"angle\": 90}, "
-    "{\"action\": \"move_forward\", \"distance\": 30, \"unit\": \"cm\"}]}, \"confidence\": 0.9}]}. "
-    "Un cercle s'approxime par de petites avances suivies de rotations de 45 degrés."
-)
+SYSTEM_PROMPT_PLAN = """Tu convertis une consigne vocale pour un robot en JSON strict, sans aucun texte autour.
+Format : {"steps":[{"intent":"...","target":null,"parameters":{}}]}
+Intents :
+- move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
+- turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
+- stop
+- search_and_approach_object : target "red" ou "yellow", parameters {"stand_off_cm":cm}
+- follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
+- follow_red_ball : target "red_ball"
+- avoid_obstacle, spin_360, return_to_start
+- move_square : parameters {"side":cm}
+Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
+Exemples :
+« cherche la balle jaune approche toi à 100 centimètres de la balle jaune puis suis la pendant 300 secondes » -> {"steps":[{"intent":"search_and_approach_object","target":"yellow","parameters":{"stand_off_cm":100}},{"intent":"follow_object","target":"yellow","parameters":{"stand_off_cm":100,"duration_s":300}}]}
+« avance de 50 centimètres puis tourne à gauche de 45 degrés » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"distance":50}},{"intent":"turn_left","target":null,"parameters":{"angle":45}}]}
+« avance » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"duration":1}}]}
+« suis la balle rouge » -> {"steps":[{"intent":"follow_red_ball","target":"red_ball","parameters":{}}]}
+« fais un salto arrière » -> {"steps":[]}"""
 
 
 @contextmanager
@@ -148,120 +171,393 @@ def _parse_llm_json_payload(content: str) -> dict[str, Any] | None:
     return None
 
 
+def _llm_payload(system_prompt: str, user_text: str, max_tokens: int, model: str) -> dict[str, Any]:
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text},
+        ],
+        "temperature": 0.0,
+        "max_tokens": max_tokens,
+        "stream": False,
+        "cache_prompt": True,
+    }
+
+
+class ResponseFormatChain:
+    """`response_format` essayés dans l'ordre (None = sans) ; le premier accepté est mémorisé."""
+
+    def __init__(self, formats: list[dict[str, Any] | None]):
+        self.formats = list(formats)
+        self._start = 0
+
+    def candidates(self) -> list[tuple[int, dict[str, Any] | None]]:
+        return list(enumerate(self.formats))[self._start:]
+
+    def accept(self, index: int) -> None:
+        self._start = index
+
+    def reset(self) -> None:
+        self._start = 0
+
+
+# Plan : json_schema strict -> json_object + schema -> json_object -> sans (selon la version de llama-server).
+PLAN_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, True))
+INTENT_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, False))
+
+
+def reset_response_format_cache() -> None:
+    PLAN_RESPONSE_FORMATS.reset()
+    INTENT_RESPONSE_FORMATS.reset()
+
+
+def llm_response_format_mode(environ: Any = None) -> str:
+    """Lit LLM_RESPONSE_FORMAT (schema | json_object | none) ; valeur absente ou inconnue -> schema."""
+    env = os.environ if environ is None else environ
+    mode = (env.get("LLM_RESPONSE_FORMAT") or "").strip().lower()
+    return mode if mode in LLM_RESPONSE_FORMAT_MODES else "schema"
+
+
+def _select_formats(schema_chain: ResponseFormatChain) -> ResponseFormatChain:
+    mode = llm_response_format_mode()
+    if mode == "json_object":
+        return ResponseFormatChain([{"type": "json_object"}])
+    if mode == "none":
+        return ResponseFormatChain([None])
+    return schema_chain
+
+
+def _response_format_kind(fmt: dict[str, Any] | None) -> str:
+    """json_schema | json_object_schema | json_object | none."""
+    if fmt is None:
+        return "none"
+    kind = str(fmt.get("type"))
+    if kind == "json_object" and "schema" in fmt:
+        return "json_object_schema"
+    return kind
+
+
+def llm_warmup_wait_seconds(environ: Any = None) -> float:
+    """Lit LLM_WARMUP_WAIT_SECONDS (>= 0) ; valeur absente ou invalide -> 60 s."""
+    env = os.environ if environ is None else environ
+    try:
+        value = float(env["LLM_WARMUP_WAIT_SECONDS"])
+    except (KeyError, TypeError, ValueError):
+        return LLM_WARMUP_WAIT_SECONDS
+    return value if math.isfinite(value) and value >= 0 else LLM_WARMUP_WAIT_SECONDS
+
+
+def _post_llm_chat(
+    payload: dict[str, Any],
+    timeout: tuple[float, float],
+    formats: ResponseFormatChain,
+    meta: dict[str, Any] | None = None,
+) -> str:
+    """Appel non streamé ; format suivant sur HTTP 400 ; retourne le contenu texte de la réponse.
+
+    `meta` (optionnel) reçoit la durée réelle, le nombre de requêtes, le format utilisé et
+    `usage`/`timings` de llama-server, y compris quand l'appel échoue.
+    """
+    meta = {} if meta is None else meta
+    meta.update(
+        llm_latency_seconds=None,
+        llm_response_format=None,
+        llm_attempts=0,
+        llm_prompt_tokens=None,
+        llm_completion_tokens=None,
+        llm_timings=None,
+    )
+    started = time.monotonic()
+    try:
+        candidates = formats.candidates()
+        response = None
+        index = 0
+        for position, (index, fmt) in enumerate(candidates):
+            body = dict(payload)
+            if fmt is not None:
+                body["response_format"] = fmt
+            meta["llm_attempts"] += 1
+            meta["llm_response_format"] = _response_format_kind(fmt)
+            response = requests.post(LLM_URL, json=body, timeout=timeout)
+            if getattr(response, "status_code", 200) == 400 and position < len(candidates) - 1:
+                continue
+            break
+        response.raise_for_status()
+        formats.accept(index)
+        data = response.json()
+        usage = data.get("usage") if isinstance(data, dict) else None
+        if isinstance(usage, dict):
+            meta["llm_prompt_tokens"] = usage.get("prompt_tokens")
+            meta["llm_completion_tokens"] = usage.get("completion_tokens")
+        timings = data.get("timings") if isinstance(data, dict) else None
+        if isinstance(timings, dict):
+            meta["llm_timings"] = dict(timings)
+        return str(data["choices"][0]["message"]["content"]).strip()
+    finally:
+        meta["llm_latency_seconds"] = round(time.monotonic() - started, 3)
+
+
+def _llm_error_reason(exc: Exception, read_timeout: float) -> str:
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return "serveur LLM injoignable"
+    if isinstance(exc, requests.exceptions.Timeout):
+        return f"LLM trop lent (> {read_timeout:g}s)"
+    if isinstance(exc, requests.exceptions.HTTPError):
+        return f"erreur HTTP du serveur LLM ({exc})"
+    return f"erreur LLM ({type(exc).__name__}: {exc})"
+
+
+def _llm_confidence(value: Any) -> float:
+    if value is None or isinstance(value, bool):
+        return LLM_DEFAULT_CONFIDENCE
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return LLM_DEFAULT_CONFIDENCE
+    if not math.isfinite(confidence):
+        return LLM_DEFAULT_CONFIDENCE
+    return max(0.0, min(1.0, confidence))
+
+
+def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
+    """Reconstruit un Intent depuis un objet JSON du LLM ; None si l'objet est malformé."""
+    if not isinstance(step, dict):
+        return None
+    parameters = step.get("parameters")
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        return None
+    target = step.get("target")
+    return Intent(
+        name=str(step.get("intent") or step.get("name") or "unknown").strip(),
+        target=str(target) if target is not None else None,
+        parameters=dict(parameters),
+        confidence=_llm_confidence(step.get("confidence")),
+        raw_text=raw_text,
+    )
+
+
 def ask_llm_for_intent(text: str) -> Intent:
     """Demande un JSON de type Intent au LLM local, puis reconstruit l'objet Intent."""
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 256,
-        "stream": False,
-    }
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
     try:
-        response = requests.post(LLM_URL, json=payload, timeout=LLM_HTTP_TIMEOUT)
-        response.raise_for_status()
-        data = response.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        parsed = _parse_llm_json_payload(content)
-        if not parsed:
-            return IntentParser().parse(text)
-
-        intent_name = str(parsed.get("intent") or parsed.get("name") or "unknown").strip()
-        target = parsed.get("target")
-        parameters = parsed.get("parameters") or {}
-        confidence = float(parsed.get("confidence") or 0.0)
-        return Intent(
-            name=intent_name,
-            target=str(target) if target is not None else None,
-            parameters=dict(parameters),
-            confidence=max(0.0, min(1.0, confidence)),
-            raw_text=text,
+        content = _post_llm_chat(
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(INTENT_RESPONSE_FORMATS),
         )
+        parsed = _parse_llm_json_payload(content)
+        intent = _intent_from_llm_step(parsed, text) if parsed else None
+        return intent if intent is not None else IntentParser().parse(text)
     except Exception:
         return IntentParser().parse(text)
 
 
-def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
-    """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace."""
-    local_fallback = IntentParser().parse(text)
-
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT_PLAN},
-            {"role": "user", "content": text},
-        ],
-        "temperature": 0.1,
-        "max_tokens": 512,
-        "stream": False,
+def _normalize_llm_step(step: Any) -> dict[str, Any] | None:
+    """Étape LLM tolérante (target absent -> None, parameters absent -> {}) ; None si malformée."""
+    if not isinstance(step, dict):
+        return None
+    parameters = step.get("parameters")
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        return None
+    name = str(step.get("intent") or step.get("name") or "unknown").strip().lower()
+    return {
+        **step,
+        "intent": PLAN_INTENT_SYNONYMS.get(name, name),
+        "target": step.get("target"),
+        "parameters": dict(parameters),
     }
-    try:
-        response = requests.post(LLM_URL, json=payload, timeout=LLM_HTTP_TIMEOUT)
-        response.raise_for_status()
-        data = response.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        parsed = _parse_llm_json_payload(content)
-        if not parsed:
-            return [local_fallback], {
-                "source": "local_parser_fast_fallback",
-                "llm_content": content,
-                "llm_json": None,
-            }
 
-        raw_steps = parsed.get("steps")
-        if not isinstance(raw_steps, list) or not raw_steps:
-            return [local_fallback], {
-                "source": "local_parser_fast_fallback",
-                "llm_content": content,
-                "llm_json": parsed,
-            }
 
-        intents: list[Intent] = []
-        for step in raw_steps:
-            if not isinstance(step, dict):
-                continue
-            intent_name = str(step.get("intent") or step.get("name") or "unknown").strip()
-            target = step.get("target")
-            parameters = step.get("parameters") or {}
-            confidence = float(step.get("confidence") or 0.0)
-            intents.append(
-                Intent(
-                    name=intent_name,
-                    target=str(target) if target is not None else None,
-                    parameters=dict(parameters),
-                    confidence=max(0.0, min(1.0, confidence)),
-                    raw_text=text,
-                )
-            )
+def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
+    """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace.
 
-        if not intents:
-            return [local_fallback], {
-                "source": "local_parser_fast_fallback",
-                "llm_content": content,
-                "llm_json": parsed,
-            }
+    - JSON valide avec `steps: []` -> ([], source "llm_unsupported") : commande hors périmètre ;
+    - plan non justifié par la phrase prétraitée (`grounding_check`) -> ([], source "llm_ungrounded") ;
+    - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
+      -> repli sur IntentParser (texte d'origine).
+    """
+    normalized_text = preprocess(text)
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
+    meta: dict[str, Any] = {}
 
-        return intents, {
-            "source": "llm_plan",
-            "llm_content": content,
-            "llm_json": parsed,
-        }
-    except Exception as exc:
-        return [local_fallback], {
+    def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
+        print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
+        return IntentParser().parse_plan(text), {
             "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
-            "error": f"{type(exc).__name__}: {exc}",
+            "normalized_text": normalized_text,
+            **meta,
+            **trace,
         }
+
+    try:
+        content = _post_llm_chat(
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(PLAN_RESPONSE_FORMATS),
+            meta,
+        )
+    except Exception as exc:
+        return _fallback(
+            _llm_error_reason(exc, settings.read_timeout_seconds),
+            error=f"{type(exc).__name__}: {exc}",
+            error_type=type(exc).__name__,
+        )
+
+    parsed = _parse_llm_json_payload(content)
+    if not parsed:
+        return _fallback("JSON invalide", llm_content=content, reason="invalid json")
+
+    raw_steps = parsed.get("steps")
+    if not isinstance(raw_steps, list):
+        return _fallback("réponse sans « steps »", llm_content=content, llm_json=parsed, reason="missing steps")
+
+    trace: dict[str, Any] = {"llm_content": content, "llm_json": parsed, "normalized_text": normalized_text, **meta}
+    if not raw_steps:
+        return [], {"source": "llm_unsupported", **trace}
+
+    steps: list[dict[str, Any]] = []
+    skipped: list[int] = []
+    for index, step in enumerate(raw_steps):
+        normalized_step = _normalize_llm_step(step)
+        if normalized_step is None:
+            skipped.append(index)
+            continue
+        steps.append(normalized_step)
+
+    if not steps:
+        return _fallback(
+            "aucune étape exploitable", llm_content=content, llm_json=parsed, reason="no usable step",
+            skipped_steps=skipped,
+        )
+
+    # Le LLM propose, le lexique dispose : contrôle sur le texte réellement envoyé au LLM.
+    kept, guard_reason, guard_notes = grounding_check(normalized_text, steps)
+    trace["guard_notes"] = guard_notes
+    trace["skipped_steps"] = skipped
+    if guard_reason or not kept:
+        return [], {"source": "llm_ungrounded", **trace, "guard_reason": guard_reason or "no grounded step"}
+
+    intents = [intent for step in kept if (intent := _intent_from_llm_step(step, text)) is not None]
+    return intents, {"source": "llm_plan", **trace}
+
+
+def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
+    """Requête minimale avec le prompt système du plan pour remplir le cache de prompt du serveur."""
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT_PLAN, "stop", 1, settings.model)
+    try:
+        _post_llm_chat(
+            payload,
+            timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS),
+            _select_formats(PLAN_RESPONSE_FORMATS),
+        )
+        return True
+    except Exception:
+        return False
+
+
+class LLMWarmup:
+    """Préchauffage en thread daemon ; `wait()` le rend bloquant (mode une seule commande).
+
+    Statuts : skipped (non lancé) | running | done | failed | timeout (attente expirée, définitif).
+    """
+
+    def __init__(self) -> None:
+        self._thread: threading.Thread | None = None
+        self._result: bool | None = None
+        self._timed_out = False
+
+    def start(self) -> "LLMWarmup":
+        self._thread = threading.Thread(target=self._run, name="llm-warmup", daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        self._result = warm_up_llm()
+
+    def wait(self, timeout: float) -> str:
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                self._timed_out = True
+        return self.status
+
+    @property
+    def status(self) -> str:
+        if self._thread is None:
+            return "skipped"
+        if self._timed_out:
+            return "timeout"
+        if self._thread.is_alive():
+            return "running"
+        return "done" if self._result else "failed"
+
+
+def warm_up_llm_async() -> threading.Thread:
+    """Lance le préchauffage en arrière-plan (thread daemon) sans bloquer le démarrage."""
+    thread = threading.Thread(target=warm_up_llm, name="llm-warmup", daemon=True)
+    thread.start()
+    return thread
 
 
 def ask_llm_for_intent_plan(text: str) -> list[Intent]:
     """Compatibilité : retourne uniquement la liste d'intents planifiées."""
     intents, _ = ask_llm_for_intent_plan_with_trace(text)
     return intents
+
+
+DEFAULT_MOVE_DURATION_SEC = 1.0
+DEFAULT_TURN_ANGLE_DEG = 90.0
+PLAN_INTENT_SYNONYMS = {
+    "contourner_obstacle": "contour_obstacle",
+    "contourne_obstacle": "contour_obstacle",
+    "avoid": "avoid_obstacle",
+    "find_object": "search_and_approach_object",
+    "search_object": "search_and_approach_object",
+    "detect_object": "search_and_approach_object",
+    "approach_object": "search_and_approach_object",
+    "follow": "follow_object",
+    "track": "follow_object",
+    "track_object": "follow_object",
+    "follow_target": "follow_object",
+    "suivre": "follow_object",
+    "suit": "follow_object",
+    "rotate_360": "spin_360",
+    "spin": "spin_360",
+    "square": "move_square",
+    "path": "execute_path",
+    "trajectory": "execute_path",
+    "trajet": "execute_path",
+    "go_home": "return_to_start",
+    "back_to_start": "return_to_start",
+}
+# Sources de plan rejetées sans repli parseur ni mouvement.
+UNSUPPORTED_PLAN_SOURCES = {"llm_unsupported", "llm_ungrounded"}
+OBJECT_INTENTS = {"search_and_approach_object", "follow_object"}
+TARGET_COLOR_SYNONYMS = {
+    "jaune": "yellow",
+    "yellow": "yellow",
+    "balle jaune": "yellow",
+    "yellow_ball": "yellow",
+    "rouge": "red",
+    "red": "red",
+    "balle rouge": "red",
+    "red_ball": "red",
+}
+DEFAULT_STAND_OFF_CM = 100.0
+DEFAULT_FOLLOW_DURATION_SEC = 60.0
+MIN_OBJECT_DURATION_SEC = 1.0
+MIN_SEARCH_TIMEOUT_SEC = 1.0
+MAX_SEARCH_TIMEOUT_SEC = 120.0
 
 
 class VoiceRuntime:
@@ -278,8 +574,12 @@ class VoiceRuntime:
         input_device: str = "auto",
         use_llm: bool = True,
         trace_dir: str | None = None,
+        threaded: bool = True,
     ):
         self.robot = robot
+        self.threaded = threaded
+        self._worker: threading.Thread | None = None
+        self.last_result: Any = None
         self.camera = camera
         self.sensor = sensor
         self.perception = perception
@@ -298,7 +598,25 @@ class VoiceRuntime:
         self.parser = IntentParser()
         self.validator = IntentValidator()
         self.mission = MissionStateMachine()
+        # Renseignés par main() : préchauffage LLM et attente bloquante en mode une seule commande.
+        self.warmup: LLMWarmup | None = None
+        self.wait_for_warmup = False
 
+    def _await_warmup(self) -> str:
+        """Attend le préchauffage si demandé (mode une commande) ; ne lève jamais, retourne le statut."""
+        if self.warmup is None:
+            return "skipped"
+        if not self.wait_for_warmup:
+            return self.warmup.status
+        wait_seconds = llm_warmup_wait_seconds()
+        if self.warmup.status == "running":
+            print(f"[LLM] Préchauffage du modèle en cours (attente max {wait_seconds:g}s)...", flush=True)
+        status = self.warmup.wait(wait_seconds)
+        if status == "timeout":
+            print(f"[LLM] Préchauffage non terminé après {wait_seconds:g}s, envoi de la commande quand même.", flush=True)
+        elif status == "failed":
+            print("[LLM] Préchauffage en échec, envoi de la commande quand même.", flush=True)
+        return status
     def _trace_path(self) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         return self.trace_dir / f"runtime_trace_{stamp}.jsonl"
@@ -336,6 +654,8 @@ class VoiceRuntime:
                 continue
             if intent.name in {"move_forward", "move_backward", "turn_left", "turn_right"}:
                 intent = self._sanitize_primitive_intent(intent)
+            elif intent.name in OBJECT_INTENTS:
+                intent = self._sanitize_object_intent(intent)
             sanitized.append(intent)
 
         return sanitized, errors
@@ -356,8 +676,57 @@ class VoiceRuntime:
                 return True
         return False
 
+    def _emergency_stop_requested(self) -> bool:
+        detector = getattr(self.robot, "is_emergency_stop_requested", None)
+        if not callable(detector):
+            return False
+        try:
+            return bool(detector())
+        except Exception:
+            return True
+
+    def _safety_stop_reason(self, step_result: dict[str, Any]) -> str | None:
+        if step_result.get("reason") == "obstacle prioritized":
+            return "obstacle"
+        if self._emergency_stop_requested():
+            return "emergency stop"
+        for result in step_result.get("results") or []:
+            data = getattr(result, "data", None) or {}
+            if data.get("emergency_stop"):
+                return "emergency stop"
+            if data.get("obstacle_detected") is True:
+                return "obstacle"
+        return None
+
+    def _effective_step_timeout(self, intent: Intent) -> float:
+        base = float(self.settings.step_timeout_seconds)
+        params = intent.parameters or {}
+        if intent.name in {"search_and_approach_object", "follow_red_ball"}:
+            tracking_s = FollowTargetSkill._to_float(
+                params.get("tracking_timeout_s"), FollowTargetSkill.DEFAULT_MAX_TRACKING_S
+            )
+            search_s = FollowTargetSkill._to_float(
+                params.get("search_timeout_s"), float(self.settings.search_timeout_seconds)
+            )
+            return max(
+                base,
+                max(0.1, tracking_s) + max(0.1, search_s) + float(self.settings.timeout_margin_seconds),
+            )
+        try:
+            duration_s = float(params.get("duration_s"))
+        except (TypeError, ValueError):
+            return base
+        search_s = self._to_float(params.get("search_timeout_s"), None)
+        search_s = float(self.settings.search_timeout_seconds) if search_s is None else search_s
+        return max(base, duration_s + search_s + float(self.settings.timeout_margin_seconds))
+
+    def _effective_mission_timeout(self, intents: list[Intent]) -> float:
+        total = sum(self._effective_step_timeout(intent) for intent in intents)
+        return max(float(self.settings.mission_timeout_seconds), total)
+
     def _execute_intent_with_retry(self, intent: Intent, trace_path: Path) -> dict[str, Any]:
         max_retries = max(0, int(self.settings.max_step_retries))
+        step_timeout = self._effective_step_timeout(intent)
         attempt = 0
         last_result: dict[str, Any] | None = None
         while attempt <= max_retries:
@@ -377,9 +746,27 @@ class VoiceRuntime:
                 },
             )
 
-            if duration > float(self.settings.step_timeout_seconds):
+            safety_reason = self._safety_stop_reason(result)
+            if safety_reason is not None:
+                # Arrêt d'urgence ou obstacle : la skill s'arrête proprement, mais la mission est interrompue.
+                result["status"] = "aborted"
+                result["reason"] = safety_reason
+                self._write_trace_event(
+                    trace_path,
+                    {
+                        "event": "emergency_stop" if safety_reason == "emergency stop" else "obstacle_stop",
+                        "reason": safety_reason,
+                        "intent": self._intent_to_dict(intent),
+                    },
+                )
+                return result
+
+            if duration > step_timeout:
                 result["status"] = "aborted"
                 result["reason"] = "step timeout"
+                return result
+
+            if result.get("status") == "aborted":
                 return result
 
             if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
@@ -441,57 +828,93 @@ class VoiceRuntime:
 
     def _normalize_plan_intent_names(self, intents: list[Intent]) -> list[Intent]:
         """Normalise les noms d'intents issus du LLM pour limiter les `unknown`."""
-        synonyms = {
-            "contourner_obstacle": "contour_obstacle",
-            "contourne_obstacle": "contour_obstacle",
-            "avoid": "avoid_obstacle",
-            "find_object": "search_and_approach_object",
-            "search_object": "search_and_approach_object",
-            "detect_object": "search_and_approach_object",
-            "approach_object": "search_and_approach_object",
-            "rotate_360": "spin_360",
-            "spin": "spin_360",
-            "square": "move_square",
-            "path": "execute_path",
-            "trajectory": "execute_path",
-            "trajet": "execute_path",
-            "go_home": "return_to_start",
-            "back_to_start": "return_to_start",
-        }
+        synonyms = PLAN_INTENT_SYNONYMS
         normalized: list[Intent] = []
         for intent in intents:
             name = intent.name.strip().lower()
             mapped = synonyms.get(name, name)
+            target = intent.target
+            parameters = dict(intent.parameters)
+            if mapped in OBJECT_INTENTS:
+                target, parameters = self._normalize_object_target(mapped, target, parameters)
             normalized.append(
                 Intent(
                     name=mapped,
-                    target=intent.target,
-                    parameters=dict(intent.parameters),
+                    target=target,
+                    parameters=parameters,
                     confidence=intent.confidence,
                     raw_text=intent.raw_text,
                 )
             )
         return normalized
 
+    @staticmethod
+    def _color_from_label(value: Any) -> str | None:
+        if value is None:
+            return None
+        return TARGET_COLOR_SYNONYMS.get(str(value).strip().lower())
+
+    def _normalize_object_target(
+        self, name: str, target: str | None, parameters: dict[str, Any]
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Ramène les couleurs de cible (jaune, balle rouge...) à `yellow`/`red`."""
+        color = self._color_from_label(target)
+        if color is None:
+            color = self._color_from_label(parameters.get("target_object"))
+        if color is not None:
+            target = color
+            parameters["target_object"] = color
+        elif target is None and parameters.get("target_object") is not None and name == "follow_object":
+            target = str(parameters["target_object"])
+        return target, parameters
+
     def _to_float(self, value: Any, default: float | None = None) -> float | None:
         try:
-            return float(value)
+            number = float(value)
         except (TypeError, ValueError):
             return default
+        return number if math.isfinite(number) else default
+
+    def _sanitize_object_intent(self, intent: Intent) -> Intent:
+        """Borne les paramètres de recherche/approche/suivi ; valeurs invalides -> défauts."""
+        params = dict(intent.parameters)
+        settings = self.settings
+
+        if "stand_off_cm" in params:
+            value = self._to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM)
+            params["stand_off_cm"] = max(
+                float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm))
+            )
+        if "duration_s" in params:
+            value = self._to_float(params["duration_s"], DEFAULT_FOLLOW_DURATION_SEC)
+            params["duration_s"] = max(MIN_OBJECT_DURATION_SEC, min(value, float(settings.max_follow_duration_sec)))
+        if "search_timeout_s" in params:
+            value = self._to_float(params["search_timeout_s"], float(settings.search_timeout_seconds))
+            params["search_timeout_s"] = max(MIN_SEARCH_TIMEOUT_SEC, min(value, MAX_SEARCH_TIMEOUT_SEC))
+
+        return Intent(
+            name=intent.name,
+            target=intent.target,
+            parameters=params,
+            confidence=intent.confidence,
+            raw_text=intent.raw_text,
+        )
 
     def _sanitize_primitive_intent(self, intent: Intent) -> Intent:
         """Normalise et borne les paramètres de primitives pour un plan sûr."""
         params = dict(intent.parameters)
         if intent.name in {"move_forward", "move_backward"}:
             distance = self._to_float(params.get("distance"), None)
-            unit = str(params.get("unit", "cm")).lower()
+            unit = normalize_distance_unit(params.get("unit"))
             duration = self._to_float(params.get("duration"), None)
+
+            if distance is None and duration is None:
+                duration = DEFAULT_MOVE_DURATION_SEC
 
             if distance is not None:
                 if unit == "m":
                     distance = max(0.01, min(distance, self.settings.max_distance_cm / 100.0))
                 else:
-                    unit = "cm"
                     distance = max(0.1, min(distance, self.settings.max_distance_cm))
                 params["distance"] = distance
                 params["unit"] = unit
@@ -502,6 +925,8 @@ class VoiceRuntime:
         if intent.name in {"turn_left", "turn_right"}:
             angle = self._to_float(params.get("angle"), None)
             duration = self._to_float(params.get("duration"), None)
+            if angle is None and duration is None and not params.get("full_rotation"):
+                angle = DEFAULT_TURN_ANGLE_DEG
             if angle is not None:
                 params["angle"] = max(1.0, min(angle, self.settings.max_angle_deg))
                 params["unit"] = "degrees"
@@ -682,6 +1107,15 @@ class VoiceRuntime:
             expanded.append(intent)
         return [self._sanitize_primitive_intent(it) if it.name in {"move_forward", "move_backward", "turn_left", "turn_right"} else it for it in expanded]
 
+    def _safe_stop(self) -> None:
+        stop = getattr(self.robot, "stop", None)
+        if not callable(stop):
+            return
+        try:
+            stop()
+        except Exception:
+            pass
+
     def handle_text(self, text: str):
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
@@ -695,23 +1129,70 @@ class VoiceRuntime:
         self._write_trace_event(trace_path, {"event": "input", "text": text})
         self.mission.reset()
 
-        if self.use_llm:
+        warmup_status = self.warmup.status if self.warmup is not None else "skipped"
+        if is_pure_stop(text):
+            # Sécurité : arrêt pur traité localement, sans LLM ni normalisation des nombres.
+            intents = [Intent(name="stop", raw_text=text, confidence=1.0)]
+            plan_trace = {"source": "local_stop", "llm_content": None, "llm_json": None, "normalized_text": None}
+        elif self.use_llm:
+            warmup_status = self._await_warmup()
             intents, plan_trace = ask_llm_for_intent_plan_with_trace(text)
         else:
-            intents = [self.parser.parse(text)]
-            plan_trace = {"source": "local_parser", "llm_content": None, "llm_json": None}
+            intents = self.parser.parse_plan(text)
+            plan_trace = {
+                "source": "local_parser",
+                "llm_content": None,
+                "llm_json": None,
+                "normalized_text": preprocess(text),
+            }
 
         self._write_trace_event(
             trace_path,
             {
                 "event": "plan_raw",
                 "source": plan_trace.get("source"),
+                "normalized_text": plan_trace.get("normalized_text"),
                 "intents": [self._intent_to_dict(it) for it in intents],
                 "llm_json": plan_trace.get("llm_json"),
                 "llm_content": plan_trace.get("llm_content"),
                 "error": plan_trace.get("error"),
+                "error_type": plan_trace.get("error_type"),
+                "guard_notes": plan_trace.get("guard_notes"),
+                "guard_reason": plan_trace.get("guard_reason"),
+                "llm_latency_seconds": plan_trace.get("llm_latency_seconds"),
+                "llm_response_format": plan_trace.get("llm_response_format"),
+                "llm_attempts": plan_trace.get("llm_attempts"),
+                "llm_prompt_tokens": plan_trace.get("llm_prompt_tokens"),
+                "llm_completion_tokens": plan_trace.get("llm_completion_tokens"),
+                "llm_timings": plan_trace.get("llm_timings"),
+                "warmup_status": warmup_status,
             },
         )
+
+        if plan_trace.get("source") in UNSUPPORTED_PLAN_SOURCES:
+            # Hors périmètre ({"steps": []}) ou plan non justifié par la phrase : rejet sans repli ni mouvement.
+            self.mission.fail("unsupported command")
+            self._write_trace_event(
+                trace_path,
+                {
+                    "event": "plan_unsupported",
+                    "text": text,
+                    "normalized_text": plan_trace.get("normalized_text"),
+                    "llm_content": plan_trace.get("llm_content"),
+                    "guard_reason": plan_trace.get("guard_reason"),
+                    "guard_notes": plan_trace.get("guard_notes"),
+                },
+            )
+            return {
+                "input": text,
+                "status": "rejected",
+                "reason": "unsupported command",
+                "guard_reason": plan_trace.get("guard_reason"),
+                "steps": [],
+                "trace_path": str(trace_path),
+                "source": plan_trace.get("source"),
+                "mission": self.mission.as_dict(),
+            }
 
         intents = self._normalize_plan_intent_names(intents)
         intents = self._expand_execute_path(intents)
@@ -732,12 +1213,12 @@ class VoiceRuntime:
             },
         )
 
-        if validation_errors and not validated_intents:
-            self.mission.fail("no valid plan step")
+        if validation_errors:
+            self.mission.fail("invalid plan step")
             return {
                 "input": text,
                 "status": "rejected",
-                "reason": "no valid plan step",
+                "reason": "invalid plan step",
                 "validation_errors": validation_errors,
                 "trace_path": str(trace_path),
                 "source": plan_trace.get("source"),
@@ -759,27 +1240,34 @@ class VoiceRuntime:
         self.mission.start(intents[0].name, intents[0].target, metadata={"steps_total": len(intents)})
         self.mission.begin_execution()
         execution_started_at = time.time()
+        mission_timeout = self._effective_mission_timeout(intents)
 
         steps = []
         global_status = "accepted"
-        for intent in intents:
-            self.mission.state.metadata["step_index"] = len(steps)
-            if (time.time() - execution_started_at) > float(self.settings.mission_timeout_seconds):
-                global_status = "aborted"
-                step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
-                steps.append(step_result)
-                self.mission.abort("mission timeout")
-                self._write_trace_event(trace_path, {"event": "mission_timeout", "intent": self._intent_to_dict(intent)})
-                break
+        try:
+            for intent in intents:
+                self.mission.state.metadata["step_index"] = len(steps)
+                if (time.time() - execution_started_at) > mission_timeout:
+                    global_status = "aborted"
+                    step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
+                    steps.append(step_result)
+                    self.mission.abort("mission timeout")
+                    self._write_trace_event(trace_path, {"event": "mission_timeout", "intent": self._intent_to_dict(intent)})
+                    break
 
-            step_result = self._execute_intent_with_retry(intent, trace_path)
-            if step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}:
-                global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"
-                if global_status == "aborted":
-                    self.mission.abort(step_result.get("reason", "aborted"))
-                else:
-                    self.mission.fail(step_result.get("reason", "step failed"))
-            steps.append(step_result)
+                step_result = self._execute_intent_with_retry(intent, trace_path)
+                failed = step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}
+                if failed:
+                    global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"
+                    if global_status == "aborted":
+                        self.mission.abort(step_result.get("reason", "aborted"))
+                    else:
+                        self.mission.fail(step_result.get("reason", "step failed"))
+                steps.append(step_result)
+                if failed:
+                    break
+        finally:
+            self._safe_stop()
 
         if self.mission.state.phase == "executing":
             if global_status == "accepted":
@@ -815,33 +1303,90 @@ class VoiceRuntime:
         device = resolve_input_device(self.input_device)
         for text in transcribe_loop(device):
             print(f"\n[VOIX] {text}", flush=True)
+            self._clear_emergency_stop()
             result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {result}", flush=True)
             return result
         return {"status": "no_transcript"}
+
+    def _call_robot(self, method: str) -> None:
+        func = getattr(self.robot, method, None)
+        if callable(func):
+            try:
+                func()
+            except Exception:
+                pass
+
+    def _clear_emergency_stop(self) -> None:
+        self._call_robot("clear_emergency_stop")
+
+    def _request_emergency_stop(self) -> None:
+        if callable(getattr(self.robot, "request_emergency_stop", None)):
+            self._call_robot("request_emergency_stop")
+        else:
+            self._safe_stop()
+
+    def mission_running(self) -> bool:
+        return self._worker is not None and self._worker.is_alive()
+
+    def _is_stop_phrase(self, text: str) -> bool:
+        return is_pure_stop(text) or self.parser.parse(text).name == "stop"
+
+    def _mission_worker(self, text: str) -> None:
+        try:
+            self.last_result = self.handle_text_as_plan(text)
+            print(f"[RUNTIME] {self.last_result}", flush=True)
+        except Exception as exc:
+            self.last_result = {"status": "failed", "error": str(exc)}
+            print(f"[RUNTIME] erreur mission : {exc}", flush=True)
+            self._safe_stop()
+
+    def handle_transcript(self, text: str):
+        """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
+        if self.mission_running():
+            if self._is_stop_phrase(text):
+                print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
+                self._request_emergency_stop()
+            else:
+                print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
+            return None
+
+        # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
+        self._clear_emergency_stop()
+        if not self.threaded:
+            self.last_result = self.handle_text_as_plan(text)
+            print(f"[RUNTIME] {self.last_result}", flush=True)
+            return self.last_result
+        self._worker = threading.Thread(target=self._mission_worker, args=(text,), name="mission-worker", daemon=True)
+        self._worker.start()
+        return None
 
     def listen_forever(self):
         device = resolve_input_device(self.input_device)
         try:
             for text in transcribe_loop(device):
                 print(f"\n[VOIX] {text}", flush=True)
-                result = self.handle_text_as_plan(text)
-                print(f"[RUNTIME] {result}", flush=True)
+                self.handle_transcript(text)
         except KeyboardInterrupt:
             print("\nInterruption clavier : arrêt du runtime vocal.")
+            self._abort_mission()
+
+    def _abort_mission(self) -> None:
+        self._request_emergency_stop()
+        worker = self._worker
+        if worker is not None and worker.is_alive() and worker is not threading.current_thread():
+            worker.join(timeout=2.0)
+        self._safe_stop()
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
-        if self.perception is not None and hasattr(self.perception, "close"):
-            try:
+        self._abort_mission()
+        try:
+            if self.perception is not None and hasattr(self.perception, "close"):
                 self.perception.close()
-            except Exception:
-                pass
-        if self.robot is not None and hasattr(self.robot, "stop"):
-            try:
+        finally:
+            if self.robot is not None and hasattr(self.robot, "stop"):
                 self.robot.stop()
-            except Exception:
-                pass
 
 def build_hardware_runtime() -> dict[str, Any]:
     """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""
@@ -870,7 +1415,9 @@ def build_hardware_runtime() -> dict[str, Any]:
     try:
         from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
 
-        perception = CameraLivePerceptionPipeline()
+        robot = runtime["robot"]
+        distance_reader = robot.read_distance_cm if robot is not None and runtime["sensor"] is not None else None
+        perception = CameraLivePerceptionPipeline(distance_reader=distance_reader)
         runtime["camera"] = perception
         runtime["perception"] = perception
     except Exception:
@@ -899,10 +1446,16 @@ def main():
         choices=["auto", "bluetooth", "wm8960", "default"],
         help="Source audio utilisée pour l'enregistrement.",
     )
+    parser.add_argument(
+        "--text",
+        default=None,
+        help="Traite cette phrase (sans micro) puis s'arrête.",
+    )
     args = parser.parse_args()
 
     runtime = None
     try:
+        warmup = LLMWarmup().start() if not args.no_llm else None
         hardware = build_hardware_runtime()
         runtime = VoiceRuntime(
             robot=hardware["robot"],
@@ -912,6 +1465,14 @@ def main():
             input_device=args.input_device,
             use_llm=not args.no_llm,
         )
+        runtime.warmup = warmup
+        # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.
+        runtime.wait_for_warmup = bool(args.once or args.text)
+        if args.text:
+            runtime._clear_emergency_stop()
+            result = runtime.handle_text_as_plan(args.text)
+            print(f"[RUNTIME] {result}", flush=True)
+            return
         if args.once:
             runtime.listen_once()
             return

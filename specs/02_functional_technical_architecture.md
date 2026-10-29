@@ -62,7 +62,7 @@ Composants :
 Responsabilités :
 -classer la commande comme task, action, stop condition, object target, etc.
 - extraire l'objectif et les paramètres
-- sélectionner les skills pertinentes
+- produire des intents ; le planner déterministe sélectionne les skills
 - produire une structure structurée
 
 Sortie attendue :
@@ -70,20 +70,24 @@ Sortie attendue :
 
 ```json
 {
-  "task": "follow_target",
-  "target": "red_ball",
-  "strategy": "visual_track",
-  "speed": 0.5,
-  "max_duration": 20,
-  "stop_conditions": ["target_lost_for_3s", "obstacle_too_close", "manual_stop"],
-  "skills": [
-    "detect_red_ball",
-    "align_to_target",
-    "approach_target",
-    "track_target"
+  "steps": [
+    {
+      "intent": "search_and_approach_object",
+      "target": "yellow",
+      "parameters": {"stand_off_cm": 100}
+    },
+    {
+      "intent": "follow_object",
+      "target": "yellow",
+      "parameters": {"stand_off_cm": 100, "duration_s": 300}
+    }
   ]
 }
 ```
+
+Contrat livré : `search_and_approach_object` planifie `detect_object -> follow_target -> detect_obstacle -> stop_motion` ; `follow_object` planifie la skill homonyme de maintien de distance. `search_timeout_s` est optionnel sur les intents objet. Les paramètres sont normalisés et bornés avant exécution ; voir [l'inventaire](01_skills_inventory.md#contrat-runtime-livré-2026-10-29).
+
+La caméra fournit une distance visuelle lissée à partir du diamètre apparent de la balle, avec fusion ultrason optionnelle dans le thread appelant (jamais depuis le thread caméra). L'écoute continue reste active pendant la mission : « stop » lève l'événement d'urgence de `RobotController`. Urgence/obstacle -> arrêt moteur et mission `aborted`, sans retry ni étape suivante. Les skills contrôlent les moteurs uniquement via `RobotController`.
 
 ### Bloc 4. Orchestrateur / planner
 
@@ -302,6 +306,7 @@ Ces skills sont simples, courtes et directement reliées aux actionneurs.
 
 Des tâches d'ordres plus haut niveau, construites à partir de primitives :
 - `follow_target`
+- `follow_object`
 - `align_to_target`
 - `approach_target`
 - `move_circle`

@@ -73,7 +73,7 @@ def main() -> None:
     args = parser.parse_args()
 
     trigger = DigitalOutputDevice(args.trigger_pin)
-    echo = DigitalInputDevice(args.echo_pin, pull_up=False, pull_down=False)
+    echo = DigitalInputDevice(args.echo_pin, pull_up=False)
 
     print(f"Capteur HC-SR04 — TRIG={args.trigger_pin}, ECHO={args.echo_pin}")
     print("Mesure la distance du premier objet devant le capteur.")

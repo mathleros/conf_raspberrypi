@@ -144,6 +144,8 @@ run_case H01-50cm uv run python tests/hardware/test_hardware_distance.py \
 
 Noter min/max/moyenne et mesures manquantes. Cible d'acceptation de campagne : erreur de moyenne ≤ `max(3 cm, 10 % de la distance réelle)`, pas de série durable de mesures absentes face à la surface. Ce seuil est un **critère de recette**, pas une précision déjà démontrée.
 
+Si une ancienne version du [script matériel](../../tests/hardware/test_hardware_distance.py) échoue avec `unexpected keyword argument 'pull_down'`, récupérer le correctif avant de rejouer H01 : l'entrée ECHO doit être initialisée avec `DigitalInputDevice(args.echo_pin, pull_up=False)`, comme dans le pilote du runtime. `pull_down` n'est pas un argument de cette API ; aucune rétrogradation de gpiozero n'est nécessaire.
+
 ### H02 — Caméra et distance visuelle
 
 Moteurs hors tension ; balle jaune de diamètre mesuré, éclairage et montage identiques aux essais futurs :

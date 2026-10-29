@@ -8,6 +8,8 @@ Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 valid�
 
 **Choix confirmé par l'utilisateur :** accepter un marqueur visuel porté pour la première version.
 
+**Précision validée le 2026-10-30 :** le suivi humain est une capacité du même assistant et du même runtime que la recherche de balle, pas un mode supplémentaire à sélectionner. L'utilisateur dit directement « suis-moi », comme « cherche la balle jaune ». Aucun lancement séparé, bascule manuelle ou redémarrage ne doit être nécessaire pour choisir entre ces capacités lorsque le robot est disponible.
+
 Cela signifie que le robot suit **un marqueur associé à la personne**, et non une identité humaine reconnue. Il ne sait pas vérifier qui porte ce marqueur. Si celui-ci est transféré à quelqu'un d'autre, le robot ne peut pas le distinguer. Deux copies du même identifiant constituent également une ambiguïté.
 
 ### Périmètre MVP validé, à qualifier avant roulage
@@ -38,6 +40,8 @@ Les cinq étapes de SH-01 sont validées. Le contrat d'usage est approuvé ; les
 | 3 | Arrêts et reprises | Validé par l'utilisateur le 2026-10-30 | Arrêt normal : session active, redépart automatique sous conditions. Perte, ambiguïté, donnée périmée, obstacle ou défaut : suspension et reprise explicite après vérifications. Stop/annulation/échéance : session terminée. Urgence physique : réarmement manuel. L'échéance continue pendant la suspension. |
 | 4 | Distance, vitesse et durée | Validé par l'utilisateur le 2026-10-30 | Distance par défaut 1,5 m, demandable de 1,2 à 2 m dans la plage qualifiée ; objectif stabilisé ±30 cm. Plafond physique initial 0,15 m/s, non relevable par la voix. Durée par défaut 60 s, demandable de 10 à 300 s après qualification ; chronomètre à l'activation après acquisition, sans remise à zéro ni prolongation automatique. |
 | 5 | Retour utilisateur | Validé par l'utilisateur le 2026-10-30 | Messages vocaux courts et déterministes, limités aux transitions, et traces horodatées obligatoires. Sortie audio opérationnelle requise au démarrage ; panne détectée en cours : suspension. L'arrêt moteur reste prioritaire sur toute annonce. |
+
+La précision d'intégration au même assistant complète SH-01 sans remettre en cause ses cinq décisions. Une « session de suivi » désigne l'exécution bornée d'une mission, pas un mode utilisateur ou un runtime distinct. La configuration initiale du marqueur reste nécessaire ; elle n'est pas une bascule de mode.
 
 ### Association fixe du marqueur — décision validée
 
@@ -148,6 +152,23 @@ Constats fondés sur le code inspecté, et non uniquement sur le backlog histori
 
 ## 4. Architecture recommandée, non encore implémentée
 
+### Un assistant, plusieurs capacités
+
+- Conserver l'entrée voix/texte, le runtime, le planner, le registre de skills, le contrôleur moteur et la supervision communs.
+- La commande sélectionne l'intention et la cible ; elle n'impose pas à l'utilisateur de sélectionner un mode « balle », « humain » ou, à terme, « robots ».
+- `follow_person` peut rester une intention interne dédiée avec ses propres préconditions et règles de suivi. Une intention ou une skill spécialisée n'est pas un mode d'utilisation séparé.
+- Le runtime sélectionne automatiquement la perception appropriée : couleur pour une balle, marqueur associé pour « moi ». Partager l'acquisition caméra et les ressources matérielles ; ne pas créer deux pilotes concurrents de la caméra ou des moteurs.
+- Les restrictions du suivi humain s'appliquent à cette capacité ; elles ne rendent pas implicitement l'audio ou le marqueur obligatoires pour les missions balle existantes.
+- Cette intégration ne signifie pas exécution simultanée : une seule mission pilote les moteurs. Les règles existantes pendant une mission restent inchangées ; aucune interruption ou substitution implicite par une nouvelle demande. Stop reste prioritaire.
+
+### Extension future exprimée : « rapproche-toi des autres robots »
+
+Ce besoin est enregistré comme future capacité du même assistant, hors livraison du MVP de suivi humain. Il s'agit d'une approche avec condition d'arrivée, pas nécessairement d'un suivi continu.
+
+Son étude devra préciser comment reconnaître les autres robots, résoudre une cible plurielle (robot particulier, plus proche ou groupe), définir la distance d'arrêt et gérer les robots mobiles et obstacles. Aucun marqueur sur les robots, protocole de communication, mouvement coordonné ou mécanisme de découverte n'est supposé acquis.
+
+Les notions de type de cible, identité, position, distance, fraîcheur et qualité doivent rester distinguables dans les contrats de perception. Réutiliser les briques communes utiles sans généraliser prématurément les comportements ni confondre une balle, un porteur de marqueur et un robot. Aucun nouvel intent ou mécanisme multi-robots n'est à implémenter dans ce backlog MVP.
+
 ### Rôle du LLM
 
 Le LLM comprend « suis-moi », extrait distance/durée et demande une action de haut niveau. Il ne traite pas chaque image et ne décide ni de la vitesse moteur ni des conditions d'arrêt.
@@ -158,7 +179,7 @@ Chaîne proposée :
 
 En parallèle : **caméra → observations horodatées du marqueur → estimation distance/orientation**, et **supervision locale → arrêt prioritaire**.
 
-Le nom `follow_person` décrit le besoin ; son mode de perception MVP est explicitement `marker`. L'identifiant associé vient d'une configuration/session validée, jamais d'un identifiant inventé par le LLM.
+Le nom `follow_person` décrit le besoin ; sa méthode de perception MVP est explicitement `marker`, sélectionnée automatiquement par le runtime. L'identifiant associé vient de la configuration persistante validée, jamais d'un identifiant inventé par le LLM.
 
 ### Perception et distance
 
@@ -235,13 +256,13 @@ SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la sectio
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
-| SH-01 | P0 / S | Valider le contrat d'usage et les paramètres | Aucune | Périmètre, association « moi », reprise explicite, feedback, distance/durée/vitesse et scénarios hors domaine approuvés ; aucune assimilation implicite à la balle |
+| SH-01 | P0 / S | Valider le contrat d'usage et les paramètres | Aucune | Périmètre, association « moi », reprise explicite, feedback, distance/durée/vitesse et scénarios hors domaine approuvés ; capacité du même assistant sans mode à sélectionner ; aucune assimilation implicite à la balle |
 | SH-02 | P0 / M | Qualifier le matériel et le domaine de sécurité | SH-01 | Inventaire réel, champ caméra, gabarit, protection obstacle, arrêt physique, stratégie watchdog, budget d'arrêt et protocole protégés documentés ; sortie audio, contrôle de disponibilité et intelligibilité qualifiés ; achats éventuels identifiés |
 | SH-03 | P0 / M | Valider le marqueur et la distance, moteurs désactivés | SH-01, SH-02 | Choix technique motivé, calibration et support reproductibles ; mesures de référence à 1/1,5/2/2,5 m et différents angles ; erreurs de distance ≤ 20 cm sur 95 % des mesures acceptées, rejets/ambiguïtés consignés ; aucune formule balle réutilisée |
 | SH-04 | P0 / M | Définir les observations et l'association de session | SH-03 | Horodatage de capture, trame distincte, qualité, identifiant verrouillé, distance avec référence physique documentée ; tests trame répétée/périmée, mauvais ID, doublon et reset session |
-| SH-05 | P0 / L | Implémenter les garde-fous du mode humain | SH-02, SH-04 | Refus sans caméra/protection valides, arrêt sur défaut/péremption, vitesse bornée, recul interdit, pas de balayage, arrêt prioritaire et réarmement explicite ; injection de panne, y compris arrêt du processus, validée sur banc protégé |
+| SH-05 | P0 / L | Implémenter les garde-fous du suivi humain | SH-02, SH-04 | Refus sans caméra/protection valides, arrêt sur défaut/péremption, vitesse bornée, recul interdit, pas de balayage, arrêt prioritaire et réarmement explicite ; injection de panne, y compris arrêt du processus, validée sur banc protégé |
 | SH-06 | P0 / M | Développer le comportement de suivi déterministe | SH-04, SH-05 | États et transitions testés par horloge simulée ; confort/approche/orientation bornés ; aucune translation sans distance valide ; perte/obstacle/fin rendent statut et motif explicites |
-| SH-07 | P0 / M | Relier la commande naturelle au comportement | SH-01, SH-06 | Prompt, schéma JSON, lexique, paramètres autorisés, alias, normalisation, parser local, validator, planner, registre, budgets mission/étape et assemblage matériel raccordés ; « suis-moi » ne démarre jamais `yellow` par défaut |
+| SH-07 | P0 / M | Relier la commande naturelle au comportement | SH-01, SH-06 | Prompt, schéma JSON, lexique, paramètres autorisés, alias, normalisation, parser local, validator, planner, registre, budgets mission/étape et assemblage matériel raccordés dans le runtime existant ; commandes balle et « suis-moi » accessibles sans bascule manuelle ni redémarrage ; perception sélectionnée automatiquement, acquisition caméra partagée, aucune mission motrice concurrente ; « suis-moi » ne démarre jamais `yellow` par défaut |
 | SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Messages vocaux déterministes et non bloquants selon la section 1 ; absence audio au démarrage : refus, panne détectée en cours : suspension ; stop reconnu pendant les annonces et aucune auto-commande vocale ; traces avec état, ID, âge/qualité/distance, consigne, arrêt et latences ; aucun flux vidéo enregistré par défaut ; rétention des traces définie |
 | SH-09 | P0 / M | Valider hors roulage et préserver l'existant | SH-05, SH-06, SH-07, SH-08 | Tests unitaires/intégration portables, simulations/replay sans moteurs, seuils et transitions couverts ; suivi balle et stop inchangés ; chaque défaut laisse une commande d'arrêt observable |
 | SH-10 | P0 / M | Mesurer le système intégré sur Pi | SH-03, SH-07, SH-08 | Vision + audio + LLM sous charge, CPU/RAM/température, latences/maxima, débit et vieillissement mesurés ; version/config et échecs archivés ; réglages corrigés jusqu'au respect des objectifs |
@@ -255,7 +276,7 @@ SH-02 et SH-03 sont des portes de décision : si la sécurité ou la perception 
 - Préconditions, erreurs et motifs d'arrêt explicites ; aucun défaut transformé en succès normal.
 - Tests déterministes puis preuve matérielle pour toute propriété physique.
 - Documentation/configuration et procédure opérateur alignées ; paramètres bornés.
-- Aucun changement de comportement objet hors activation du mode humain.
+- Aucun changement des comportements objet existants ; les règles spécifiques au suivi humain sont déclenchées par l'intention, sans mode utilisateur supplémentaire.
 - Aucun mouvement réel autorisé par le seul fait que les tests Mac passent.
 
 ## 7. Matrice de recette minimale
@@ -271,6 +292,7 @@ SH-02 et SH-03 sont des portes de décision : si la sécurité ou la perception 
 | Obstacles | Obstacle frontal et obstacle dans le volume de rotation | Arrêt ; si non détecté, essai en échec et matériel/domaine à revoir |
 | Infrastructure | Capteur absent/timeout, caméra débranchée, LLM indisponible/en charge, processus bloqué/tué | Refus ou arrêt explicite ; arrêt indépendant vérifié pour perte de processus |
 | Commandes | Stop vocal sous bruit/moteurs actifs, stop texte, annulation, reprise | Arrêt prioritaire sans LLM, reprise explicite après acquisition ; coupe-circuit disponible si voix inaudible |
+| Assistant commun | Dans le même runtime : mission balle terminée, puis « suis-moi », puis nouvelle mission balle après fin du suivi ; nouvelle demande pendant une mission | Aucun changement de mode ni redémarrage ; bonne intention et bonne perception ; aucun pilote matériel ou mission motrice concurrente ; politique existante des demandes pendant une mission préservée |
 | Retour vocal | Annonces dos au robot, stop pendant une annonce, audio absent au démarrage ou en panne détectée en session | Messages intelligibles et cohérents avec l'état/temps restant, aucune auto-commande ; arrêt jamais retardé ; refus sans audio initial, suspension sur panne détectée |
 | Endurance | Sessions répétées, batterie et température variées dans le domaine retenu | Pas de dépassement des limites ni reprise spontanée après défaut |
 

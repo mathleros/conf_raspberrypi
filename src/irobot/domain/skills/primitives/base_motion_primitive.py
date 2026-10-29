@@ -61,7 +61,10 @@ class BaseMotionPrimitiveSkill(Skill):
         duration_value = self._to_float(params.get("duration"))
         if duration_value is None and distance_value is not None:
             distance_cm = distance_value * 100.0 if unit == "m" else distance_value
-            duration_value = max(0.1, distance_cm / SETTINGS.cm_per_second)
+            speed = SETTINGS.cm_per_second
+            if self.motion == "backward" and SETTINGS.backward_cm_per_second is not None:
+                speed = SETTINGS.backward_cm_per_second
+            duration_value = max(0.1, distance_cm / speed)
         return {
             "distance": distance_value,
             "unit": unit,

@@ -45,9 +45,12 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
 
-    def _step(self, gap_cm: float, low_s: float, high_s: float) -> float:
+    def _step(self, gap_cm: float, low_s: float, high_s: float, *, backward: bool = False) -> float:
         # Durée proportionnelle à l'écart, à la vitesse linéaire calibrée.
-        speed = max(1.0, float(self.settings.cm_per_second))
+        calibrated_speed = self.settings.cm_per_second
+        if backward and self.settings.backward_cm_per_second is not None:
+            calibrated_speed = self.settings.backward_cm_per_second
+        speed = max(1.0, float(calibrated_speed))
         return min(high_s, max(low_s, gap_cm / speed))
 
     def _result(
@@ -178,7 +181,8 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 set_state("approaching", distance_cm=distance_cm)
             elif distance_cm is not None and distance_cm < stand_off_cm - tolerance_cm:
                 self._pulse_motion(
-                    context, "backward", self._step(stand_off_cm - distance_cm, self.BACKWARD_MIN_S, self.BACKWARD_MAX_S)
+                    context, "backward",
+                    self._step(stand_off_cm - distance_cm, self.BACKWARD_MIN_S, self.BACKWARD_MAX_S, backward=True),
                 )
                 context.state["motion"] = "follow_object"
                 set_state("backing", distance_cm=distance_cm)

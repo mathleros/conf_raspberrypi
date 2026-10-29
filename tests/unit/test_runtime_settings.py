@@ -39,6 +39,7 @@ max_duration_sec = 8.0
     loaded = settings.load_runtime_settings()
 
     assert loaded.cm_per_second == 30.0
+    assert loaded.backward_cm_per_second is None
     assert loaded.deg_per_second == 150.0
     assert loaded.step_timeout_seconds == 3.5
     assert loaded.mission_timeout_seconds == 20.0
@@ -84,8 +85,22 @@ def test_load_runtime_settings_reads_new_keys(monkeypatch, tmp_path):
     assert loaded.timeout_margin_seconds == 3.0
 
 
-def test_repo_toml_matches_dataclass_defaults():
+def test_empty_toml_matches_dataclass_defaults(tmp_path, monkeypatch):
+    cfg = tmp_path / "runtime_calibration.toml"
+    cfg.write_text("", encoding="utf-8")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     monkey_default = settings.RuntimeSettings()
     loaded = settings.load_runtime_settings()
 
     assert loaded == monkey_default
+
+
+def test_load_separate_backward_calibration(tmp_path, monkeypatch):
+    cfg = tmp_path / "calibration.toml"
+    cfg.write_text("[runtime]\ncm_per_second = 55.0\nbackward_cm_per_second = 25.0\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    loaded = settings.load_runtime_settings()
+
+    assert loaded.cm_per_second == 55.0
+    assert loaded.backward_cm_per_second == 25.0

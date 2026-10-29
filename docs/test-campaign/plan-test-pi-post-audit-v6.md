@@ -293,6 +293,10 @@ Faire 3 essais par commande avec identifiants `r1/r2/r3`. Mesurer distance, angl
 
 Si nécessaire, ajuster `[runtime] cm_per_second` et `deg_per_second` dans le TOML. Les valeurs initiales sont **25 cm/s et 360°/s**, pas une calibration physique acquise. Pour une commande fondée sur distance/angle : nouvelle conversion ≈ ancienne conversion × mesure / consigne. Refaire les séries après ajustement, à batterie et sol comparables ; ne pas corriger le mauvais sens moteur par la calibration.
 
+Premier relevé M01 : 10/20/50 cm demandés donnent 16/44/110 cm réels avec 25 cm/s configurés. Les deux grandes distances conduisent à une calibration provisoire de **55 cm/s** (`25 × 44 / 20 = 25 × 110 / 50`). Cette valeur est reportée dans le TOML, mais reste à confirmer par trois essais par distance ; le point à 10 cm révèle une réponse courte non proportionnelle. Redémarrer le runtime après changement de configuration.
+
+Avec les anciens réglages (25 cm/s, 360°/s), le recul demandé de 10 cm donne 10 cm et les rotations demandées de 45°/90° donnent environ 20°/45°, des deux côtés. Le TOML retient provisoirement **180°/s** pour les rotations et **25 cm/s** dans `backward_cm_per_second` pour préserver le recul indépendamment de l'avance à 55 cm/s. Cette clé s'applique aux primitives de recul et aux impulsions de régulation du suivi ; absente, elle conserve le comportement historique utilisant `cm_per_second`. Une durée explicite reste inchangée. Récupérer aussi le code qui lit cette nouvelle clé, pas seulement le TOML. Refaire trois mesures à gauche/droite pour 45° et 90°, ainsi que le recul, avant validation ; un recul correct à 10 cm ne qualifie pas les autres distances.
+
 ### M02 — Commandes sans paramètre et séquence
 
 ```bash

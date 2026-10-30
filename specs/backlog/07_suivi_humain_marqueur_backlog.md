@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07 validés ; choix techniques, réalisations et qualifications ouverts ; aucun développement engagé.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08 validés ; orientations SH-08 consignées, choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé.
 
 ## 1. Besoin et décision de cadrage
 
@@ -799,6 +799,247 @@ Parser local et replis :
 
 Aucun code créé, test exécuté, dépendance installée ou essai moteur réalisé pendant cette spécification. Aucun Go mobile humain ; dispositifs indépendants et accès sûr à la coupure en solo toujours à concevoir/résoudre et qualifier.
 
+### SH-08 — Spécification progressive de l'observabilité
+
+Étude documentaire avec l'utilisateur le 2026-10-30, sans code, essai ni installation. Les décisions SH-01 à SH-07 sont préservées intégralement. La validation documentaire ne clôture aucune dépendance technique ; conception, réalisation et qualification restent ouvertes. Aucun Go mobile humain.
+
+#### Sujet 1 — Catalogue des annonces
+
+**Exigences et catalogue validés par l'utilisateur le 2026-10-30 :** catalogue fermé de phrases et de gabarits déterministes, associés aux transitions ou aux commandes refusées. Les champs entre accolades proviennent des données validées du runtime, jamais d'une génération libre par le LLM. Maintien normal, suspension et fin restent distincts selon SH-06 ; priorités SH-05 et contrat de commandes SH-07 inchangés.
+
+| Transition ou événement | Annonce validée | Sens / action attendue |
+|---|---|---|
+| Entrée en acquisition initiale | « Je cherche votre marqueur. » | Attendre ; aucune activation à ce stade |
+| Acquisition réussie, avant activation | « Je vais suivre votre marqueur, à {distance}, pendant {durée}. » | Paramètres réellement retenus ; activation après annonce et recontrôle. La formulation prospective précise l'exemple « Suivi actif » de SH-01 sans changer le cycle SH-07 |
+| Entrée en maintien normal, hors proximité | Silence | Session active ; redépart automatique conditionnel possible |
+| Entrée en proximité, sans interruption de sécurité | « Trop près, je reste arrêté. » | Aucun recul ; une seule annonce à l'entrée, aucun compte à rebours |
+| Redépart normal depuis le maintien | Silence | Ni nouvelle mission ni reprise après suspension |
+| Entrée en suspension | « {Motif}, suivi suspendu. {Correction attendue}. Dites : reprends le suivi. » | Correction puis reprise explicite ; disparition du problème insuffisante |
+| Reprise recevable : entrée en réacquisition | « Je recherche votre marqueur pour reprendre. » | Tentative immobile de la même session, pas reprise déjà réussie |
+| Réacquisition réussie, avant retour au suivi ou maintien | « Je reprends le suivi à {distance}. Il reste {temps restant}. » | Même cible, paramètres et échéance ; aucun mouvement forcé si maintien requis. Temps réellement restant, jamais nouvelle durée complète |
+| Reprise refusée ou réacquisition échouée | « Reprise impossible : {raison}. {Action attendue}. » | Aucune permission mémorisée ni nouvel essai automatique ; reste suspendu si non terminé |
+| Demande invalide ou départ impossible | « Suivi non démarré : {raison}. {Action attendue}. » | Refus intégral, aucun départ différé |
+| Nouvelle demande pendant la réservation humaine | « Une mission de suivi est déjà en cours. Nouvelle demande non exécutée. » | Aucun remplacement, prolongement ou stockage pour plus tard ; réservation conservée en suspension |
+| Échéance atteinte | « Durée écoulée, suivi terminé. » | Nouvelle commande nécessaire ; défaut simultané toujours à signaler |
+| Stop ou annulation | « Suivi arrêté. » | Session terminée, non reprenable ; verrouillage simultané toujours à signaler |
+| Fin exigeant reconfiguration | « Suivi terminé : {raison}. {Reconfiguration attendue} avant une nouvelle mission. » | Une reprise ne résout pas une incompatibilité de configuration |
+| Urgence, coupure ou perte de contrôle connue | « {Événement détecté}, suivi terminé. Réarmement manuel puis nouvelle commande nécessaires. » | Seulement si logiciel et audio disponibles ; aucune confirmation inventée d'inhibition ou d'immobilisation |
+
+Motifs et corrections de suspension validés :
+
+| Motif constaté | Correction attendue annoncée |
+|---|---|
+| Marqueur perdu | « Rendez votre marqueur visible. » |
+| Identifiant attendu en plusieurs exemplaires | « Ne laissez visible qu'un exemplaire du marqueur configuré. » |
+| Observation rejetée pour qualité ou géométrie | « Présentez votre marqueur dans les conditions prévues. » |
+| Image périmée ou flux indisponible | « Rétablissez la caméra. » |
+| Dégagement inexploitable | « Rétablissez les conditions de mesure. » |
+| Obstacle détecté | « Dégagez l'obstacle. » |
+| Correction d'orientation hors domaine autorisé | « Replacez votre marqueur dans le domaine autorisé. » |
+| Entrée ou sortie audio défaillante | « Rétablissez l'audio. » ; seulement sur une sortie encore utilisable |
+| Autre défaut identifié | Correction propre au défaut ; diagnostic insuffisant : « Vérifiez le défaut signalé. » |
+
+- Refus couvrant paramètres invalides, commandes ambiguës ou composées, capacité indisponible, absence de configuration du marqueur, reprise hors suspension et réarmement requis. Raison spécifique ; aucun refus générique masquant une cause connue ni diagnostic inventé.
+- L'annonce indique d'abord la conduite la plus contraignante selon SH-05. Stop ou échéance ne masquent jamais réarmement requis ou défaut simultané ; toutes les causes sont conservées dans les traces. Arbitrage et invalidation détaillés au sujet 3.
+- La correction annoncée n'invite jamais à s'approcher des roues ou à entrer dans la trajectoire ; elle ne démontre pas l'accès sûr à la coupure en solo.
+- Les formulations SH-01 « Suivi arrêté » et « je reste arrêté » expriment le comportement commandé, pas une preuve d'immobilisation physique mesurée.
+- L'arrêt moteur est demandé sans attendre une annonce. Aucune annonce impossible n'est déclarée effectuée ; logiciel ou audio indisponible : aucune confirmation inventée.
+
+**Choix techniques restant ouverts :** production et canal audio, contrôle de disponibilité, interruption et péremption des messages, budgets et représentation des gabarits ; sujets suivants à valider.
+
+**Preuves de qualification attendues :** correspondance exacte événements/messages en simulation, puis qualification réelle séparée de l'intelligibilité, de la simultanéité micro/sortie et du stop pendant les annonces. Aucun résultat de test déduit de cette validation.
+
+#### Sujet 2 — Production des messages et disponibilité audio
+
+**Orientation et exigences validées par l'utilisateur le 2026-10-30 :**
+
+- Synthèse vocale locale alimentée exclusivement par le catalogue validé. Le runtime construit les textes depuis les gabarits et les données effectives : distance retenue, durée initiale ou temps restant ; la synthèse les prononce sans reformulation. Aucun appel au LLM ni à un service distant pour produire l'annonce.
+- Jabra retenu comme canal candidat à qualifier, pas comme solution déjà qualifiée. La synthèse permet les valeurs variables sans préenregistrer toutes les distances/durées ; moteur, voix française, prononciation des nombres, charge et délais restent à choisir et qualifier. Aucune installation autorisée par cette orientation.
+
+| Niveau de disponibilité | Contrat validé et limites |
+|---|---|
+| Configuration et qualification | Entrée/sortie identifiées, profil compatible avec leur usage simultané, voix et catalogue disponibles. Jabra candidat tant que la simultanéité n'est pas démontrée |
+| Contrôle avant chaque départ et reprise | Vérifier les chemins d'entrée/sortie, l'ouverture des flux et les défauts détectables de capture, synthèse et lecture. Connexion Bluetooth ou objet logiciel insuffisants. Aucun nouveau test sonore parlé systématique retenu |
+| Surveillance en session | Surveiller déconnexions, erreurs, fins inattendues de flux et blocages détectables. Panne détectée : arrêt/suspension ; retour du périphérique sans reprise automatique |
+
+- Flux ouvert ou lecture achevée ne prouvent pas que l'utilisateur a entendu ; silence du micro ne prouve pas une panne. Documenter les défauts détectables et les limites des contrôles, sans promettre la détection de toute panne acoustique silencieuse.
+- Avant activation : entrée/sortie non opérationnelle, synthèse ou lecture initiale en échec imposent refus du départ et fin de tentative avec motif explicite.
+- Après activation : panne audio détectée impose arrêt demandé immédiatement et suspension, sauf événement imposant une fin selon SH-05.
+- Sortie indisponible : aucune annonce vocale garantie ; diagnostic terminal/traces seulement si ces moyens fonctionnent. Aucun repli silencieux vers un autre périphérique, du texte seul pour autoriser le départ ou une annonce libre du LLM.
+- Écoute du stop maintenue pendant les annonces, sans auto-commande vocale ; mécanisme, interruptions et preuve à détailler au sujet 3. L'audio ne remplace ni coupure physique ni surveillance indépendante.
+
+**Constats de lecture, pas qualification :** [entrée audio](../../src/irobot/hardware/audio/voice_assistant.py), [runtime vocal](../../src/irobot/interfaces/voice_runtime.py) et [script Jabra](../../scripts/install/connect_jabra_bt.sh) fournissent des points de raccordement existants ; les extraits inspectés ne prouvent pas la chaîne simultanée requise.
+
+**Choix techniques restant ouverts :** moteur/voix, routage, contrôles et surveillance des flux, charge et délais ; aucun dispositif déclaré réalisé.
+
+**Preuves de qualification attendues :** audio réel simultané, intelligibilité, pertes de chaque sens, erreurs de synthèse/lecture et reconnexion sans mouvement spontané. Aucun essai effectué.
+
+#### Sujet 3 — Priorité, interruption et validité des annonces
+
+**Règles validées par l'utilisateur le 2026-10-30 :** l'annonce suit l'état, elle ne le commande jamais.
+
+- Demande d'arrêt moteur immédiate et indépendante de la préparation, lecture ou interruption audio. Aucune opération audio ne bloque supervision, stop local ou échéance.
+- Acquisition et annonce initiales sans mouvement. Après activation, toutes les annonces consomment le temps restant sans prolongation.
+- Priorités SH-05 inchangées : urgence/coupure/perte de contrôle, stop/annulation, échéance, suspension, maintien normal. Un événement plus contraignant interrompt une annonce devenue incompatible.
+- À priorité égale, une nouvelle situation invalide ou remplace un message devenu inexact ; causes compatibles regroupables dans une annonce courte. Causes secondaires tracées et annoncées lorsqu'elles changent l'action nécessaire, notamment défaut simultané à la fin de durée.
+- Aucune répétition automatique ni rattrapage vocal de tout l'historique : annoncer la situation actuelle et la conduite nécessaire, pas une file de messages anciens.
+- Chaque annonce liée à mission, contexte et transition ou commande concernée. Validité vérifiée avant lecture et surveillée pendant lecture. Résultat de synthèse tardif ou d'ancien contexte inutilisable ; aucune annonce obsolète ne peut activer ou reprendre la mission.
+- Stop pendant annonce initiale : interruption, aucune activation. Échéance pendant annonce de reprise : fin, jamais reprise tardive. Réapparition du marqueur après suspension : aucune annonce de reprise spontanée.
+- Temps restant calculé sur l'échéance monotone initiale, actualisé au plus près de sa prononciation et recontrôlé selon la précision de diction retenue. Valeur devenue périmée non prononcée ; référence temporelle tracée, jamais nouvelle durée complète.
+
+| Budget à définir et qualifier | Exigence validée |
+|---|---|
+| Annonce initiale | Budget total incluant préparation/synthèse et lecture ; attente bornée et supervisée avant activation |
+| Autres annonces | Limites de préparation et de lecture explicites |
+| Interruption et péremption | Délai d'interruption audio et règles de péremption, dont temps restant, explicités |
+
+- Aucun chiffre fixé ici. Budgets justifiés sur la chaîne retenue et éprouvés à leurs frontières ; configuration sans budgets obligatoires renseignés et qualifiés non prête à l'usage réel.
+- Dépassement avant activation : départ refusé et tentative terminée. En session, panne ou blocage audio détecté : arrêt/suspension selon les acquis ; échéance et événements plus prioritaires gardent leur effet. Invalidation normale d'un message périmé distincte d'une panne audio.
+- Ne jamais couper le micro ni ignorer globalement les transcriptions pendant une annonce : le stop utilisateur reste pris en compte localement.
+- Séparation parole du robot/commandes utilisateur à concevoir et qualifier ; ni simple comparaison de textes ni présence du casque ne prouvent l'absence d'auto-commande. Chaîne non qualifiée si stop et absence d'auto-commande ne sont pas préservés simultanément.
+
+**Choix techniques restant ouverts :** lecteur interruptible, invalidation des résultats, buffers, séparation audio, précision de diction et valeurs des budgets ; aucune valeur ni solution déclarée réalisée.
+
+**Preuves de qualification attendues :** scénarios simulés d'interruption, priorités et messages tardifs ; mesures audio réelles, stop pendant lecture et absence d'auto-commande. Aucun arrêt physique ni Go humain déduit de ces preuves logicielles ou audio.
+
+#### Sujet 4 — Traces corrélées et niveaux de preuve
+
+**Contrat validé par l'utilisateur le 2026-10-30 :** réutiliser JSONL avec schéma versionné et événements corrélés permettant de reconstruire les décisions. L'écriture JSONL et l'heure UTC existantes dans [le runtime](../../src/irobot/interfaces/voice_runtime.py) ne démontrent pas à elles seules ce contrat humain.
+
+| Groupe | Informations à relier |
+|---|---|
+| Références communes | Version du schéma, exécution du runtime, configuration/version logicielle, séquence, heure UTC et temps monotone |
+| Demande et mission | Identifiant de demande même avant admission/refus ; mission après admission, contexte et tentative de reprise |
+| Commande comprise | Intention, paramètres demandés/retenus, unités et provenance : explicite, défaut sur omission ou conversion ; chemin local/LLM/repli et motifs de refus. Phrase brute non nécessaire au contrat |
+| Perception utilisée | Source/génération, capture/trame, identité du marqueur, calibration, âge, qualité, dégagement et résultat de validation. Observations effectivement utilisées, acceptées ou rejetées, sans journalisation implicite de toutes les images |
+| Décision | État précédent/nouveau, toutes les causes, préconditions bloquantes, action nécessaire, échéance initiale et temps restant à son instant de référence |
+| Commande motrice | Décision associée, commande demandée et limites, demande d'arrêt, commande nulle, autorisation/inhibition telles que connues avec leur source |
+| Audio | Identifiant du gabarit et valeurs, événement associé ; préparation, lecture commencée/achevée selon le lecteur, interruption, invalidation ou échec ; références temporelles et motif |
+| Résultat et nettoyage | Suspension ou fin et sa nature, absence de relance, invalidation de contexte et libération de réservation lorsqu'elle a effectivement lieu |
+
+- Événements de demande, transition, interruption, refus, commande et cycle audio conservés sans échantillonnage faisant disparaître une décision. Cadence des mesures répétitives de charge/diagnostic à définir sans perdre les références nécessaires à l'explication d'une décision.
+- Mesure absente explicitement indisponible avec raison, jamais zéro de remplacement. Latence seulement entre événements compatibles dans un référentiel temporel maîtrisé.
+- Pour une panne injectée, son instant de référence ne peut être uniquement celui de sa détection logicielle si l'on prétend mesurer tout le délai de réaction.
+
+| Fait / niveau de preuve | Affirmation autorisée |
+|---|---|
+| Demande d'arrêt émise | Le logiciel a demandé l'arrêt |
+| Commande nulle transmise ou appliquée | Seulement ce que l'interface ou le retour disponible établit ; distinguer ces étapes |
+| Inhibition confirmée | Retour adapté, identifié et suffisamment récent obligatoire ; sinon état inconnu |
+| Immobilisation physique mesurée | Mesure indépendante identifiée, méthode, horodatage et incertitude ; jamais déduite d'une commande nulle |
+| Lecture achevée selon le lecteur | Fin rapportée par le lecteur, pas preuve d'audition par l'utilisateur |
+| Événement écrit | Seulement le niveau de confirmation disponible ; aucune garantie inventée de persistance après coupure |
+
+Disponibilité du journal obligatoire :
+
+- Indisponibilité avant activation : départ refusé.
+- Perte détectée d'écriture ou impossibilité de conserver les événements obligatoires en session : arrêt/suspension, sans attendre une écriture bloquée.
+- Rétablissement sans reprise automatique. Diagnostic par un autre canal seulement s'il fonctionne, aucune trace manquante déclarée produite.
+- Stockage plein, journal bloqué ou trous détectés empêchent de déclarer la session conforme. Programme entier indisponible : protection indépendante toujours requise, aucune trace supposée.
+
+**Choix techniques restant ouverts :** schéma exact, synchronisation, écriture non bloquante, garanties de persistance, détection des pertes et moyens de mesure. Politique de collecte, accès et conservation à valider au sujet 5.
+
+**Preuves de qualification attendues :** reconstruction des chronologies, absence de faux acquittements, détection de données manquantes et injections de panne du journal ; preuves physiques séparées. Aucun test exécuté.
+
+#### Sujet 5 — Données, accès, conservation et suppression
+
+**Politique validée par l'utilisateur le 2026-10-30 :** collecte minimale et locale, conservation liée à la campagne, sans durée maximale calendaire fixée.
+
+Collecte :
+
+- Données structurées du sujet 4 uniquement, nécessaires à l'explication et à la qualification : décisions, paramètres, observations utilisées, commandes, annonces et chronologies.
+- Aucune image, vidéo, capture audio du micro, phrase brute, transcription complète, prompt ou réponse brute du LLM conservés par défaut. Signal audio synthétisé non conservé au-delà du traitement nécessaire à sa lecture.
+- Capture micro et images nécessaires au fonctionnement traitées en mémoire, sans enregistrement implicite. Temporaires de synthèse nettoyés, interruption comprise ; restes après incident détectables et supprimables.
+- L'écriture actuelle du texte d'entrée et des sorties LLM dans [le runtime](../../src/irobot/interfaces/voice_runtime.py) n'est pas reprise telle quelle pour le suivi humain. Couvrir logs annexes, messages d'erreur et diagnostics ; pas de modification implicite du contrat des missions balle.
+- Toute collecte exceptionnelle d'image, audio ou texte brut exige accord distinct sur contenu, finalité, accès, conservation et suppression ; non autorisée par cette validation.
+
+Emplacement et accès :
+
+- Stockage local identifié et configurable sur Pi ; données humaines isolables pour consultation/suppression.
+- Accès réservé au compte d'exécution et à l'utilisateur administrateur autorisé, selon les permissions effectivement mises en place.
+- Aucun envoi distant, partage réseau, synchronisation ou export automatique. Export manuel sur décision explicite avec inventaire des données et destination.
+- Identifiant du marqueur : référence technique, jamais identité personnelle reconnue. Aucun nom de porteur ni adresse Bluetooth ajoutés sans nécessité.
+
+| Données | Règle de conservation validée |
+|---|---|
+| Traces détaillées | Pendant une campagne identifiée, jusqu'à clôture explicite par l'utilisateur ; produire et vérifier le rapport minimal, puis supprimer les traces détaillées |
+| Rapport de qualification | Localement jusqu'à suppression explicite : configuration, protocole, résultats, maxima, échecs, restrictions et références de preuve utiles |
+| Campagne interrompue ou oubliée | Signalée non clôturée ; fin de mission ou redémarrage ne valent pas clôture. Aucune durée maximale calendaire approuvée |
+
+- Rapport suffisamment probant pour justifier le verdict après suppression des traces : aucune simple affirmation de réussite invérifiable. Rapport non correctement produit/vérifié : clôture incomplète, aucune suppression déclarée effectuée.
+- Suppression sur demande avec périmètre affiché : campagne, traces, rapports, temporaires et exports connus. Journal obligatoire non supprimé pendant une mission réservée ; terminer la mission avant l'opération.
+- Suppression des traces distincte de l'association persistante du marqueur et de la calibration, qui ne sont pas effacées par cette commande.
+- Échec ou suppression partielle explicitement signalés. Suppression logique des fichiers, sans promesse d'effacement physique irréversible sur carte SD ni disparition de copies externes inconnues.
+- Données historiques existantes ni purgées ni migrées dans cette étude ; aucun fichier de données supprimé maintenant.
+
+**Choix techniques restant ouverts :** chemins, permissions, gestion des campagnes, rapport minimal, nettoyage et commande de suppression.
+
+**Preuves de qualification attendues :** absence des contenus exclus dans toutes les sorties concernées, contrôle d'accès, cycle clôture/suppression et erreurs de nettoyage. Aucun essai ni effacement exécuté.
+
+#### Sujet 6 — Recette d'observabilité
+
+**Protocole validé par l'utilisateur le 2026-10-30 :** deux niveaux de recette avec preuves explicitement différentes. Approbation documentaire uniquement, aucun test créé ou exécuté.
+
+**A. Recette déterministe sans moteurs**
+
+Réutiliser les outils du dépôt, l'horloge injectable et des doubles explicites pour perception, synthèse, lecteur, entrée vocale, protections et journal. Aucun périphérique réel activé implicitement.
+
+| Famille | Vérifications attendues |
+|---|---|
+| Catalogue et états | Chaque annonce, silences en maintien/redépart normal, proximité une fois par entrée, suspension distincte de fin, motifs/actions corrects |
+| Paramètres et reprise | Valeurs réellement retenues, aucune correction silencieuse ; temps restant référencé à l'échéance initiale, jamais nouvelle durée complète ni valeur périmée |
+| Priorités et interruptions | Stop dans chaque phase ; événements simultanés selon SH-05 ; défaut avec échéance ; aucun arrêt retardé par audio/journal |
+| Messages tardifs | Synthèse ancienne, annonce devenue fausse en attente, interruption et buffers résiduels ; aucun message obsolète ni effet moteur tardif |
+| Budgets | Juste avant, à et après chaque future limite documentée ; attente initiale supervisée, échéance pendant reprise/annonce, absence de prolongation ou réessai humain |
+| Audio simulé | Absence au départ, panne de chaque sens, synthèse/lecteur en échec ou bloqué, reconnexion ; refus/suspension corrects sans reprise spontanée |
+| Traces et preuves | Corrélations complètes, refus avant admission, causes multiples, séquences manquantes, données indisponibles, temps incohérents ; aucun faux acquittement d'inhibition, immobilisation, audition ou persistance |
+| Journal défaillant | Stockage plein, permission refusée, erreur/blocage d'écriture, perte d'événements détectée ; arrêt indépendant de l'écriture et session non déclarée conforme |
+| Données et suppression | Aucun média/texte brut dans les sorties concernées ; temporaires, permissions, clôture, rapport vérifié, suppression partielle/erreurs ; calibration/association préservées |
+| Runtime commun | Balle puis humain puis balle sans mode ni redémarrage ; stop local, réservation conservée en suspension, aucune demande différée ni relance ; aucune collecte humaine imposée implicitement à la balle |
+
+Valeurs ouvertes non remplacées par des seuils arbitraires. Paramètres de simulation explicitement fictifs permis pour préparer les scénarios, sans qualifier les budgets réels.
+
+**B. Qualification réelle de la chaîne audio et de journalisation**
+
+D'abord sans propulsion, avec la configuration Pi/audio réellement retenue :
+
+- Micro/sortie simultanés, stop utilisateur pendant chaque type d'annonce pertinent ; aucune auto-commande, notamment lorsque le robot prononce « reprends le suivi ».
+- Intelligibilité avec casque porté, positions, bruit et portée documentés ; compréhension de l'état, motif, action et paramètres vérifiée, sans reconnaissance d'identité ou de voix.
+- Pertes séparées des deux sens, déconnexion/reconnexion et limites de détection.
+- Temps de préparation, lecture, interruption et détection mesurés sous charge représentative vision/audio/LLM/journal.
+- Événements réellement écrits et limites de persistance après incident vérifiés.
+- Aucun enregistrement audio/vidéo autorisé par défaut. Références de mesure indépendantes choisies sans collecte implicite ; média exceptionnel soumis à l'accord distinct du sujet 5.
+
+Conditions avec motorisation ou bruit moteur réel : protocoles protégés SH-02/SH-05 puis SH-10/SH-11 ; non remplacées par un bruit simulé et non lancées par cette validation.
+
+Méthode et verdict :
+
+- Chaque cas indique niveau simulé/réel, version/configuration, préconditions, chronologie, attendu/obtenu, moyens/incertitudes de mesure, maxima, échecs et limites.
+- Aucun cas obligatoire en échec ne permet une conformité ; moyenne ne masquant aucune violation.
+- Budget obligatoire non fixé/qualifié ou preuve indisponible : non qualifié ou bloqué, jamais réussite par défaut.
+- Rapport vérifiable selon la politique de conservation ; absence de trace jamais transformée en preuve d'absence d'événement.
+- Réussite logicielle distincte d'audio réel qualifié, d'arrêt physique qualifié et de Go mobile humain.
+
+**Choix techniques restant ouverts :** organisation des scénarios, instrumentation, nombres de répétitions non déjà définis, budgets mesurés et moyens de rapport.
+
+**Preuves de qualification attendues :** résultats effectifs des deux niveaux et non-régression ; rien réputé exécuté par l'approbation du protocole.
+
+#### SH-08 — Statut et travaux techniques restants
+
+**Six sujets de spécification et de recette validés avec l'utilisateur le 2026-10-30 ; orientations synthèse locale et JSONL acquises. Conception détaillée, réalisation et qualification à faire.** Aucune clôture technique du ticket ni de ses dépendances SH-01/SH-06.
+
+| Travail restant | Livrable / preuve attendu |
+|---|---|
+| Qualifier les prérequis techniques | Résultats SH-02 à SH-07 nécessaires : protections, accès sûr à la coupure en solo, perception, comportement, commandes et cycle de mission ; aucune dépendance satisfaite par sa seule spécification |
+| Réaliser le catalogue et la synthèse locale | Gabarits déterministes, prononciation exacte des paramètres et temps restant, moteur/voix choisis et justifiés ; aucun LLM ni service distant pour les annonces |
+| Concevoir et qualifier la chaîne audio | Jabra candidat, routage et contrôles des deux sens, surveillance et limites de détection, simultanéité, intelligibilité et stop pendant parole sans auto-commande |
+| Réaliser priorité et validité des annonces | Lecture interruptible, invalidation des messages/résultats/buffers obsolètes, précision de diction ; budgets renseignés, justifiés et qualifiés, aucun délai inventé |
+| Réaliser les traces et leur surveillance | Schéma JSONL versionné, corrélations, horloges, événements obligatoires et références de preuve ; journal sans blocage de l'arrêt, pertes détectées et aucun acquittement fictif |
+| Appliquer la politique de données | Stockage/permissions, absence de médias et textes bruts par défaut dans toutes les sorties concernées, campagnes, rapport probant, temporaires et suppression vérifiable sans effacer calibration/association |
+| Fournir les résultats et le verdict | Recette simulée, audio réel sans propulsion, qualifications protégées et non-régression ; maxima, échecs, restrictions et niveaux de preuve explicites. Aucun Go humain implicite |
+
+Aucun code créé, test exécuté, dépendance installée ou essai moteur réalisé pendant cette spécification ; aucune donnée historique purgée. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi non résolu. Aucun Go mobile humain.
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -828,7 +1069,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -839,7 +1080,7 @@ SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la sectio
 | SH-05 | P0 / L | Implémenter les garde-fous du suivi humain | SH-02, SH-04 | Selon les six sujets validés de section 4 : préconditions de départ et de chaque mouvement, arbitrage sans défaut masqué, vitesse/mouvements bornés, aucun recul/balayage, inhibition indépendante et réarmement, propagation au runtime sans relance, traces et recette ; injection de panne, y compris arrêt/blocage du pilotage et indisponibilité du Pi, validée sur banc protégé ; aucune clôture sur la seule spécification |
 | SH-06 | P0 / M | Développer le comportement de suivi déterministe | SH-04, SH-05 | Selon les six sujets validés de section 4 : états/causes/transitions testés par horloge simulée ; approche/maintien avec hystérésis, consigne/précision/minimum de sécurité distincts ; orientation et avance bornées et qualifiées, aucun mouvement interdit ; redépart normal distinct de reprise explicite, échéance inchangée ; commandes obsolètes invalidées, interruptions et fins explicites au runtime ; recette déterministe et régression balle/stop ; aucune clôture sur la seule spécification |
 | SH-07 | P0 / M | Relier la commande naturelle au comportement | SH-01, SH-06 | Selon les six sujets validés de section 4 : commandes humaines autonomes et reprise/stop locaux, `follow_person` distinct de balle sans `yellow` par défaut ; paramètres/alias/unités et schéma stricts sans réparation silencieuse ; prompt, lexique, parser, validator, gardes, planner, registre, budgets et assemblage raccordés dans le runtime existant ; perception/caméra partagées, admission unique même en suspension ; échéance préservée sans réessai automatique ; recette d'intégration sans moteurs et non-régression balle/stop ; aucune clôture sur la seule spécification |
-| SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Messages vocaux déterministes et non bloquants selon la section 1 ; absence audio au démarrage : refus, panne détectée en cours : suspension ; stop reconnu pendant les annonces et aucune auto-commande vocale ; traces avec état, ID, âge/qualité/distance, consigne, arrêt et latences ; aucun flux vidéo enregistré par défaut ; rétention des traces définie |
+| SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Selon les six sujets validés de section 4 : catalogue fermé et synthèse locale, paramètres retenus et temps restant exacts ; audio bidirectionnel et Jabra candidat à qualifier, stop pendant annonce sans auto-commande ; priorité/invalidation/budgets qualifiés sans retarder l'arrêt ; JSONL corrélé et niveaux de preuve distincts, journal obligatoire indisponible : refus ou arrêt/suspension ; collecte minimale locale sans médias/textes bruts par défaut, conservation par campagne et suppression vérifiable ; recette simulée distincte d'audio réel et de qualification physique ; aucune clôture sur la seule spécification |
 | SH-09 | P0 / M | Valider hors roulage et préserver l'existant | SH-05, SH-06, SH-07, SH-08 | Tests unitaires/intégration portables, simulations/replay sans moteurs, seuils et transitions couverts ; suivi balle et stop inchangés ; chaque défaut laisse une commande d'arrêt observable |
 | SH-10 | P0 / M | Mesurer le système intégré sur Pi | SH-03, SH-07, SH-08 | Vision + audio + LLM sous charge, CPU/RAM/température, latences/maxima, débit et vieillissement mesurés ; version/config et échecs archivés ; réglages corrigés jusqu'au respect des objectifs |
 | SH-11 | P0 / L | Effectuer la recette progressive et décider Go/No-Go | SH-09, SH-10 | Préconditions SH-02 revérifiées ; banc puis cible inerte mobile puis porteur uniquement après qualification des protections et de l'accès sûr à la coupure dans une organisation compatible avec l'opérateur seul, sans second opérateur présumé ; critères section 5 et matrice section 7 satisfaits ; rapport, limites et décision signés |
@@ -884,9 +1125,9 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise dans une nouvelle session — prochaine spécification SH-08
+## 9. Reprise dans une nouvelle session — prochaine spécification SH-09
 
-Point de reprise au 2026-10-30 : **spécifier SH-08 avec l'utilisateur, pas l'implémenter**, en commençant par le catalogue des annonces et leur correspondance avec états, transitions et motifs déjà validés. Cette suite est préparée à sa demande pour une nouvelle session ; aucun nouveau choix détaillé SH-08 n'est encore approuvé. Les six sujets SH-05, les six sujets SH-06 et les six sujets SH-07 sont validés et intégralement consignés en section 4 ; ne pas les rouvrir. Conception, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; la seule spécification de SH-06 ne clôture pas le prérequis technique de SH-08. Aucun code, test, installation ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+Point de reprise au 2026-10-30 : **spécifier SH-09 avec l'utilisateur, pas l'implémenter ni exécuter sa recette**. Commencer par le périmètre et les niveaux de preuve de la validation hors roulage, en réutilisant les protocoles SH-04 à SH-08 sans les rouvrir. Cette suite est uniquement préparée pour une nouvelle session ; aucun nouveau choix détaillé SH-09 n'est approuvé et l'étude SH-09 n'a pas commencé. Les six sujets de chacun des tickets SH-05, SH-06, SH-07 et SH-08 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que toutes les dépendances techniques ; la spécification de SH-05 à SH-08 ne satisfait pas les prérequis techniques de SH-09. Aucun code, test, installation ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
 
 ### État à préserver
 
@@ -897,7 +1138,8 @@ Point de reprise au 2026-10-30 : **spécifier SH-08 avec l'utilisateur, pas l'im
 - SH-05 : six sujets d'exigences et de recette validés, détails et travaux techniques restants en section 4 ; conception, réalisation et qualification ouvertes.
 - SH-06 : six sujets d'exigences et de recette validés, décisions détaillées et travaux techniques restants en section 4. Réutiliser les états et règles acquis sans les rouvrir ; conception, réalisation et qualification ouvertes, aucune clôture technique.
 - SH-07 : six sujets d'exigences et de recette validés, décisions détaillées et travaux techniques restants en section 4 ; conception, réalisation et qualification ouvertes, dépendances SH-01/SH-06 inchangées.
-- SH-08 : prochaine spécification documentaire, à partir des exigences de retour utilisateur SH-01 et d'observabilité SH-04/SH-05/SH-06/SH-07 ; nouveaux choix détaillés non encore validés. Ticket technique à faire, dépendances SH-01/SH-06 inchangées.
+- SH-08 : six sujets et orientations validés en section 4, travaux techniques restants explicités ; conception détaillée, réalisation et qualification à faire. Dépendances SH-01/SH-06 inchangées, aucune clôture technique.
+- SH-09 : prochaine spécification documentaire ; nouveaux choix détaillés non encore validés. Ticket technique à faire, dépendances SH-05/SH-06/SH-07/SH-08 inchangées et non satisfaites par leurs seules spécifications.
 - Aucun code, achat, acquisition caméra ou essai moteur effectué dans cette étude ; aucun Go mobile humain.
 - Un seul assistant/runtime : « suis-moi » et « cherche la balle jaune » sont des commandes naturelles, sans mode supplémentaire. « Rapproche-toi des autres robots » reste un besoin futur hors MVP.
 - Les arrêts logiciels sur obstacle et commande vocale sont déjà disponibles et déclarés testés : les réutiliser, pas les présenter comme manquants.
@@ -933,17 +1175,28 @@ Les paramètres d'usage SH-01 restent acquis : dégagement demandé par défaut 
 5. **Budgets et cycle de mission :** budgets techniques distincts de l'échéance monotone unique ; attentes bornées, acquisition/reprise selon SH-04, aucun reset, prolongement ou réessai automatique d'exécution humaine ; défaut technique jamais masqué en fin normale. **Validé ; décision détaillée en section 4.**
 6. **Recette d'intégration sans moteurs :** formulations nominales/ambiguës/invalides, valeurs par défaut et frontières, départ/reprise/stop, résultats LLM invalides ou tardifs, absence de substitution et non-régression balle ; scénarios dans le même runtime sans bascule manuelle ni redémarrage. **Validé ; décision détaillée en section 4.**
 
-### Sujets proposés pour spécifier SH-08
+### Sujets SH-08 validés — détails à préserver en section 4
 
-1. **Catalogue des annonces :** correspondance avec états, transitions, motifs et action attendue ; paramètres réellement retenus et temps restant, distinction maintien/suspension/fin, reprises et refus. Réutiliser les messages et obligations SH-01 sans les rouvrir.
-2. **Production et disponibilité audio :** messages déterministes, canal Jabra possible, choix de production à préciser ; vérification entrée/sortie, panne détectée et limites de détection, refus avant activation ou suspension en session selon les contrats acquis.
-3. **Priorité et validité des annonces :** lecture non bloquante, stop pendant annonce, absence d'auto-commande vocale, messages périmés et événements simultanés ; budgets d'annonce préactivation à définir avec SH-07, sans retarder un arrêt ni prolonger l'échéance.
-4. **Contrat de traces corrélées :** mission/contexte, capture/trame, états/causes/préconditions, paramètres et provenance, âge/qualité/dégagement, commandes et autorisation/inhibition connues ; distinguer arrêt demandé, commande nulle et immobilisation mesurée, sans preuve inventée.
-5. **Données et conservation :** contenu utile, emplacement, accès, rétention/suppression et limites de collecte à valider ; aucune image/vidéo par défaut ni nouvelle collecte implicite. Ne pas décider d'enregistrement audio ou de durée de conservation sans validation.
-6. **Recette d'observabilité :** vérifications simulées du catalogue, interruptions, péremption, panne audio, chronologies et traces ; puis qualifications audio réelles selon SH-02, notamment simultanéité, intelligibilité et stop pendant annonce. Preuves logicielles distinctes des preuves physiques et aucun Go implicite.
+1. **Catalogue des annonces : validé, décision détaillée en section 4.** Correspondance avec états, transitions, motifs et action attendue ; paramètres réellement retenus et temps restant, distinction maintien/suspension/fin, reprises et refus. Ne pas rouvrir.
+2. **Production et disponibilité audio : validé, décision détaillée en section 4.** Synthèse locale sur catalogue fermé, Jabra candidat à qualifier ; contrôle des deux sens, limites de détection et aucun repli silencieux. Ne pas rouvrir.
+3. **Priorité et validité des annonces : validé, décision détaillée en section 4.** Arrêt indépendant, priorité SH-05, invalidation des messages périmés, temps restant, budgets à qualifier, stop pendant lecture sans auto-commande. Ne pas rouvrir.
+4. **Contrat de traces corrélées : validé, décision détaillée en section 4.** JSONL versionné, corrélations et chronologies, niveaux de preuve distincts ; journal obligatoire indisponible : refus avant activation ou arrêt/suspension en session. Ne pas rouvrir.
+5. **Données et conservation : validé, décision détaillée en section 4.** Collecte structurée minimale et locale ; aucun média ou texte brut par défaut ; traces jusqu'à clôture explicite puis suppression après rapport vérifié, rapports jusqu'à suppression explicite. Aucune durée maximale calendaire fixée. Ne pas rouvrir.
+6. **Recette d'observabilité : validé, décision détaillée en section 4.** Matrice simulée sans moteurs puis chaîne audio/journal réelle sans propulsion ; motorisation selon protocoles protégés ultérieurs. Attendus/obtenus, maxima et échecs, budgets/preuves manquants bloquants ; aucun faux succès ni Go implicite. Ne pas rouvrir.
 
-Cet ordre d'étude SH-08 ne valide aucun nouveau message, dispositif, budget, format ou politique de conservation. Les exigences acquises restent obligatoires ; soumettre les nouveaux choix un par un à l'utilisateur. L'audio ne remplace ni coupure ni surveillance indépendante ; Pi/audio indisponible : ne pas prétendre avoir annoncé ou tracé ce qui ne pouvait l'être.
+Les six sujets SH-08 sont validés. Les valeurs des budgets, moteur/voix, moyens de contrôle audio, schéma concret JSONL et mécanismes de journalisation restent à concevoir et qualifier ; la politique de conservation par événement est approuvée sans durée maximale calendaire. L'audio ne remplace ni coupure ni surveillance indépendante ; Pi/audio/journal indisponible : ne pas prétendre avoir annoncé ou tracé ce qui ne pouvait l'être.
+
+### Sujets proposés pour spécifier SH-09
+
+1. **Périmètre et niveaux de preuve :** distinguer tests unitaires, intégration simulée et replay sans moteurs, prérequis techniques réels et propriétés non démontrables hors roulage ; réutiliser les matrices acquises sans les rouvrir.
+2. **Jeux de scénarios et oracles :** relier exigences SH-04 à SH-08, cas nominaux/négatifs, frontières et événements concurrents aux résultats attendus ; paramètres fictifs de simulation distincts des seuils qualifiés.
+3. **Isolation et reproductibilité :** horloge et périphériques factices explicitement identifiés, aucun accès matériel implicite, versions/configurations et chronologies reproductibles ; moyens concrets encore à choisir.
+4. **Intégration et non-régression :** runtime commun balle/humain, stop/reprise locaux, admission unique et suspension réservée, refus intégraux, aucune relance, substitution, demande différée ou résultat obsolète.
+5. **Rapports et couverture :** états, causes, commandes, annonces et traces attendus/obtenus, erreurs explicites, niveaux de preuve et données minimales selon SH-08 ; défaut du journal ou logiciel indisponible sans preuve inventée.
+6. **Verdict et passage aux qualifications suivantes :** critères de conformité, cas bloqués et échecs, dépendances non qualifiées et preuves restant à fournir sur Pi puis en protocoles protégés. Aucun succès Mac/simulé valant Go humain.
+
+Cet ordre propose des sujets de discussion SH-09, pas des décisions approuvées ni une autorisation d'exécution. Ne pas choisir d'outillage, créer de tests ou lancer de scénario implicitement.
 
 ### Méthode de poursuite
 
-Les six sujets SH-07 sont validés et consignés ; aucune question restante pour cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées puis commencer SH-08 par le catalogue des annonces, sans rouvrir les décisions SH-01 à SH-07. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, ne lancer aucun essai moteur et n'installer aucune dépendance pendant cette spécification.
+SH-08 est spécifié ; aucune question restante pour cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées puis commencer SH-09 par le périmètre et les niveaux de preuve, sans rouvrir les acquis ni commencer une implémentation. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, acquisition matérielle ni essai moteur pendant cette spécification.

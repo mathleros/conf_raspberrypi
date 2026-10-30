@@ -29,3 +29,25 @@ uv run pytest -q tests/unit
 ```
 
 Pour les scripts hardware, lancer directement les fichiers Python depuis `tests/hardware/` sur le Raspberry Pi concerné.
+
+## Lot A : campagne strictement isolée
+
+Ne pas lancer globalement la suite pour ce lot : l'intégration LLM existante
+peut rechercher des modèles et démarrer un serveur. Depuis `conf_raspberrypi` :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --stdlib
+.venv/bin/python -I -S tests/isolated/run_lot_a.py
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --legacy-stdlib
+```
+
+Le lanceur pose les gardes avant imports/collecte, désactive l'initialisation
+`site` et les plugins automatiques, injecte les ports complémentaires factices
+et ne sélectionne que les fichiers contrôlés. Il charge pytest déjà installé
+localement sans exécuter les `.pth` ; dépendance absente = blocage, sans installation.
+Les nombres de temps/protection du nouveau socle sont exclusivement fictifs.
+Une tentative interdite ou un thread résiduel invalide la campagne.
+
+Voir le [rapport SH-09 du lot A](../specs/backlog/08_lot_a_rapport_sh09.md) pour
+la référence, les oracles, résultats, exclusions et limites. Le suivi humain
+moteur réel demeure refusé ; aucune qualification Pi/audio/physique.

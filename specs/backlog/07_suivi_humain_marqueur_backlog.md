@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10/SH-11 validés ; orientations SH-08, cadre de recette SH-09, cadre de mesure SH-10 et six sujets de recette progressive/Go-No-Go SH-11 consignés ; choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé. Conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée en six sujets (section 4), sans conception électrique, réalisation ni qualification. Lot A logiciel isolé cadré en six sujets documentaires (section 4), suffisamment pour une réalisation ultérieure ; implémentation non commencée, réalisation isolée explicitement retenue pour une session ultérieure (section 9). Aucun Go mobile humain.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A logiciel isolé réalisé et vérifié**, après autorisation explicite : L2/P5, admission/verrous, refus humain réel et preuves limitées au lot. Rapport [SH-09 du lot A](08_lot_a_rapport_sh09.md) : 121 cas du socle réussis, non-régression ciblée de 214 tests réussis sur référence et version livrée. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
 
 ## 1. Besoin et décision de cadrage
 
@@ -1797,6 +1797,72 @@ Chaque obligation est reliée à sa décision source et à son statut exact (exi
 
 Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge, installation, manipulation matérielle ou essai moteur exécuté pendant cette spécification. Six décisions détaillées de chacun des tickets SH-05 à SH-10 préservées intégralement. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi en solo non résolu. Aucun Go mobile humain. Prochaine étape documentaire SH-02 retenue au sujet 6 ; réalisée depuis, le 2026-10-30, en conception fonctionnelle (voir SH-02 en section 4), sans clôture technique.
 
+### Lot A — Réalisation isolée du 2026-10-30
+
+Autorisation : demande explicite de réalisation isolée dans la session courante.
+Les décisions documentaires ci-dessus restent historiques et intégralement applicables.
+Référence propre avant modification : `a5c397b483fc0eda0938e5d444ecf1a3968430f9`,
+aucun changement local préexistant constaté.
+
+- A1/A2, choix dérivés validés automatiquement : ports logiques typés, L2 dans
+  `RobotController`, façade de mission liée à des identifiants immuables ; pas
+  de délégation ni d'accès public au driver dans le chemin protégé. Directions,
+  commandes temporisées, vitesse et restauration passent par le même garde.
+- A3/A4, choix dérivés validés automatiquement : horloge monotone injectée,
+  retour P5 daté à sa source et transition datée ; observation inhibée puis
+  transition armée postérieure au verrou exigées, sans ordre numérique des jetons.
+  Nouvelle demande seulement après observation de cet armement : celle qui
+  déclenche sa première observation est refusée, jamais conservée. Admission
+  humaine sans échéance explicite refusée ; échéance inchangée à la reprise.
+  Les paramètres de campagne sont fictifs, sans valeur de réglage réel.
+- Présence historique omise = absente ; valeur explicite invalide ou ports
+  manquants = erreur de configuration. Présence, qualification et environnement
+  synthétique restent distincts. Aucune option live d'autorisation humaine.
+- A1 réalisé : P5 en lecture seule et préconditions humaines invalides par
+  défaut ; aucun port de réarmement. Les faits nominaux qualifiés des fixtures
+  sont explicitement synthétiques, sans qualification physique.
+- A2 réalisé : runtime commun raccordé à l'exécuteur, au contrôleur de langage
+  et au garde L2. Driver et comportement balle inchangés. Refus humain avant
+  routage objet, filtrage d'étape malformée et expansion de plan ; aucune
+  perception marqueur, loi SH-06 ou intégration naturelle complète SH-07.
+- A3 réalisé, choix dérivés validés automatiquement : lancement `-I -S`,
+  gardes avant imports/collecte, plugins/conftest automatiques exclus, paquets
+  locaux ajoutés explicitement après les gardes sans exécuter les `.pth`.
+  Aucune installation. Borne externe 120 s et synchronisations 2 s uniquement
+  pour borner le harnais, sans qualification de délai Pi.
+- A4 réalisé, choix dérivés validés automatiquement : garde courte d'émission
+  distincte du verrou d'évaluation ; stop/P1 atteignent le double sans attendre
+  une précondition bloquée. Génération de contrôleur plus identifiants
+  mission/contexte/armement ; postériorité vérifiée par dates/observations,
+  aucun ordre numérique des jetons. Preuve uniquement après cycle évalué,
+  boucle synchrone au repos, aucun renouvellement par listener pour worker
+  bloqué. Réservation après worker terminé, état utile et échéance conservés
+  à la reprise, aucun réessai humain ou demande différée.
+- A5 effectivement démontré : **121 cas du lot réussis**, oracles A-O1 à A-O12,
+  intégrations et replays recalculés ; **214 tests historiques réussis sur la
+  référence puis sur la version livrée**, sept cas de préchauffage hors sélection.
+  Contrat indépendant complémentaire : quatre tests réussis sur chaque version.
+  Toutes campagnes finales : zéro accès interdit observé, zéro thread résiduel ;
+  trois sondes synthétiques des gardes refusées sans opération réelle.
+- A6 : **conforme dans le seul périmètre logiciel isolé déclaré**, rapport
+  [SH-09 vérifié](08_lot_a_rapport_sh09.md), erreurs intermédiaires et corrections
+  conservées, aucune attente historique modifiée pour masquer une régression.
+  Les critères de fin du lot ne clôturent pas SH-05/SH-09 globalement.
+
+Non exécutés : suite globale, intégration LLM/modèles/serveur, matériel,
+Pi/charge, audio réel et toute recette physique. Les fichiers/configurations
+temporaires synthétiques sont nettoyés ; aucune collecte réelle ni export.
+Politique SH-08 inchangée, pas de clôture utilisateur de campagne présumée.
+Arrêt demandé, tentative de zéro, zéro reçu par double et inhibition attestée
+par double P5 restent distincts ; aucune immobilisation physique mesurée.
+
+Blocages hors lot maintenus : P2/P3/P4/P5/P6 à réaliser/qualifier, famille P6 non
+choisie, accès sûr solo non démontré, budget/délais et réglages réels ouverts,
+perception, audio réel, SH-10 et recette physique. Ni proximité ni audio ne
+démontrent l'accès. **Suivi humain moteur réel toujours refusé ; aucun Go mobile
+humain.** Prochaine étape seulement proposée : revue/validation explicite du
+rapport puis choix de la suite, sans la commencer.
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -1828,7 +1894,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception fonctionnelle détaillée des protections et de l'organisation solo validée en six sujets ; conception électrique, réalisation et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 est **spécifié : six sujets de recette progressive et Go/No-Go validés en section 4, conception détaillée, réalisations et recette à faire** ; SH-12 est **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
-**Avancement transversal du lot A :** cadrage documentaire terminé (section 4, sujets A1–A6), frontière A2 validée explicitement, autres décisions dérivées validées par délégation. Sous-ensemble logiciel SH-02/SH-05/SH-09 uniquement ; aucune réalisation, recette ou qualification acquise et aucun ticket/dépendance technique clôturé. SH-03 à SH-11 conservent leurs décisions et travaux restants détaillés.
+**Avancement transversal du lot A :** cadrage et réalisation isolée terminés dans la frontière A2 ; décisions dérivées consignées en section 4. Preuves effectives et limites dans le [rapport SH-09 du lot A](08_lot_a_rapport_sh09.md). Sous-ensemble logiciel SH-02/SH-05/SH-09 uniquement ; aucune qualification physique et aucun ticket global ou dépendance matérielle clôturé. SH-03 à SH-11 conservent leurs décisions et travaux restants détaillés.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -1882,13 +1948,13 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 4. **Intégration :** SH-07/SH-08, puis SH-09/SH-10.
 5. **Recette :** SH-11 ; SH-12 reste une évolution distincte.
 
-Progression documentaire au 2026-10-30 : cadres SH-02 à SH-11 approuvés, réalisations et qualifications ouvertes. Conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée le 2026-10-30 en six sujets (section 4) : architecture P1–P6/L1/L2/O/H, inhibition et surveillance indépendante, séquences sans départ spontané, arrêt opérateur porté P6, contrat logiciel et organisation solo. Étape A retenue ensuite : cadrage documentaire du premier lot logiciel isolé, désormais terminé en six sujets A1–A6 (section 4). Réalisation isolée explicitement retenue pour une session ultérieure en section 9, non commencée ; aucune autorisation de campagne matérielle ni qualification déduite.
+Progression au 2026-10-30 : cadres SH-02 à SH-11 approuvés, qualifications et réalisations hors lot ouvertes. Conception documentaire SH-02 en six sujets et cadrage A1–A6 préservés en section 4. Réalisation isolée du lot A désormais effectuée sur autorisation explicite, avec résultats et historique dans le [rapport SH-09 limité au lot](08_lot_a_rapport_sh09.md). Aucune autorisation de campagne matérielle ni qualification déduite ; SH-05/SH-09 globalement non clôturés.
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise — lot A cadré, réalisation isolée retenue pour une session ultérieure
+## 9. Reprise — lot A logiciel isolé livré et vérifié, aucune activation humaine réelle
 
-Point de reprise au 2026-10-30 : **conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée, en lien avec SH-05**. Six sujets consignés en section 4, sous « SH-02 — Conception détaillée documentaire des protections et de l'organisation solo » : 1 et 2, 4 et 5 validés explicitement par l'utilisateur ; 3 et 6 validés par délégation, car dérivés des exigences acquises. Aucun composant, montage électrique, famille de P6, seuil ou délai choisi. SH-11 reste spécifié sans recette exécutée ; les six sujets de chacun des tickets SH-05 à SH-11 restent intégralement consignés en section 4. Conception électrique, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ou conception documentaire ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+Point de reprise au 2026-10-30 : **lot A réalisé et vérifié exclusivement en logiciel isolé**, sur demande explicite de l'utilisateur, après constat d'un arbre propre à la référence indiquée au rapport. Les six sujets SH-02 et les six décisions détaillées de chacun des tickets SH-05 à SH-11 restent intégralement préservés en section 4, comparaison effectuée avec la référence. Aucun composant, montage électrique, famille P6 ou réglage réel choisi ; conception électrique, réalisation/qualification P2–P6 et accès sûr solo toujours ouverts. Aucune spécification ou double ne satisfait une dépendance physique. Aucun accès matériel/réseau, acquisition, charge Pi, achat, installation ou essai moteur exécuté. Aucun Go mobile humain.
 
 ### Lot A cadré — décisions et bilan à reprendre
 
@@ -1898,10 +1964,10 @@ L'étape A explicitement retenue est terminée pour le seul cadrage documentaire
 2. **A2 — Frontière :** L2 dans `RobotController`, admission/verrous dans le runtime commun ; driver et comportement balle préservés, missions humaines synthétiques et garde de refus réel, sans réalisation complète SH-06/SH-07. **Validé explicitement par l'utilisateur le 2026-10-30.**
 3. **A3 — Doubles :** P5, sortie de preuve, demande d'inhibition et horloge/attentes explicites ; périphériques complémentaires factices, zéro matériel/réseau y compris imports/découverte ; présence distincte d'armement/qualification. Validé automatiquement par délégation.
 4. **A4 — Cycles/verrous :** évaluation même au repos, aucune preuve autonome ; contexte/commandes obsolètes invalidés, priorité 1 propagée sans succès apparent ni réessai, postériorité d'armement démontrée ; réservation/échéance et stop/reprise locaux préservés. Validé automatiquement par délégation.
-5. **A5 — Preuves :** douze oracles A-O1 à A-O12 indépendants, chaîne réelle du socle et replay recalculant les décisions, références existantes inspectées ; non-régression balle/primitives/stop protection absente puis présente. Validé automatiquement par délégation ; aucun test créé/exécuté.
+5. **A5 — Preuves :** douze oracles A-O1 à A-O12 indépendants, chaîne réelle du socle et replay recalculant les décisions ; non-régression balle/primitives/stop absente puis présente. Cadrage validé par délégation, désormais exécuté : 121 cas du lot et 214 tests historiques ciblés réussis, référence et compléments explicités au rapport.
 6. **A6 — Fin :** réalisation et résultats effectifs sans obligation manquante, isolation et non-régression démontrées, rapport vérifié ; verdict limité au lot, aucune qualification physique/Pi/audio ni clôture globale SH-05/SH-09. Validé automatiquement par délégation.
 
-**Prêt pour une réalisation ultérieure dans cette frontière, pas réalisé ni vérifié en exécution.** Restent ouverts : choix de réalisation logiciels internes, toutes preuves SH-09 du lot, réalisations/qualifications P2–P6, famille/ergonomie P6 et accès sûr solo, budget d'arrêt/délais, perception, performances Pi, audio réel et recette physique. P5 sans adaptateur réel = état inconnu/inhibé ; suivi humain moteur toujours refusé sur le robot. Aucun Go mobile humain.
+**Réalisé et démontré :** ports P5/L2, identifiants et invalidations, cycles complets dont repos, demande d'inhibition, admission/verrous, réservation/contexte/échéance, stop/reprise locaux synthétiques, refus humain réel, non-régression ciblée et rapport vérifié. **Non exécuté :** suite globale, sept tests de préchauffage, intégration LLM réelle, matériel, audio/Pi et recette physique. **Bloqué hors lot :** P2–P6 réels, famille/ergonomie P6 et accès sûr solo, budget/délais/qualification des réglages, perception et capacités humaines complètes. Aucune dépendance technique n'est satisfaite par documentation ou doubles. P5 sans adaptateur réel = pas d'autorisation ; suivi humain moteur toujours refusé sur le robot. Aucun Go mobile humain.
 
 ### Conception SH-02 des protections validée — détails à préserver en section 4
 
@@ -2017,12 +2083,21 @@ Verdict conforme dans le périmètre déclaré / non conforme / incomplet-bloqu�
 
 Validité limitée à la configuration et au domaine, analyse d'impact et revalidation après changements, historique des échecs conservé. Clôture documentaire distincte de clôture technique, campagne partielle/bloquée insuffisante et No-Go distinct de recette réussie. Prochaine étape documentaire SH-02 explicitement retenue, réalisée depuis en conception fonctionnelle ; aucune poursuite automatique vers SH-12.
 
-### Prochaine étape explicitement retenue — session ultérieure, non commencée
+### Autorisation historique du lot A — réalisation isolée effectuée
 
-Dans une session ultérieure seulement, réaliser le lot A borné par les sujets A1–A6, avec doubles explicites et vérifications logicielles isolées SH-09 limitées au lot. Commencer par constater la référence et les changements locaux, détailler les choix internes nécessaires puis réaliser/raccorder le socle et produire les preuves/rapport ; aucune activation humaine réelle. Pas d'adaptateur matériel, réseau, modèle/serveur réel, acquisition, audio réel, charge/mesure Pi, achat, installation, manipulation matérielle ni essai moteur. Aucun élargissement à la réalisation complète SH-06/SH-07, à une qualification physique ou à SH-12.
+La réalisation du lot A borné par A1–A6, précédemment retenue pour une session ultérieure, a été explicitement autorisée puis effectuée dans cette session. Référence et état local inspectés avant modification ; choix internes consignés, socle raccordé, preuves exécutées et rapport produit/vérifié. Aucun élargissement à SH-06/SH-07 complets, adaptateur matériel, réseau, modèle/serveur réel, acquisition, audio réel, charge/mesure Pi, achat, installation, manipulation matérielle, essai moteur ou SH-12.
 
-**Décision validée explicitement par l'utilisateur le 2026-10-30 avec l'outil de questions : réalisation isolée du lot A retenue pour une session ultérieure.** Elle ne démarre aucun code ni test dans cette session strictement documentaire et ne clôture aucune dépendance technique. Suivi humain moteur toujours refusé sur le robot, aucune protection ni délai qualifié et aucun Go mobile humain. La comparaison des familles P2/P3/P5/P6 reste une autre étape possible, non retenue pour la prochaine session.
+**Historique conservé :** décision explicite du 2026-10-30 avec l'outil de questions, puis demande de réalisation dans la présente session. Cela ne clôture aucun ticket global ni dépendance matérielle. Suivi humain moteur toujours refusé, aucune protection ni délai qualifié et aucun Go mobile humain.
+
+### Prochaine étape proposée — à validation explicite, non commencée
+
+Revoir et valider le [rapport du lot A](08_lot_a_rapport_sh09.md), puis choisir
+explicitement le prochain lot logiciel isolé ou l'étude documentaire des
+protections. Aucune suite engagée automatiquement ; aucune famille P6 choisie,
+aucune recette matérielle/Pi/audio ou activation humaine autorisée.
 
 ### Méthode de poursuite
 
-À la reprise, lire les décisions détaillées de section 4, dont les six sujets SH-02 et le lot A, puis vérifier l'autorisation explicite de la prochaine étape et sa portée avant toute action. Le cadrage A1–A6 est terminé : ne pas le refaire ni rouvrir les acquis. Conserver la méthode sujet par sujet : expliquer une proposition et ses conséquences, poser une seule question avec l'outil lorsque le choix est structurant, valider automatiquement les propositions dérivées en le signalant et consigner chaque décision. Distinguer exigence approuvée, choix technique ouvert et preuve effective. Ne clôturer aucun ticket technique sur sa seule documentation ou sur un sous-ensemble testé. La présente session se termine sans code ni test créé/exécuté, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ou essai moteur. Tout travail ultérieur reste soumis à sa frontière et à son autorisation propres ; aucun Go mobile humain.
+À la reprise, lire les décisions détaillées de section 4, le bilan de réalisation et le rapport, puis vérifier l'autorisation explicite de la prochaine étape et sa portée avant toute action. Ne refaire ni le cadrage A1–A6 ni les acquis. Conserver la méthode sujet par sujet : expliquer les choix et conséquences, poser une seule question avec l'outil pour les choix structurants, valider automatiquement les choix dérivés en le signalant et les consigner. Distinguer exigence, choix technique et preuve effective. Le lot A ne clôture pas SH-05/SH-09 globalement ni leurs dépendances physiques. La présente session a produit du code, des tests exécutés et un rapport uniquement logiciels isolés ; aucune mesure/acquisition matérielle, charge Pi, installation, manipulation matérielle ou essai moteur. Toute suite exige sa frontière et son autorisation propres ; aucun Go mobile humain.
+
+Le chantier différé à examiner après le suivi humain est suivi séparément dans le [backlog de simplification](09_simplification_architecture_backlog.md).

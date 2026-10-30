@@ -33,6 +33,7 @@ class RuntimeSettings:
     camera_focal_px: float = 600.0
     camera_ultrasonic_fusion: bool = False
     backward_cm_per_second: float | None = None
+    protection_presence: str = "absent"
 
 
 @dataclass(frozen=True)
@@ -81,8 +82,12 @@ def load_runtime_settings() -> RuntimeSettings:
     runtime = raw.get("runtime", {})
     limits = raw.get("limits", {})
     camera = raw.get("camera", {})
+    presence = raw.get("protection", {}).get("presence", "absent")
+    if presence not in {"absent", "present"}:
+        raise ValueError("Invalid protection.presence; expected absent or present")
 
     return RuntimeSettings(
+        protection_presence=presence,
         cm_per_second=float(runtime.get("cm_per_second", 25.0)),
         backward_cm_per_second=(
             float(runtime["backward_cm_per_second"]) if "backward_cm_per_second" in runtime else None

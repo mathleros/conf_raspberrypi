@@ -19,25 +19,26 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import requests
-
-try:
-    import vosk  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - macOS/tests
-    vosk = None
 
 from irobot.config.settings import RuntimeSettings, load_llm_settings, load_runtime_settings
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
 from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
-from irobot.hardware.audio.audio_utils import resolve_input_device
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
-from irobot.interfaces.plan_guards import build_formats, grounding_check, is_pure_stop
+from irobot.interfaces.plan_guards import (
+    build_formats, grounding_check, is_pure_stop, requests_human_follow, fold, contains_human_step,
+)
+from irobot.interfaces.protection import MissionPermit, ProtectionFault
+from irobot.interfaces.robot_controller import RobotController
+from irobot.domain.orchestrator.executor import SkillExecutor
+from irobot.domain.skills.base_skill import Skill, SkillContext
 from irobot.interfaces.text_normalizer import preprocess
 
 RATE = 16000
@@ -132,8 +133,10 @@ def _arecord_stream(device: str):
 
 def transcribe_loop(device: str):
     """Lit le flux brut du microphone et le transmet à Vosk."""
-    if vosk is None:
-        raise RuntimeError("La dépendance 'vosk' est absente. Installez les paquets Raspberry Pi requis.")
+    try:
+        import vosk
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("La dépendance 'vosk' est absente. Installez les paquets Raspberry Pi requis.") from exc
 
     model = vosk.Model(MODEL_PATH)
     recognizer = vosk.KaldiRecognizer(model, RATE)
@@ -341,6 +344,8 @@ def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
 
 def ask_llm_for_intent(text: str) -> Intent:
     """Demande un JSON de type Intent au LLM local, puis reconstruit l'objet Intent."""
+    if requests_human_follow(text):
+        return Intent(name="follow_person")
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
     try:
@@ -350,6 +355,8 @@ def ask_llm_for_intent(text: str) -> Intent:
             _select_formats(INTENT_RESPONSE_FORMATS),
         )
         parsed = _parse_llm_json_payload(content)
+        if contains_human_step(parsed):
+            return Intent(name="follow_person")
         intent = _intent_from_llm_step(parsed, text) if parsed else None
         return intent if intent is not None else IntentParser().parse(text)
     except Exception:
@@ -382,6 +389,8 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
       -> repli sur IntentParser (texte d'origine).
     """
+    if requests_human_follow(text):
+        return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
     normalized_text = preprocess(text)
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
@@ -415,6 +424,8 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     parsed = _parse_llm_json_payload(content)
     if not parsed:
         return _fallback("JSON invalide", llm_content=content, reason="invalid json")
+    if contains_human_step(parsed):
+        return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
 
     raw_steps = parsed.get("steps")
     if not isinstance(raw_steps, list):
@@ -586,6 +597,15 @@ class VoiceRuntime:
         self.input_device = input_device
         self.use_llm = use_llm
         self.settings = load_runtime_settings()
+        if self.settings.protection_presence == "present" and not (
+            isinstance(robot, RobotController) and robot.protection_present
+        ):
+            raise ValueError("Declared protection requires a protected RobotController and explicit ports")
+        self._admission_lock = threading.Lock()
+        self._active_permit: MissionPermit | None = None
+        self._reserved_skill: Skill | None = None
+        self._reserved_context: SkillContext | None = None
+        self._reserved_context_key: tuple[str, int] | None = None
         self.trace_dir = Path(trace_dir) if trace_dir else Path.cwd() / "target" / "logs"
         self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.controller = LanguageController(
@@ -731,7 +751,10 @@ class VoiceRuntime:
         last_result: dict[str, Any] | None = None
         while attempt <= max_retries:
             step_started = time.time()
-            result = self.controller.handle_intent(intent)
+            if self._active_permit is not None:
+                result = self.controller.handle_intent(intent, permit=self._active_permit)
+            else:
+                result = self.controller.handle_intent(intent)
             duration = time.time() - step_started
             result["attempt"] = attempt + 1
             result["step_duration_seconds"] = round(duration, 4)
@@ -746,6 +769,8 @@ class VoiceRuntime:
                 },
             )
 
+            if self._protected() and intent.name == "stop":
+                return result
             safety_reason = self._safety_stop_reason(result)
             if safety_reason is not None:
                 # Arrêt d'urgence ou obstacle : la skill s'arrête proprement, mais la mission est interrompue.
@@ -766,7 +791,7 @@ class VoiceRuntime:
                 result["reason"] = "step timeout"
                 return result
 
-            if result.get("status") == "aborted":
+            if result.get("status") == "aborted" or result.get("reason") == "protection_fault":
                 return result
 
             if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
@@ -1108,6 +1133,9 @@ class VoiceRuntime:
         return [self._sanitize_primitive_intent(it) if it.name in {"move_forward", "move_backward", "turn_left", "turn_right"} else it for it in expanded]
 
     def _safe_stop(self) -> None:
+        if self._protected():
+            self.robot.stop()
+            return
         stop = getattr(self.robot, "stop", None)
         if not callable(stop):
             return
@@ -1117,12 +1145,177 @@ class VoiceRuntime:
             pass
 
     def handle_text(self, text: str):
+        if self._protected():
+            return self.handle_text_as_plan(text)
+        if requests_human_follow(text):
+            return {"status": "rejected", "reason": "human_capability_unavailable"}
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
         return self.controller.handle_intent(intent)
 
     def handle_text_as_plan(self, text: str):
+        if is_pure_stop(text):
+            if self._protected():
+                human = self.robot.reservation is not None and self.robot.reservation.human
+                self._request_emergency_stop()
+                if self._worker_owns_supervision():
+                    return {"status": "stop_requested", "source": "local_stop"}
+            if self._protected() and self.robot.reservation is not None:
+                self.supervise_once(events=("stop",))
+                reservation = self.robot.reservation
+                if reservation is not None:
+                    self.robot.finish(reservation.permit)
+                self._reserved_skill = None
+                self._reserved_context = None
+                self._reserved_context_key = None
+                if human:
+                    return {"status": "accepted", "source": "local_stop", "steps": []}
+            return self._handle_text_as_plan(text)
+        if fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
+            return self._resume_reserved_skill()
+        if requests_human_follow(text):
+            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        if self._protected() and self.robot.reservation is not None:
+            if self._worker_owns_supervision():
+                return {"status": "rejected", "reason": "mission_reserved"}
+            self.supervise_once()
+            if self.robot.reservation is not None:
+                return {"status": "rejected", "reason": "mission_reserved"}
+        if not self._admission_lock.acquire(blocking=False):
+            return {"status": "rejected", "reason": "mission_reserved"}
+        try:
+            if self._protected():
+                self.robot.clear_emergency_stop()
+                self._active_permit = self.robot.admit()
+            return self._handle_text_as_plan(text)
+        except ProtectionFault as exc:
+            return {"status": "aborted", "reason": "protection_fault", "causes": (str(exc),)}
+        except Exception:
+            if self._protected():
+                self.robot.priority_one("runtime_exception")
+            raise
+        finally:
+            try:
+                if self._active_permit is not None:
+                    self.robot.finish(self._active_permit)
+            except Exception:
+                self.robot.priority_one("runtime_cleanup_exception")
+                raise
+            finally:
+                self._active_permit = None
+                self._admission_lock.release()
+
+    def _protected(self) -> bool:
+        return isinstance(self.robot, RobotController) and self.robot.protection_present
+
+    def _worker_owns_supervision(self) -> bool:
+        return (self._worker is not None and self._worker.is_alive()
+                and self._worker is not threading.current_thread())
+
+    def supervise_once(self, *, events: tuple[str, ...] = ()) -> None:
+        """One evaluated cycle, including idle. Never a standalone heartbeat."""
+        if self._protected():
+            if self._worker_owns_supervision():
+                raise ProtectionFault("supervision_owned_by_worker")
+            self.robot.supervise(events=events)
+            reservation = self.robot.reservation
+            if reservation is not None and reservation.phase in {"locked", "ended"}:
+                self.mission.abort("+".join(self.robot.causes))
+                self.robot.finish(reservation.permit)
+                self._reserved_skill = None
+                self._reserved_context = None
+                self._reserved_context_key = None
+
+    def run_supervised(
+        self, read_request: Callable[[], str | None], continue_running: Callable[[], bool],
+    ) -> None:
+        """Synchronous monitored loop with an injected non-live request source.
+
+        A blocked request/evaluation/mission prevents completion and thus renewal.
+        There is deliberately no independent proof thread.
+        """
+        if not self._protected() or self.threaded:
+            raise ValueError("Supervised loop requires protected synchronous runtime")
+        try:
+            while continue_running():
+                request = read_request()
+                if request is not None:
+                    self.last_result = self.handle_text_as_plan(request)
+                self.supervise_once()
+                self.robot.sleep_fn(self.robot.CONTROL_LOOP_PERIOD_S)
+        except Exception:
+            self.robot.priority_one("supervised_loop_exception")
+            raise
+        finally:
+            self.robot.stop()
+
+    def execute_reserved_skill(self, permit: MissionPermit, skill: Skill) -> dict[str, Any]:
+        """Infrastructure seam for isolated mission providers, not a language route."""
+        if not self._protected() or not self.robot.valid_result(permit):
+            return {"status": "rejected", "reason": "invalid_reservation"}
+        if not self._admission_lock.acquire(blocking=False):
+            return {"status": "rejected", "reason": "mission_reserved"}
+        self._reserved_skill = skill
+        key = (permit.generation, permit.mission)
+        context = self._reserved_context
+        if context is None or self._reserved_context_key != key:
+            context = SkillContext()
+            self._reserved_context = context
+            self._reserved_context_key = key
+        context.robot = self.robot.bind(permit)
+        try:
+            result = SkillExecutor(context).run(skill)
+            self.robot.supervise()
+            reservation = self.robot.reservation
+            if reservation is None or reservation.permit != permit:
+                return {"status": "aborted", "reason": "obsolete_result"}
+            if reservation.phase == "suspended":
+                return {"status": "suspended", "causes": self.robot.causes}
+            if reservation.phase != "active":
+                return {"status": "aborted", "reason": "protection_fault", "causes": self.robot.causes}
+            return {"status": result.status, "results": [result]}
+        except ProtectionFault as exc:
+            reservation = self.robot.reservation
+            if reservation is not None and reservation.phase == "suspended":
+                return {"status": "suspended", "reason": str(exc), "causes": self.robot.causes}
+            return {"status": "aborted", "reason": "protection_fault", "causes": (str(exc),)}
+        except Exception:
+            self.robot.priority_one("mission_exception")
+            raise
+        finally:
+            try:
+                self.robot.stop()
+                reservation = self.robot.reservation
+                if reservation is not None and reservation.phase != "suspended":
+                    self.robot.finish(permit)
+                    self._reserved_skill = None
+                    self._reserved_context = None
+                    self._reserved_context_key = None
+            except Exception:
+                self.robot.priority_one("runtime_cleanup_exception")
+                raise
+            finally:
+                self._admission_lock.release()
+
+    def _resume_reserved_skill(self) -> dict[str, Any]:
+        if self._worker_owns_supervision():
+            return {"status": "rejected", "reason": "mission_reserved"}
+        if not self._protected() or self._reserved_skill is None:
+            return {"status": "rejected", "reason": "no_resumable_session"}
+        try:
+            permit = self.robot.resume()
+        except ProtectionFault as exc:
+            reservation = self.robot.reservation
+            if reservation is not None and reservation.phase in {"locked", "ended"}:
+                self.robot.finish(reservation.permit)
+                self._reserved_skill = None
+                self._reserved_context = None
+                self._reserved_context_key = None
+            return {"status": "rejected", "reason": str(exc)}
+        return self.execute_reserved_skill(permit, self._reserved_skill)
+
+    def _handle_text_as_plan(self, text: str):
         """Traite une consigne complète en une fois via le LLM, puis exécute les étapes."""
         trace_path = self._trace_path()
         started_at = time.time()
@@ -1145,6 +1338,12 @@ class VoiceRuntime:
                 "llm_json": None,
                 "normalized_text": preprocess(text),
             }
+
+        if plan_trace.get("source") == "llm_human_refused" or any(
+            contains_human_step({"intent": it.name, "parameters": it.parameters})
+            or requests_human_follow(it.raw_text) for it in intents
+        ):
+            return {"status": "rejected", "reason": "human_capability_unavailable", "steps": []}
 
         self._write_trace_event(
             trace_path,
@@ -1312,6 +1511,9 @@ class VoiceRuntime:
     def _call_robot(self, method: str) -> None:
         func = getattr(self.robot, method, None)
         if callable(func):
+            if self._protected():
+                func()
+                return
             try:
                 func()
             except Exception:
@@ -1327,7 +1529,8 @@ class VoiceRuntime:
             self._safe_stop()
 
     def mission_running(self) -> bool:
-        return self._worker is not None and self._worker.is_alive()
+        return ((self._protected() and self.robot.reservation is not None)
+                or (self._worker is not None and self._worker.is_alive()))
 
     def _is_stop_phrase(self, text: str) -> bool:
         return is_pure_stop(text) or self.parser.parse(text).name == "stop"
@@ -1343,6 +1546,13 @@ class VoiceRuntime:
 
     def handle_transcript(self, text: str):
         """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
+        if self._protected():
+            if is_pure_stop(text) or fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
+                return self.handle_text_as_plan(text)
+            if not self._worker_owns_supervision():
+                self.supervise_once()
+        if requests_human_follow(text):
+            return {"status": "rejected", "reason": "human_capability_unavailable"}
         if self.mission_running():
             if self._is_stop_phrase(text):
                 print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
@@ -1362,6 +1572,7 @@ class VoiceRuntime:
         return None
 
     def listen_forever(self):
+        from irobot.hardware.audio.audio_utils import resolve_input_device
         device = resolve_input_device(self.input_device)
         try:
             for text in transcribe_loop(device):
@@ -1377,6 +1588,8 @@ class VoiceRuntime:
         if worker is not None and worker.is_alive() and worker is not threading.current_thread():
             worker.join(timeout=2.0)
         self._safe_stop()
+        if self._protected():
+            self.supervise_once(events=("stop",))
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
@@ -1390,6 +1603,8 @@ class VoiceRuntime:
 
 def build_hardware_runtime() -> dict[str, Any]:
     """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""
+    if load_runtime_settings().protection_presence == "present":
+        raise RuntimeError("Protection declared present: no qualified real P5 adapter; live assembly refused")
     runtime: dict[str, Any] = {
         "robot": None,
         "camera": None,

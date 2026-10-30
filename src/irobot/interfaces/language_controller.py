@@ -9,6 +9,9 @@ from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
+from irobot.interfaces.protection import MissionPermit, ProtectionFault
+from irobot.interfaces.robot_controller import RobotController
+from irobot.interfaces.plan_guards import requests_human_follow
 
 
 class LanguageController:
@@ -57,6 +60,10 @@ class LanguageController:
             return False
 
     def handle_text(self, text: str):
+        if requests_human_follow(text):
+            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        if isinstance(self.robot, RobotController) and self.robot.protection_present:
+            return self.handle_intent(self.parser.parse(text))
         intent = self.parser.parse(text)
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
@@ -109,7 +116,32 @@ class LanguageController:
             "results": results,
         }
 
-    def handle_intent(self, intent: Intent):
+    def handle_intent(self, intent: Intent, *, permit: MissionPermit | None = None):
+        if intent.name in {"follow_person", "resume_follow_person"} or requests_human_follow(intent.raw_text):
+            return {"intent": intent, "status": "rejected", "reason": "human_capability_unavailable"}
+        protected = isinstance(self.robot, RobotController) and self.robot.protection_present
+        if not protected or intent.name == "stop":
+            return self._handle_intent(intent, self.robot)
+        if not self.validator.validate(intent):
+            return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
+        owned = permit is None
+        try:
+            if owned:
+                permit = self.robot.admit()
+            result = self._handle_intent(intent, self.robot.bind(permit))
+            self.robot.supervise()
+            if not self.robot.valid_result(permit):
+                return {"intent": intent, "status": "aborted",
+                        "reason": "protection_fault", "causes": self.robot.causes}
+            return result
+        except ProtectionFault as exc:
+            return {"intent": intent, "status": "aborted", "reason": "protection_fault",
+                    "causes": (str(exc),)}
+        finally:
+            if owned and permit is not None:
+                self.robot.finish(permit)
+
+    def _handle_intent(self, intent: Intent, robot):
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
 
@@ -118,7 +150,7 @@ class LanguageController:
             return {"intent": intent, "status": "rejected", "reason": "no skill plan"}
 
         context = SkillContext(
-            robot=self.robot,
+            robot=robot,
             camera=self.camera,
             sensor=self.sensor,
             perception=self.perception,
@@ -150,6 +182,11 @@ class LanguageController:
                 }
             context.state["active_skill"] = skill.name
             results.append(executor.run(skill))
+            if isinstance(self.robot, RobotController) and self.robot.protection_present:
+                self.robot.supervise()
+                if self.robot.reservation is not None and self.robot.reservation.phase != "active":
+                    return {"intent": intent, "status": "aborted", "reason": "protection_fault",
+                            "causes": self.robot.causes, "results": results}
         return {
             "intent": intent,
             "status": "accepted",

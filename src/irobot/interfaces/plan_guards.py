@@ -104,6 +104,32 @@ def is_pure_stop(text: str) -> bool:
         and all(w in STOP_WORDS or w.startswith(("arret", "attend")) for w in words)
 
 
+def requests_human_follow(text: str) -> bool:
+    """Refusal guard only, not a human-follow language implementation."""
+    normalized = fold(text)
+    return bool(re.search(
+        r"\b(?:suis|suit|suivre|suivez|suivez moi|follow|track|poursuis|rejoins)\s+"
+        r"(?:(?:un|une|le|la|l|cet|cette|cette personne)\s+)?"
+        r"(?:moi|nous|me|us|personne|humain|humaine|homme|femme|person|human|"
+        r"porteur|utilisateur|operateur|proprietaire|quelqu un)\b",
+        normalized,
+    )) or bool(re.search(r"\b(?:reprends|reprendre|reprenez)\s+(?:le\s+)?suivi\b", normalized))
+
+
+def contains_human_step(value: Any) -> bool:
+    """Refuse human payloads before malformed-step filtering or expansion."""
+    if isinstance(value, dict):
+        names = {str(value.get(key, "")).strip().lower() for key in ("intent", "name", "action")}
+        if names & {"follow_person", "follow_human", "track_person", "resume_follow_person"}:
+            return True
+        return any(contains_human_step(item) for item in value.values())
+    if isinstance(value, list):
+        return any(contains_human_step(item) for item in value)
+    if isinstance(value, str):
+        return requests_human_follow(value)
+    return False
+
+
 def _num(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
@@ -137,6 +163,12 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
       (valeurs par défaut du prompt tolérées : duration 1 pour avance/recule, angle 90 pour tourne) ;
     - après nettoyage, avance/recule sans distance ni durée -> duration 1 ; tourne sans angle ni durée -> angle 90.
     """
+    if requests_human_follow(sent_text) or any(
+        isinstance(step, dict) and (step.get("intent") or step.get("name")) in {
+            "follow_person", "resume_follow_person",
+        } for step in steps
+    ):
+        return [], "human_capability_unavailable", []
     folded = fold(sent_text)
     numbers = {float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", folded)}
     kept, notes = [], []

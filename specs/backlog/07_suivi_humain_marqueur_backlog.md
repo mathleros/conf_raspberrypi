@@ -2415,7 +2415,15 @@ trame le même quart de tour horaire que l’aperçu déjà testé. Aucun autre 
 peut être substitué ; aucune distance ni calibration n’est calculée. Sortie
 par `q`, arrêt et fermeture de la caméra dans `finally`. Si DISPLAY est absent
 ou le modèle caméra différent/inconnu, le programme refuse d’ouvrir l’appareil.
-Le point d’entrée est soumis à accord préalable : **pas encore lancé**.
+Le point d’entrée a été lancé par l’utilisateur après accord explicite et
+synchronisation sur le Pi. Résultat rapporté : `ID 1: detected;
+corners_px=((257.0, 266.0), (187.0, 265.0), (189.0, 197.0), (258.0, 198.0))`.
+Cela établit une détection rapportée de l’ID configuré dans au moins une trame
+sur cette installation. Les coins sont des pixels après rotation de 90° selon
+le pipeline de l’outil ; ils ne constituent ni une mesure de distance, ni une
+estimation d’orientation/calibration, ni une preuve de répétabilité, de
+fraîcheur ou de qualité du suivi. Aucune image n’a été conservée et le résultat
+n’a pas été reproduit indépendamment par l’assistant.
 
 Les nouveaux tests portent sur doubles/statuts synthétiques et la présentation
 des coins ; ils ne sollicitent ni OpenCV natif, ni Pi, ni caméra, ni marqueur
@@ -2425,9 +2433,7 @@ campagne ciblée 251 réussis/7 désélectionnés, legacy 4 réussis ; trois
 processus avec zéro accès interdit et zéro thread résiduel. Ces résultats ne
 sont pas une preuve de détection optique réelle.
 
-La nouvelle commande est disponible dans le code source courant seulement ;
-elle n’a pas été exécutée sur le Pi ni transférée depuis cet environnement.
-Avant tout lancement sur le Pi, synchroniser ces modifications, vérifier à
-nouveau l’isolement moteur déclaré et obtenir l’accord précis de la campagne
-de détection optique. La précédente autorisation `camera-live` excluait le
-marqueur et ne couvre pas cette nouvelle commande.
+Le code source local n’a pas été inspecté après la campagne Pi et sa
+synchronisation actuelle n’est pas vérifiée depuis cet environnement. Le
+résultat rapporté n’ouvre pas d’autorisation de propulsion ni d’essai avec une
+personne ; les portes SH-02/SH-11 demeurent.

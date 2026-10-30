@@ -929,25 +929,29 @@ propulsion ou un Go de suivi humain.
 
 Pour préparer le protocole optique suivant, l’utilisateur a choisi le marqueur
 candidat ArUco `DICT_4X4_50`, ID `1`. Ce choix n’est ni configuré dans le runtime
-ni qualifié comme identité de production ; aucun essai réel de détection de ce
-marqueur n’a encore été autorisé ou exécuté. Il faudra un accord distinct pour
-toute nouvelle ouverture caméra avec détection. L’utilisateur confirme que le
-marqueur physique est disponible et que le côté du carré imprimé lui-même
-(hors bordure/feuille) a été mesuré à 8 cm. Cette dimension déclarée ne qualifie
-ni la calibration ni une mesure de distance.
-Un outil logiciel `marker-detect-live` est ajouté au code source pour ce
-prochain test statique : il vérifie que la caméra 0 est rapportée OV5647,
-détecte seulement ce couple, superpose et rapporte les coins en pixels, ne
-conserve pas d’image, n’estime aucune distance, et s’arrête sur `q`. Il ne
-commande pas de moteur. Les tests isolés synthétiques vérifient la présentation
-et l’absence de faux succès pour un autre ID ; ils ne sollicitent ni caméra ni
-marqueur physique.
+ni qualifié comme identité de production. Une autorisation distincte a été
+reçue, puis l’utilisateur rapporte avoir exécuté l’outil de diagnostic après
+synchronisation sur le Pi. Sortie rapportée : `ID 1: detected;
+corners_px=((257.0, 266.0), (187.0, 265.0), (189.0, 197.0), (258.0, 198.0))`.
+Cela témoigne d’une détection de l’ID demandé dans au moins une trame rapportée,
+sur cette configuration. Les coins en pixels sont après la rotation horaire
+de 90° du pipeline ; ils ne donnent ni distance ni orientation calibrée, et
+n’établissent pas répétabilité, fraîcheur, qualité ou disponibilité continue.
+Le côté du carré imprimé lui-même (hors bordure/feuille) a été mesuré à 8 cm,
+selon l’utilisateur ; cette dimension déclarée ne qualifie ni la calibration
+ni une mesure de distance. L’outil `marker-detect-live` vérifie que la
+caméra 0 est rapportée OV5647, détecte seulement ce couple, superpose et
+rapporte les coins en pixels, ne conserve pas d’image, n’estime aucune
+distance, et s’arrête sur `q`. Il ne commande pas de moteur. Les tests isolés
+synthétiques vérifient la présentation et l’absence de faux succès pour un
+autre ID ; ils ne sollicitent ni caméra ni marqueur physique.
 
 Campagnes isolées finales après ajout de l’outil : `--stdlib` 201 tests,
 sélection ciblée 251 réussis/7 désélectionnés, legacy 4 réussis ; zéro accès
 interdit et zéro thread résiduel dans chaque processus. Aucun test de cette
-série n’ouvre la caméra réelle. Les changements ne sont pas encore synchronisés
-vers le Pi. Une autorisation utilisateur distincte est maintenant reçue pour
-la campagne statique avec marqueur, à lancer uniquement après synchronisation
-sur le Pi et sous les conditions décrites ci-dessus. L’assistant n’a pas accès
-à la session SSH et n’exécute pas la commande ; son résultat reste à rapporter.
+série n’ouvre la caméra réelle. Les changements n’ont pas été inspectés de
+nouveau sur le Pi après la campagne rapportée ; ni l’état synchronisé du dépôt
+ni le résultat optique ne sont reproduits indépendamment par l’assistant.
+L’essai autorisé était statique, sans propulsion, personne, capture persistée
+ou mesure de distance. Il ne qualifie pas SH-03 et n’autorise pas un essai
+humain ou une propulsion.

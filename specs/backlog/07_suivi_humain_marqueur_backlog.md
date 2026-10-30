@@ -2203,3 +2203,231 @@ aucune famille P6, recette matérielle/Pi/audio ou activation humaine autorisée
 À la reprise, lire les décisions détaillées de section 4, le bilan de réalisation et le rapport, puis vérifier l'autorisation explicite de la prochaine étape et sa portée avant toute action. Ne refaire ni le cadrage A1–A6 ni les acquis. Conserver la méthode sujet par sujet : expliquer les choix et conséquences, poser une seule question avec l'outil pour les choix structurants, valider automatiquement les choix dérivés en le signalant et les consigner. Distinguer exigence, choix technique et preuve effective. Le lot A ne clôture pas SH-05/SH-09 globalement ni leurs dépendances physiques. La présente session a produit du code, des tests exécutés et un rapport uniquement logiciels isolés ; aucune mesure/acquisition matérielle, charge Pi, installation, manipulation matérielle ou essai moteur. Toute suite exige sa frontière et son autorisation propres ; aucun Go mobile humain.
 
 Le chantier différé à examiner après le suivi humain est suivi séparément dans le [backlog de simplification](09_simplification_architecture_backlog.md).
+
+## 10. Autorisation de poursuite et premier bloc logiciel — 2026-10-30
+
+**Décision utilisateur reçue le 2026-10-30 :** « Tu as mon GO mobile humain
+pour pouvoir continuer avec le robot et les moteurs. J’aimerai finir
+l’implémentation afin de pouvoir faire des 1ers tests sur le terrain. »
+Cette décision autorise la poursuite de l’implémentation logicielle et la
+préparation progressive de l’intégration réelle. Elle ne constitue ni une
+qualification physique, ni une autorisation de mouvement réel, ni un Go pour
+un essai avec une personne. Les portes SH-02/SH-11 demeurent obligatoires ;
+aucune protection ou condition manquante n’est présumée réalisée. Les mentions
+historiques « aucun Go » des sections antérieures sont conservées sans
+réécriture : elles décrivent les décisions et états antérieurs.
+
+### État Git vérifié à la reprise
+
+- Dépôt `conf_raspberrypi/`, branche `feat/human-detector`, HEAD
+  `46f6472dddcc90ceb9a5ea2c2ae937f737d6b503` (`46f6472`), au-delà du HEAD
+  transmis `b1864aba3e78560fbb7f4ab020e886b1766cfa2a`.
+- L’historique contient `b1864aba` et la référence `a5c397b483fc0eda0938e5d444ecf1a3968430f9`.
+- Arbre de travail et index propres au début ; aucune modification locale
+  préexistante à intégrer, révoquer ou committer. Aucun commit effectué.
+- Les six sujets SH-02, A1–A6 et les six décisions détaillées de chacun des
+  tickets SH-05 à SH-11 ne sont pas modifiés.
+
+### Bloc réalisé : contrat d’observation et acquisition immobile
+
+Ajout de [human_perception.py](../../src/irobot/interfaces/human_perception.py)
+et de tests entièrement synthétiques. Après choix utilisateur du prototype
+ArUco/OpenCV, le module inclut aussi un décodeur candidat configurable, sans
+dictionnaire ni ID par défaut ; il retourne uniquement statut et coins image,
+pas distance/calibration ni autorisation de mouvement. Le contrat porte la source et génération
+du flux, numéro de trame, capture et publication monotones, identité
+famille/dictionnaire/ID, mission et version du contexte, dimensions et position
+image, angle, distance optique distincte du dégagement robot–porteur, version
+de calibration, métriques de qualité et disposition explicite de l’observation.
+L’acquisition exige l’identité attendue, un contexte exact, des trames
+consécutives du même flux et trois confirmations distinctes ; le contrôle de
+fraîcheur part de l’instant de capture, jamais de la publication.
+
+La limite de 200 ms est exposée comme cible SH-04 et injectée explicitement au
+validateur ; ce n’est ni une mesure ni une qualification. Les détections
+invalides, ambiguës, absentes, fautives, périmées, malformées ou hors contexte
+ne confirment pas l’acquisition. Un redémarrage de flux, une répétition, un
+retour hors ordre ou une lacune de trame invalide les confirmations. Il n’y a
+ni accès caméra ni émission moteur dans ce bloc.
+
+**Portée et limites :** contrat, validateur d’acquisition et décodeur ArUco
+testés par doubles seulement. `RuntimeSettings` sait désormais lire une
+association persistante optionnelle depuis `[human_marker]` dans
+`runtime_calibration.toml` (champs stricts `family`, `dictionary`,
+`identifier`) ; section absente = identité non configurée, section partielle
+ou mal formée = erreur explicite. `HumanMarkerMissionContext` peut maintenant
+prendre un instantané immuable de cette identité au début d’une mission et
+créer un validateur lié au même ID et contexte ; une identité absente refuse
+explicitement la création. Cet adaptateur n’est pas encore appelé par le
+runtime mission : aucun ID réel n’est configuré dans le dépôt. Aucun détecteur
+appliqué à une vraie image caméra, famille finale/dictionnaire/ID retenu,
+calibration, connexion au pipeline caméra,
+comportement de mouvement, raccordement au runtime humain, qualification
+SH-03/SH-04 ou levée du refus réel. Le comportement balle n’est pas modifié.
+SH-05/SH-09 ne sont pas déclarés terminés globalement. Ce n’est pas un « lot B ».
+
+**Choix reçu après l’implémentation du contrat générique :** prototype ArUco
+via OpenCV. Inspection locale sans caméra ni installation : OpenCV 5.0.0,
+`cv2.aruco.ArucoDetector` et sa méthode `detectMarkers` disponibles ; l’ancienne
+fonction de module `cv2.aruco.detectMarkers` n’est pas présente. Le décodeur
+utilise la classe détecteur et exige que famille, dictionnaire et ID lui soient
+fournis ; aucun dictionnaire/ID ni montage n’est fixé par ce prototype.
+SH-03 requiert toujours une comparaison et qualification optiques avant le
+choix final et toute intégration live.
+
+Un smoke test natif distinct a construit le décodeur OpenCV local et lui a
+fourni une image noire synthétique 64×64 ; résultat : `absent`. Le dictionnaire
+`DICT_4X4_50` et l’ID `0` n’ont servi qu’à cet appel jetable, ne sont ni
+persistés ni retenus comme choix produit. Aucune caméra n’a été ouverte.
+
+### Preuves logicielles reproduites
+
+Lanceur, gardes, imports, doubles et collecte inspectés avant exécution.
+Commandes ciblées avec `-I -S` uniquement :
+
+| Campagne | Résultat reproduit |
+|---|---|
+| `run_lot_a.py --stdlib` | 201 tests réussis |
+| `run_lot_a.py` | 251 réussis, 7 désélectionnés |
+| `run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+Pour les trois processus finaux : zéro accès interdit observé, zéro thread
+résiduel et trois sondes synthétiques rejetées ; aucune opération de ressource
+réelle. Une première exécution du nouveau cas contenait un horodatage de
+publication égal à la capture, donc cohérent ; l’attendu erroné a été corrigé
+sans relâcher le contrat, puis les campagnes finales ci-dessus ont été
+rejouées. Ce résultat valide les cas synthétiques sélectionnés seulement.
+
+### Cycle logiciel déterministe — périmètre simulé
+
+Ajout de [human_lifecycle.py](../../src/irobot/interfaces/human_lifecycle.py)
+et de tests d’horloge/sessions synthétiques. Le cycle conserve l’identité et
+le contexte pendant suspension, exige une commande explicite pour reprendre,
+borne l’acquisition initiale et la réacquisition à 10 s, conserve l’échéance
+originale pendant la reprise et efface le contexte après fin. Un échec initial
+termine la tentative ; une réacquisition échouée revient en suspension sans
+relance automatique. L’activation et la sortie du maintien exigent le contrat
+typé `HumanConditions` sans échec ; aucun état d’observation valide ne déclenche
+automatiquement un mouvement. Le maintien n’émet aucune commande et la machine
+ne pilote pas de moteur.
+
+**Limite :** cette machine n’est pas raccordée au runtime mission, au parseur,
+aux annonces, au superviseur moteur ni aux protections. Sa transition d’état
+ne prouve pas l’exécution d’un arrêt ; tout raccordement devra déléguer l’arrêt
+prioritaire au `RobotController`, respecter SH-05 et conserver le refus actuel
+des demandes humaines en production. Les seuils de distance/orientation,
+mesures SH-03 et portes physiques manquants empêchent encore le comportement
+de suivi motorisé.
+
+**Non exécuté / blocages maintenus :** détection ArUco réelle, robot, réseau,
+GPIO, capteurs, audio réel, LLM/modèle/serveur réel, mesures de performance Pi,
+moteurs, cibles inertes et personne. L’inventaire OS/caméra et l’aperçu live
+OV5647 sont rapportés par l’utilisateur, mais pas reproduits par l’assistant ;
+ils ne qualifient pas SH-03. P2/P3/P4/P5/P6 restent à réaliser et qualifier ;
+famille P6 non choisie, accès sûr solo non démontré. Toute propulsion réelle
+reste bloquée jusqu’aux preuves requises de protection et d’interruption.
+Aucun essai terrain n’est commencé.
+
+**Décisions/prérequis structurants encore ouverts avant intégration réelle :**
+famille finale/dictionnaire/ID après qualification SH-03, montage et géométrie
+caméra, calibration, métriques/seuils, valeur d’association configurée et
+consommation de celle-ci par le runtime. L’intégration à une caméra réelle
+requiert une campagne précise. La campagne de détection statique `DICT_4X4_50`
+/ID `1` est maintenant autorisée par l’utilisateur, uniquement après
+synchronisation de l’outil sur le Pi ; ni l’assistant ni l’utilisateur ne
+l’ont encore exécutée. Elle n’autorise pas calibration de distance, mouvement,
+suivi d’une personne ou essais moteur. Les parties logicielles indépendantes
+peuvent continuer sans activer le robot.
+
+### Configuration communiquée pour préparer SH-03 — non vérifiée
+
+L’utilisateur indique : Smart Car 2WD pour Arduino, marque RichVibe, driver
+L298N ; Raspberry Pi 5 avec « la dernière version de Pi OS » (version exacte
+non fournie) ; caméra Pi 5MP 1080P avec capteur OV5647, fixée à l’avant,
+verticalement, objectif orienté horizontalement, centre optique à 6 cm du sol.
+Il indique pouvoir déconnecter facilement les moteurs. Ces informations ne
+sont pas inspectées ni vérifiées physiquement ; les moteurs ne sont pas encore
+déconnectés et leur isolement n’est pas attesté.
+
+Résultat communiqué par l’utilisateur après la campagne autorisée : Debian
+GNU/Linux 13 (trixie), version complète 13.7 ; `libcamera v0.7.2+rpt20260817`
+et Picamera2 ont lancé la découverte. `global_camera_info()` a rapporté un
+appareil `ov5647`, `Location: 2`, `Rotation: 0`, `Num: 0`, identifiant
+`/base/axi/pcie@1000120000/rp1/i2c@80000/ov5647@36`, avec la configuration
+PISP/BCM2712. Cela confirme le modèle rapporté par l’énumération logicielle,
+pas l’orientation physique, la qualité optique, le flux d’images ni la
+calibration. Les sorties sont rapportées par l’utilisateur, non reproduites
+indépendamment sur cet environnement.
+
+Confirmation utilisateur reçue ensuite : moteurs physiquement déconnectés et
+absence de possibilité de les alimenter vérifiée. Il s’agit d’une déclaration
+de précondition de cette campagne, pas d’une qualification des protections,
+de l’arrêt d’urgence ni de l’immobilisation du robot.
+
+Vérifications logicielles supplémentaires communiquées par l’utilisateur :
+`DISPLAY=localhost:10.0` et `.venv/bin/camera-live` exécutable. Les valeurs
+sont rapportées, non reproduites ici.
+
+Point d’entrée existant inspecté sans exécution : `camera-live` exige un
+affichage X11, énumère les caméras Picamera2, ouvre automatiquement l’index 0,
+capture et affiche des images après rotation de 90° ; il ne sauvegarde pas
+d’image. Les commandes de métadonnées autorisées (`cat /etc/os-release` et
+`.venv/bin/python -c 'from picamera2 import Picamera2;
+print(Picamera2.global_camera_info())'`) ont été exécutées par l’utilisateur :
+elles n’ont pas capturé/affiché/sauvegardé d’image et ne commandent pas de
+moteur. Toute ouverture live nécessite encore un accord distinct ainsi que la
+vérification opérationnelle de l’affichage X11.
+L’environnement courant est macOS, sans accès SSH direct connu.
+
+**Autorisation distincte reçue le 2026-10-30 :** l’utilisateur autorise une
+campagne d’affichage live limitée via la session SSH avec X11, commande
+`.venv/bin/camera-live`, après déclaration d’isolement moteur ci-dessus et
+contrôle de la présence de `DISPLAY`/de l’exécutable. Périmètre autorisé :
+caméra 0 (OV5647), capture et affichage continus tournés de 90°, sans
+enregistrement, moteur, audio, réseau, personne, marqueur ni calibration ;
+arrêt par `q`. L’environnement assistant est macOS sans accès SSH direct ; la
+commande n’a pas été exécutée par l’assistant. Résultat rapporté ensuite par
+l’utilisateur : la campagne fonctionne et l’image est visible correctement.
+Ceci constate le fonctionnement apparent du flux et de l’affichage lors de
+cette session, mais ne constitue pas une mesure d’orientation/calibration,
+une qualification SH-03 ou une preuve reproductible indépendante ; aucune
+image n’a été conservée. Cette autorisation et ce résultat ne sont ni une
+preuve physique de protection ni un Go pour propulsion ou essai humain.
+
+**Choix reçu pour préparer un essai optique statique ultérieur :** dictionnaire
+ArUco `DICT_4X4_50`, identifiant `1`. Ce choix fixe le marqueur candidat du
+prochain protocole de détection ; il n’a pas encore été inscrit dans
+`runtime_calibration.toml`, observé par la caméra ni qualifié comme identité
+persistante de production. Une campagne de détection avec marqueur nécessitera
+son propre protocole et accord explicite ; aucune image ne sera conservée par
+défaut.
+
+L’utilisateur confirme que le marqueur physique choisi est disponible et que
+le côté du carré ArUco imprimé lui-même (hors feuille/bordure) a été mesuré à
+8 cm. Cette dimension est une entrée déclarée pour l’essai statique à préparer,
+pas une calibration optique ou une qualification de mesure de distance.
+Un outil logiciel `marker-detect-live` a été ajouté pour une prochaine
+campagne statique distincte : il vérifie que caméra 0 est rapportée comme
+OV5647, ouvre uniquement cette caméra, détecte le couple exact
+`DICT_4X4_50`/ID `1`, superpose les coins image en pixels, affiche les états
+absent/ambigu/défaut séparément et n’enregistre aucune image. Il applique à la
+trame le même quart de tour horaire que l’aperçu déjà testé. Aucun autre ID ne
+peut être substitué ; aucune distance ni calibration n’est calculée. Sortie
+par `q`, arrêt et fermeture de la caméra dans `finally`. Si DISPLAY est absent
+ou le modèle caméra différent/inconnu, le programme refuse d’ouvrir l’appareil.
+Le point d’entrée est soumis à accord préalable : **pas encore lancé**.
+
+Les nouveaux tests portent sur doubles/statuts synthétiques et la présentation
+des coins ; ils ne sollicitent ni OpenCV natif, ni Pi, ni caméra, ni marqueur
+imprimé. Le choix reste un candidat d’essai, pas une association de production.
+Résultat des campagnes isolées après ajout de l’outil : `--stdlib` 201 tests,
+campagne ciblée 251 réussis/7 désélectionnés, legacy 4 réussis ; trois
+processus avec zéro accès interdit et zéro thread résiduel. Ces résultats ne
+sont pas une preuve de détection optique réelle.
+
+La nouvelle commande est disponible dans le code source courant seulement ;
+elle n’a pas été exécutée sur le Pi ni transférée depuis cet environnement.
+Avant tout lancement sur le Pi, synchroniser ces modifications, vérifier à
+nouveau l’isolement moteur déclaré et obtenir l’accord précis de la campagne
+de détection optique. La précédente autorisation `camera-live` excluait le
+marqueur et ne couvre pas cette nouvelle commande.

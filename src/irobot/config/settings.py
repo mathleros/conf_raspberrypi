@@ -13,6 +13,36 @@ DEFAULT_TIMEOUT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
+class MarkerIdentity:
+    family: str
+    dictionary: str
+    identifier: str
+
+    def __post_init__(self) -> None:
+        if any(not isinstance(value, str) or not value.strip() or value != value.strip()
+               for value in (self.family, self.dictionary, self.identifier)):
+            raise ValueError("Marker identity fields must be non-empty canonical strings")
+
+    @classmethod
+    def from_mapping(cls, value: object) -> "MarkerIdentity | None":
+        if value is None:
+            return None
+        if not isinstance(value, Mapping):
+            raise ValueError("human_marker must be a table")
+        expected = {"family", "dictionary", "identifier"}
+        if set(value) != expected:
+            raise ValueError("human_marker requires exactly family, dictionary, and identifier")
+        try:
+            return cls(
+                family=value["family"],
+                dictionary=value["dictionary"],
+                identifier=value["identifier"],
+            )
+        except TypeError as exc:
+            raise ValueError("human_marker identity values must be strings") from exc
+
+
+@dataclass(frozen=True)
 class RuntimeSettings:
     cm_per_second: float = 25.0
     deg_per_second: float = 360.0
@@ -34,6 +64,7 @@ class RuntimeSettings:
     camera_ultrasonic_fusion: bool = False
     backward_cm_per_second: float | None = None
     protection_presence: str = "absent"
+    human_marker_identity: MarkerIdentity | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +113,7 @@ def load_runtime_settings() -> RuntimeSettings:
     runtime = raw.get("runtime", {})
     limits = raw.get("limits", {})
     camera = raw.get("camera", {})
+    marker_identity = MarkerIdentity.from_mapping(raw.get("human_marker"))
     presence = raw.get("protection", {}).get("presence", "absent")
     if presence not in {"absent", "present"}:
         raise ValueError("Invalid protection.presence; expected absent or present")
@@ -109,4 +141,5 @@ def load_runtime_settings() -> RuntimeSettings:
         camera_ball_diameter_cm=float(camera.get("ball_diameter_cm", 6.5)),
         camera_focal_px=float(camera.get("focal_px", 600.0)),
         camera_ultrasonic_fusion=bool(camera.get("ultrasonic_fusion", False)),
+        human_marker_identity=marker_identity,
     )

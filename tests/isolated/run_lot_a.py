@@ -20,6 +20,7 @@ SELECTED = (
     "test_scenario_yellow_ball.py", "test_primitive_safety_stop.py",
     "test_emergency_stop.py", "test_skills_primitives.py",
     "test_language_controller.py", "test_plan_guards.py", "test_voice_runtime.py",
+    "test_human_perception.py", "test_human_lifecycle.py", "test_marker_diagnostic.py",
 )
 
 
@@ -155,7 +156,12 @@ def main():
                 spec.loader.exec_module(module)
                 suite = unittest.defaultTestLoader.loadTestsFromModule(module)
             else:
-                suite = unittest.defaultTestLoader.loadTestsFromName("tests.isolated.lot_a_cases")
+                suite = unittest.TestSuite((
+                    unittest.defaultTestLoader.loadTestsFromName("tests.isolated.lot_a_cases"),
+                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_human_perception"),
+                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_human_lifecycle"),
+                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_marker_diagnostic"),
+                ))
             outcome = unittest.TextTestRunner(verbosity=2).run(suite)
             result = 0 if outcome.wasSuccessful() else 1
         else:

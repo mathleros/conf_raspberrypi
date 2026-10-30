@@ -62,6 +62,39 @@ couleur d'une demande objet historique prise en charge reste compatible.
 Les préconditions humaines sont énumérées dans un contrat d'exigences fixe,
 indépendant des champs du type de production.
 
+La sélection isolée inclut aussi `tests/unit/test_human_perception.py` :
+contrat typé, instantané immuable de l'identité persistante au contexte de
+mission, acquisition et décodeur ArUco à partir d'observations/doubles
+synthétiques seulement. La cible SH-04 (200 ms) est une valeur de test
+explicite, non une mesure qualifiée ; aucun accès caméra ou matériel n'est
+invoqué. Un smoke test natif OpenCV distinct utilise également une image
+synthétique uniquement pour vérifier que l'API locale se construit ; il ne
+qualifie pas la perception optique.
+
+`tests/unit/test_human_lifecycle.py` vérifie les transitions d'acquisition,
+maintien, suspension/reprise et échéance avec une horloge et des résultats
+synthétiques. La machine ne commande aucun mouvement et n'est pas raccordée
+au runtime mission ; elle ne qualifie ni annonces, protections ni arrêt réel.
+
+`tests/unit/test_marker_diagnostic.py` vérifie le contrat de présentation du
+diagnostic ArUco sans caméra. La commande `marker-detect-live` ouvre la caméra
+réelle et son affichage. Une campagne statique avec marqueur a été autorisée
+séparément ; ne pas la lancer pendant la validation isolée ni avant
+synchronisation explicite du code vers le Pi.
+
+Après synchronisation du code sur le Pi, invocation depuis la racine du dépôt
+sans réinstaller de dépendance :
+
+```bash
+PYTHONPATH=src .venv/bin/python -m irobot.interfaces.marker_diagnostic
+```
+
+Cette commande ouvre la caméra 0 uniquement si son modèle est rapporté comme
+OV5647, détecte le seul couple configuré dans le diagnostic
+`DICT_4X4_50`/ID `1`, affiche les coins en pixels et ne sauvegarde pas d'image.
+Elle exige une campagne réelle autorisée séparément ; `camera-live` déjà
+autorisé ne couvre pas cette détection.
+
 Voir le [rapport SH-09 du lot A](../specs/backlog/08_lot_a_rapport_sh09.md) pour
 la référence, les oracles, résultats, exclusions et limites. Le suivi humain
 moteur réel demeure refusé ; aucune qualification Pi/audio/physique.

@@ -415,3 +415,32 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 5. **Recette :** SH-11 ; SH-12 reste une évolution distincte.
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
+
+## 9. Reprise dans une nouvelle session — prochaine spécification SH-05
+
+Point de reprise au 2026-10-30 : **spécifier SH-05 avec l'utilisateur, pas l'implémenter**. SH-05 n'a pas encore été validé. La spécification peut avancer sur les contrats approuvés ; ses dépendances de réalisation et de qualification SH-02/SH-04 restent ouvertes.
+
+### État à préserver
+
+- SH-01 : contrat d'usage validé.
+- SH-02 : exigences et protocole validés ; conception des protections, accès à la coupure en solo et qualification non terminés.
+- SH-03 : exigences et recette optique validées ; montage, taille, dictionnaire/ID et performances à déterminer après essais.
+- SH-04 : contrat de perception, cycle de mission et recette validés ; conception détaillée, implémentation et vérification à faire.
+- Aucun code, achat, acquisition caméra ou essai moteur effectué dans cette étude ; aucun Go mobile humain.
+- Un seul assistant/runtime : « suis-moi » et « cherche la balle jaune » sont des commandes naturelles, sans mode supplémentaire. « Rapproche-toi des autres robots » reste un besoin futur hors MVP.
+- Les arrêts logiciels sur obstacle et commande vocale sont déjà disponibles et déclarés testés : les réutiliser, pas les présenter comme manquants.
+
+### Sujets à détailler pour SH-05
+
+1. Préconditions de départ et de chaque mouvement : cible/contexte valides, fraîcheur, distance, protection obstacle, audio, configuration qualifiée et autorisation motrice.
+2. Priorité et arbitrage des événements simultanés : urgence, coupure, perte de contrôle, obstacle, perception/audio invalides, échéance et maintien normal ; aucun défaut masqué par un succès.
+3. Actions autorisées : absence de recul et de balayage, bornage de vitesse/rotation/accélération selon qualification, protection du volume balayé.
+4. Répartition entre supervision logicielle et inhibition indépendante ; verrouillage, réarmement et non-redémarrage au retour d'énergie, du programme ou des périphériques.
+5. Propagation des interruptions jusqu'au runtime : suspension ou fin selon les décisions acquises, aucune relance automatique ou étape suivante après défaut ; conservation de l'échéance.
+6. Traces, motifs, annonces non bloquantes, tests déterministes et injections de pannes sur banc protégé ; preuves nécessaires avant Go.
+
+Ne pas transformer les objectifs provisoires en garanties matérielles. Les dispositifs d'inhibition et de surveillance indépendante ne sont pas choisis ni déclarés installés ; l'interrupteur embarqué prévu n'a pas d'accessibilité qualifiée depuis la position de suivi.
+
+### Méthode de poursuite
+
+Lire les décisions détaillées des sections précédentes, puis avancer sujet par sujet : expliquer une proposition, demander une validation explicite, consigner la réponse dans ce fichier et passer au sujet suivant. Distinguer à chaque fois exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas rouvrir les décisions acquises sans contradiction ou demande utilisateur ; ne pas clôturer un ticket technique sur sa seule validation documentaire.

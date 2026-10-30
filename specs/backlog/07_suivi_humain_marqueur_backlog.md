@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10/SH-11 validés ; orientations SH-08, cadre de recette SH-09, cadre de mesure SH-10 et six sujets de recette progressive/Go-No-Go SH-11 consignés ; choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé. Prochaine étape retenue : conception détaillée documentaire SH-02 des protections et de l'organisation solo, non commencée.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10/SH-11 validés ; orientations SH-08, cadre de recette SH-09, cadre de mesure SH-10 et six sujets de recette progressive/Go-No-Go SH-11 consignés ; choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé. Conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée en six sujets (section 4), sans conception électrique, réalisation ni qualification. Prochaine étape retenue : cadrage documentaire du premier lot logiciel isolé, non commencé.
 
 ## 1. Besoin et décision de cadrage
 
@@ -278,6 +278,130 @@ Les exigences et l'ordre des essais sont validés. Les inconnues suivantes sont 
 Ordre validé : moteurs déconnectés pour caméra/audio ; banc protégé pour coupure, réarmement et perte de contrôle ; cible inerte pour couverture obstacle et dynamique ; porteur humain uniquement après qualification des protections. Les essais sous puissance exigent leur propre protocole protégé ; ce document n'autorise pas de manipulations improvisées.
 
 **Statut de sortie documentaire :** le cadre d'exigences et le protocole de SH-02 sont spécifiés et validés, mais la conception détaillée des protections, les relevés et les mesures ne sont pas terminés. SH-02 reste donc ouvert pour sa qualification. Les données visuelles peuvent préparer SH-03 sans propulsion ; cela ne supprime pas sa dépendance à SH-02 pour la qualification complète ni n'autorise un suivi mobile.
+
+### SH-02 — Conception détaillée documentaire des protections et de l'organisation solo
+
+Engagée le 2026-10-30, en lien avec SH-05, sans code, test, mesure, achat, installation, manipulation matérielle ni essai moteur. Elle réutilise les exigences SH-02/SH-05 validées sans les rouvrir. Aucun composant ni montage électrique n'est choisi ; aucune protection n'est déclarée conçue, installée ou qualifiée ; aucune dépendance technique n'est satisfaite par cette conception documentaire. Aucun Go mobile humain.
+
+Constat du code, lecture seule : `RobotController` porte un verrou d'urgence purement logiciel, effaçable par `clear_emergency_stop()` ; `SmartCar2WD` réalise les rotations sur place en inversant un moteur ; aucun retour d'état d'inhibition ni signe de vie externe n'existe.
+
+#### Sujet 1 — Architecture fonctionnelle des protections
+
+**Décision validée par l'utilisateur le 2026-10-30.** Fonctions et responsabilités, indépendamment de leur réalisation :
+
+| Fonction | Responsabilité | Limites explicites |
+|---|---|---|
+| P1 — Coupure manuelle de l'énergie motrice | Retirer l'énergie batterie → L298N à l'initiative de l'opérateur | N'empêche pas à elle seule un redémarrage au rétablissement ; pas d'immobilisation instantanée garantie ; accès en solo non résolu |
+| P2 — Inhibition motrice indépendante verrouillée | Inhibée par défaut (démarrage, rétablissement, état inconnu) ; verrouillage sur P1, P3 ou perte du Pi, sans dépendre du programme de pilotage | Ne détecte ni obstacle ni erreur logicielle générale ; ne mesure pas l'arrêt |
+| P3 — Surveillance indépendante du pilotage et du Pi | Déclenche P2 si le pilotage cesse de prouver son fonctionnement réel : programme arrêté/bloqué, Pi bloqué ou sans alimentation ; extérieure au Pi pour couvrir ces derniers cas ; un signe de vie sans rapport avec le pilotage ne suffit pas | Ne couvre pas un pilotage « vivant mais faux » : relève de L1 |
+| P4 — Réarmement manuel | Acte physique distinct après remise en état ; résultat « autorisé, à l'arrêt » | Ne commande jamais de mouvement ; aucun réarmement vocal, textuel ou logiciel |
+| P5 — Retour d'état vers le logiciel, lecture seule | Expose inhibé/autorisé, cause si connue et changement d'armement | Le logiciel ne peut jamais lever P2 ; état absent, périmé ou inconnu = inhibé |
+| L1 — Supervision logicielle du runtime commun | Préconditions SH-05 avant et pendant chaque mouvement, arbitrage, demande d'arrêt ; réutilise les arrêts existants sur obstacle et commande vocale/texte | Inopérante si le logiciel est indisponible : P2/P3 prennent le relais |
+| L2 — Point unique d'émission moteur | N'émet une commande que si P5 indique « autorisé », pour la mission courante, l'armement inchangé et les préconditions valides ; rejette toute commande d'un armement ou contexte antérieur | N'est pas une protection indépendante |
+| O — Observabilité SH-08 | Distingue **arrêt demandé**, **commande nulle émise**, **inhibition confirmée** par P5 et **immobilisation physique mesurée** par référence externe | Aucune annonce, trace, persistance ou protection affirmée sans preuve ; politique de données SH-08 inchangée |
+| H — Procédure opérateur | Terrain, accès sûr à la coupure depuis la position de suivi, remise en état et réarmement | Le robot ne vérifie pas ces points ; ni la proximité ni l'audio ne démontrent l'accès |
+
+**Remarque utilisateur intégrée :** les arrêts et démarrages courants se font à la voix ou en ligne de commande (L1, stop vocal/texte existants) ; les arrêts physiques sont exceptionnels. Leur caractère exceptionnel ne réduit aucune exigence : P1–P4 restent obligatoires, qualifiés et accessibles avant tout Go mobile humain. Conséquence des exigences SH-05 déjà validées : P2 étant inhibée au démarrage, un réarmement manuel P4 est requis après mise sous tension ou rétablissement ; c'est un acte de préparation, pas un départ de mission, qui exige ensuite une commande vocale/textuelle et toutes les préconditions.
+
+**Conséquences :** le verrou d'urgence logiciel actuel n'est pas une protection indépendante et son effacement logiciel ne suffit jamais après un événement de priorité 1 SH-05. Les règles balle et du runtime commun restent inchangées ; l'exigence P5/L2 vise le suivi humain sans imposer de nouveau mouvement interdit aux missions balle.
+
+**Choix techniques ouverts :** réalisation de P1–P5, forme de la preuve de fonctionnement du pilotage, représentation de l'armement, délais issus du budget d'arrêt.
+
+**Preuves attendues :** conception documentée puis épreuves sur banc protégé selon SH-02/SH-05 ; tests logiciels SH-09 de L1/L2 avec doubles explicites, sans valeur de qualification physique.
+
+#### Sujet 2 — Inhibition et surveillance indépendante
+
+**Décision validée par l'utilisateur le 2026-10-30.**
+
+| État P2 vu via P5 | Signification | Sortie |
+|---|---|---|
+| `inhibé-verrouillé`, avec cause : mise sous tension, coupure P1, défaut de surveillance P3, perte du Pi, demande logicielle, inconnue | Aucune énergie ou commande motrice ne peut agir | Uniquement par réarmement P4, sans cause encore active |
+| `armé-à-l'arrêt` | Le matériel n'interdit plus ; aucun mouvement produit | Tout déclencheur ramène à `inhibé-verrouillé` |
+
+P2 armée ne vaut jamais autorisation de départ : tout mouvement reste soumis à L1/L2 et aux préconditions SH-05.
+
+- **Preuve de fonctionnement du pilotage :** émise par L2 à la fin de chaque cycle de supervision ayant réellement évalué l'état courant (mission, préconditions, âge des observations), y compris à l'arrêt sans mission ; jamais par un minuteur ou un fil d'exécution indépendant du pilotage. Elle change à chaque cycle ; un signal figé, constant ou rejoué vaut absence de preuve.
+- **Déclenchement P3 :** absence ou gel de la preuve au-delà d'un délai maximal déduit du budget d'arrêt SH-02 ; aucune valeur fixée. Cas couverts : processus tué, arrêté proprement ou bloqué, boucle de pilotage bloquée, Pi figé ou privé d'alimentation. Non couverts : pilotage vivant mais erroné (L1, SH-09), obstacles, vérification du terrain.
+- **Demande d'inhibition logicielle à sens unique :** le logiciel peut demander le verrouillage de P2, jamais le lever ; réservée aux événements de priorité 1 SH-05 qu'il détecte (coupure ou perte de contrôle détectée, exception inattendue dans la boucle motrice).
+- **Arrêts courants sans verrouillage matériel :** stop vocal ou texte, obstacle, perception et audio produisent une commande nulle puis la suspension ou la fin prévues par SH-01/SH-05, sans réarmement matériel supplémentaire.
+- **Contrainte de réalisation :** P2 ne doit pas pouvoir être contournée par l'état des sorties GPIO du Pi, y compris figées dans un état « marche ». Point d'action exact non choisi.
+
+**Choix techniques ouverts :** support physique de la preuve et de P5, point d'action de P2, délai P3, moyen d'injection des pannes.
+
+**Preuves attendues, séparées :** SH-09 — preuve émise seulement après un cycle complet, absente si boucle bloquée, demande d'inhibition à sens unique, P5 inconnu/périmé traité comme inhibé ; banc protégé SH-02/SH-05 — processus tué/bloqué, Pi figé ou sans alimentation, sortie figée, délai réel et arrêt physique mesurés ; SH-10 — régularité réelle du cycle sous charge sur Pi. Aucune simulation ne qualifie le délai P3 ni un réglage.
+
+#### Sujet 3 — Coupure, rétablissement et réarmement sans départ spontané
+
+**Décision validée le 2026-10-30, par délégation de l'utilisateur, car dérivée des exigences SH-02/SH-05 et des sujets 1–2.**
+
+| Séquence | Déroulement exigé | Garantie contre le départ spontané |
+|---|---|---|
+| Mise sous tension | P2 `inhibé-verrouillé` (mise sous tension) ; mission humaine motrice refusée avec motif « réarmement requis » ; après P4, `armé-à-l'arrêt` et nouvel armement observé sans commande ; départ seulement sur « suis-moi » vocal ou textuel et préconditions complètes | P4 ne produit aucun mouvement |
+| Démarrage ou redémarrage du programme | Le pilotage demande systématiquement l'inhibition à son démarrage, ce qui couvre un redémarrage plus rapide que le délai P3 et impose P4 ; aucune mission ou commande antérieure restaurée | Retour du programme sans reprise |
+| Coupure P1 en mission | P2 verrouillé ; dès observation via P5 : priorité 1, mission terminée et verrouillée, commande nulle, commandes en vol invalidées, trace ; annonce tentée seulement si l'audio est disponible, jamais affirmée sans preuve | — |
+| Rétablissement de l'énergie | P2 reste verrouillé, mission toujours terminée ; P4 possible seulement énergie rétablie et sans cause active ; ensuite « reprends le suivi » refusé, nouvelle commande « suis-moi » requise | L'énergie seule ne lève pas P2 |
+| Perte du pilotage ou du Pi (P3) | P2 verrouillé par la surveillance indépendante ; aucun compte rendu logiciel présumé, trace éventuellement incomplète non reconstituée par invention ; puis séquence de redémarrage | — |
+| Inhibition inattendue observée en mission | Toute transition vers inhibé pendant une mission humaine vaut priorité 1, même de cause inconnue | — |
+| Suspension ordinaire (marqueur, obstacle, audio) | P2 reste armée, aucun réarmement ; reprise explicite SH-01, échéance inchangée | Inchangé |
+| Changement d'armement | Toute transition d'armement invalide dans L2 tout contexte et toute commande antérieurs | Aucune ancienne commande réappliquée |
+
+**Choix techniques ouverts :** représentation de l'armement, moyen d'observer la cause, réalisation de P4 et condition « sans cause active ».
+
+**Preuves attendues, séparées :** SH-09 — séquences sur doubles explicites de P5 avec horloge simulée et ordres d'arrivée concurrents ; banc protégé — coupure pendant commande active puis rétablissement, réarmement seul, redémarrage rapide du programme ; propriétés physiques — arrêt mesuré par référence externe.
+
+#### Sujet 4 — Accès sûr à la coupure depuis la position de suivi, en solo
+
+**Décision validée par l'utilisateur le 2026-10-30.** Constat inchangé : en suivi, l'opérateur seul est devant le robot, dos à lui ; l'interrupteur embarqué P1 impose de revenir vers la trajectoire et les roues. Ni la proximité, ni le casque, ni le stop vocal ou en ligne de commande, qui passent tous par le logiciel du Pi (L1), ne démontrent cet accès.
+
+Ajout de la fonction **P6 — arrêt opérateur porté** :
+
+- Porté ou tenu par l'opérateur, actionnable depuis la position réelle de suivi sans se retourner, sans regarder le robot ni s'en approcher.
+- Agit directement sur P2, jamais via le Pi, l'audio Bluetooth, le LLM ou la ligne de commande.
+- Sécurité positive : perte de liaison, alimentation du dispositif épuisée ou état inconnu verrouillent aussi P2. En mission, c'est un événement de priorité 1 : fin, verrouillage, réarmement P4 puis nouvelle commande. La fréquence réelle de ces pertes reste à mesurer.
+- P6 ne réarme jamais. P1 est conservé pour la préparation et la remise en état, pas comme arrêt depuis la position de suivi. P6 s'ajoute aux déclencheurs de P2 des sujets 1–2 et sa cause est exposée par P5 lorsqu'elle est connue.
+- Usage exceptionnel : les arrêts courants restent vocaux ou textuels ; P6 est le recours lorsque logiciel, audio ou voix font défaut, sans réduction d'exigence.
+
+**Choix techniques ouverts :** famille (sans fil supervisé, filaire avec risque d'accrochage, commande à maintien), portée, délai action opérateur → inhibition confirmée déduit du budget d'arrêt, ergonomie. Aucune famille ni composant choisi.
+
+**Preuves attendues, séparées :** moteurs déconnectés — action réalisable depuis la position réelle, dos au robot, sans approcher les roues ; banc protégé — délai jusqu'à inhibition confirmée, arrêt physique mesuré, perte de liaison, alimentation faible et perturbation provoquant le verrouillage ; SH-09 — traitement logiciel de la cause P6 sur doubles. **Aucun essai mobile avec porteur tant que P6 n'est pas réalisé et qualifié.**
+
+#### Sujet 5 — Informations, autorisations et verrouillages imposés au logiciel
+
+**Décision validée par l'utilisateur le 2026-10-30.** Ports logiques destinés à des doubles explicites ; noms de classes non imposés.
+
+| Port | Sens | Contenu minimal | Règle |
+|---|---|---|---|
+| État de protection P5 | Entrée | `inhibé` / `armé` / `inconnu` ; cause si connue (mise sous tension, P1, P3, P6, demande logicielle, inconnue) ; identifiant d'armement changeant à chaque transition ; instant de lecture monotone | Absent, périmé ou incohérent = inhibé ; seuil de péremption issu du budget d'arrêt, non fixé |
+| Preuve de fonctionnement | Sortie | Identifiant de cycle changeant à chaque cycle | Émise par L2 seulement après un cycle complet évalué (sujet 2) |
+| Demande d'inhibition | Sortie | Cause | À sens unique ; aucun port de levée |
+| Commande moteur L2 | Interne | Type (avance, correction d'orientation, nulle), bornes, identifiants de mission, contexte et armement | Point d'émission unique ; rejet si un identifiant ne correspond pas ; commande nulle toujours permise |
+
+- **Autorisation de mouvement recalculée à chaque cycle :** P5 `armé` et frais, armement identique à celui de l'admission, mission courante active non suspendue non expirée, préconditions SH-05 sujet 1 valides, mouvement dans les limites qualifiées, configuration déclarée qualifiée. Tout élément inconnu interdit le mouvement.
+- **Verrous :** après un événement de priorité 1, mission terminée ; nouvelle admission seulement avec un armement postérieur à l'événement, donc un P4 réellement observé. Aucun réarmement vocal, textuel ou logiciel ; le verrou d'urgence logiciel existant ne lève pas ces verrous. Le logiciel n'affirme jamais une vérification opérateur (terrain, accès à P6).
+- **Premier lot sans matériel :** aucun adaptateur P5 réel ; sur le robot, P5 inconnu = inhibé, donc mission humaine motrice refusée. Paramètres de test marqués fictifs et non qualifiés selon SH-09.
+- **Traces SH-08 :** état/cause P5, armement, identifiants de cycle de preuve, demande d'inhibition, commande nulle émise ; « inhibition confirmée » seulement si P5 l'atteste ; immobilisation physique jamais inscrite par le logiciel. Politique de données SH-08 inchangée.
+- **Missions balle :** protection déclarée absente (situation actuelle) : balle strictement inchangée, suivi humain moteur refusé. Protection déclarée présente : toute mission motrice, balle comprise, consulte P5 ; P5 inhibé → refus ou fin sur défaut explicite, sans réessai automatique ni commandes sans effet masquant le défaut. Aucune autre règle balle modifiée : ni marqueur, ni audio, ni P6 imposés, aucun mouvement balle nouvellement interdit ; un réarmement P4 après mise sous tension devient aussi nécessaire avant une mission balle.
+
+**Choix techniques ouverts :** représentation concrète des ports, moyen de déclaration de la présence de la protection et de la configuration qualifiée, adaptateur matériel P5, seuil de péremption.
+
+**Preuves attendues, séparées :** SH-09 — chaque condition d'autorisation invalidée séparément, commandes à identifiants obsolètes rejetées, admission refusée sans armement postérieur, P5 inconnu/périmé, non-régression balle avec protection déclarée absente puis présente ; banc protégé — cohérence entre P5 et l'état réel de P2 ; SH-10 — fraîcheur réelle de P5 sous charge.
+
+#### Sujet 6 — Organisation solo et bilan de l'étape
+
+**Décision validée le 2026-10-30, par délégation de l'utilisateur, car dérivée des sujets 1–5.**
+
+Organisation solo cible, à transformer en procédure puis à qualifier ; non exécutable aujourd'hui :
+
+1. Au robot, avant tout mouvement : terrain vérifié, P1 fermée, P6 porté et opérationnel, P4 réarmé ; le robot reste `armé-à-l'arrêt`.
+2. L'opérateur rejoint sa position de suivi sans que le robot puisse partir : aucun départ sans commande vocale ou textuelle et préconditions complètes.
+3. Départs et arrêts courants à la voix ou en ligne de commande (L1) ; P6 en recours exceptionnel ; P1 seulement pour la remise en état, robot inhibé.
+4. Après tout verrouillage : remise en état au robot, P4, nouvelle commande. Aucune intervention improvisée près des roues ; organisation conforme au sujet 3 de SH-11.
+
+**Bilan des interfaces :** les informations, autorisations, verrous et ports logiques sont suffisamment clarifiés pour proposer un premier lot logiciel isolé avec doubles explicites, sans accès matériel : autorisation motrice et verrous côté logiciel (L1 pour P5, L2), doubles de P5, de la preuve de fonctionnement et de la demande d'inhibition, propagation de priorité 1, déclaration de présence de la protection et non-régression balle. Ce lot ne qualifie aucune protection ni aucun délai ; sur le robot il laisse le suivi humain moteur refusé.
+
+**Blocages restants, non clôturés :** réalisation et qualification de P2, P3, P4, P5 et P6 ; famille et ergonomie de P6 ; point d'action de P2 ; budget d'arrêt et délais P3/P5/P6 ; mesures de freinage et de couverture obstacle ; performances Pi SH-10 ; audio réel Jabra ; perception SH-03/SH-04. Aucune dépendance SH-02/SH-04/SH-05 n'est satisfaite par cette conception. Aucun Go mobile humain.
+
+**Statut :** conception détaillée documentaire ciblée SH-02 des protections et de l'organisation solo réalisée en six sujets ; SH-02 et SH-05 restent ouverts pour conception électrique, réalisation et qualification.
 
 ### SH-03 — Spécification progressive sans propulsion
 
@@ -1554,7 +1678,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 est **spécifié : six sujets de recette progressive et Go/No-Go validés en section 4, conception détaillée, réalisations et recette à faire** ; SH-12 est **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception fonctionnelle détaillée des protections et de l'organisation solo validée en six sujets ; conception électrique, réalisation et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 est **spécifié : six sujets de recette progressive et Go/No-Go validés en section 4, conception détaillée, réalisations et recette à faire** ; SH-12 est **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -1608,18 +1732,27 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 4. **Intégration :** SH-07/SH-08, puis SH-09/SH-10.
 5. **Recette :** SH-11 ; SH-12 reste une évolution distincte.
 
-Progression documentaire au 2026-10-30 : cadres SH-02 à SH-11 approuvés, réalisations et qualifications ouvertes. Prochaine étape explicitement retenue après la spécification SH-11 : conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05, sans la commencer ici ; aucune autorisation de campagne.
+Progression documentaire au 2026-10-30 : cadres SH-02 à SH-11 approuvés, réalisations et qualifications ouvertes. Conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée le 2026-10-30 en six sujets (section 4) : architecture P1–P6/L1/L2/O/H, inhibition et surveillance indépendante, séquences sans départ spontané, arrêt opérateur porté P6, contrat logiciel et organisation solo. Prochaine étape explicitement retenue : cadrage documentaire du premier lot logiciel isolé, non commencé ; aucune autorisation de campagne.
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise — conception détaillée documentaire SH-02 des protections et de l'organisation solo
+## 9. Reprise — cadrage documentaire du premier lot logiciel isolé
 
-Point de reprise au 2026-10-30 : **SH-11 spécifié et validé, sans exécuter la recette**. Ses six décisions sont détaillées en section 4 ; clôture documentaire seulement, ticket technique et dépendances SH-09/SH-10 ouverts. Prochaine étape explicitement retenue par l'utilisateur au sujet 6 : conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05 ; non commencée pendant la spécification SH-11. Les six sujets de chacun des tickets SH-05 à SH-10 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+Point de reprise au 2026-10-30 : **conception détaillée documentaire SH-02 des protections et de l'organisation solo réalisée, en lien avec SH-05**. Six sujets consignés en section 4, sous « SH-02 — Conception détaillée documentaire des protections et de l'organisation solo » : 1 et 2, 4 et 5 validés explicitement par l'utilisateur ; 3 et 6 validés par délégation, car dérivés des exigences acquises. Aucun composant, montage électrique, famille de P6, seuil ou délai choisi. SH-11 reste spécifié sans recette exécutée ; les six sujets de chacun des tickets SH-05 à SH-11 restent intégralement consignés en section 4. Conception électrique, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ou conception documentaire ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+
+### Conception SH-02 des protections validée — détails à préserver en section 4
+
+1. **Architecture fonctionnelle :** P1 coupure manuelle, P2 inhibition indépendante verrouillée inhibée par défaut, P3 surveillance indépendante hors Pi, P4 réarmement manuel sans mouvement, P5 retour d'état en lecture seule (inconnu = inhibé), L1 supervision logicielle, L2 point unique d'émission moteur, O quatre niveaux de preuve (arrêt demandé, commande nulle, inhibition confirmée, immobilisation physique mesurée), H procédure opérateur. Arrêts/démarrages courants à la voix ou en ligne de commande, arrêts physiques exceptionnels sans réduction d'exigence. Ne pas rouvrir.
+2. **Inhibition et surveillance :** états `inhibé-verrouillé` avec cause / `armé-à-l'arrêt` ; preuve de fonctionnement émise par L2 après chaque cycle réellement évalué, changeante, figée = absente ; délai P3 issu du budget d'arrêt ; demande d'inhibition logicielle à sens unique réservée à la priorité 1 ; arrêts courants sans réarmement matériel ; P2 non contournable par les GPIO du Pi. Ne pas rouvrir.
+3. **Séquences sans départ spontané :** mise sous tension inhibée, demande d'inhibition au démarrage du programme, coupure/rétablissement/perte de pilotage verrouillés, inhibition inattendue en mission = priorité 1, suspension ordinaire inchangée, toute transition d'armement invalide les commandes antérieures. Ne pas rouvrir.
+4. **Accès solo :** arrêt opérateur porté P6, actionnable depuis la position de suivi, agissant directement sur P2, à sécurité positive (perte de liaison = priorité 1), sans réarmement ; P1 réservé à la préparation/remise en état ; famille non choisie ; aucun essai avec porteur sans P6 qualifié. Ne pas rouvrir.
+5. **Contrat logiciel :** ports P5, preuve de cycle, demande d'inhibition, L2 avec identifiants mission/contexte/armement ; autorisation recalculée à chaque cycle ; nouvelle admission après priorité 1 seulement avec armement postérieur ; premier lot sans adaptateur P5 réel, donc suivi humain moteur refusé sur le robot ; balle inchangée tant que la protection est déclarée absente, puis respect de P5 sans autre changement. Ne pas rouvrir.
+6. **Organisation solo et bilan :** séquence de préparation au robot puis position de suivi ; interfaces suffisantes pour proposer un premier lot logiciel isolé avec doubles explicites ; blocages matériels, temporels, audio, Pi et perception maintenus. Ne pas rouvrir.
 
 ### État à préserver
 
 - SH-01 : contrat d'usage validé.
-- SH-02 : exigences et protocole validés ; conception des protections, accès à la coupure en solo et qualification non terminés.
+- SH-02 : exigences et protocole validés ; conception fonctionnelle des protections et de l'organisation solo validée (P6 retenu comme principe d'accès solo, famille non choisie) ; conception électrique, réalisation, accès effectif à la coupure en solo et qualification non terminés.
 - SH-03 : exigences et recette optique validées ; montage, taille, dictionnaire/ID et performances à déterminer après essais.
 - SH-04 : contrat de perception, cycle de mission et recette validés ; conception détaillée, implémentation et vérification à faire.
 - SH-05 : six sujets d'exigences et de recette validés, détails et travaux techniques restants en section 4 ; conception, réalisation et qualification ouvertes.
@@ -1723,8 +1856,8 @@ Validité limitée à la configuration et au domaine, analyse d'impact et revali
 
 ### Prochaine étape explicitement retenue — non commencée
 
-Conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05 : inhibition, surveillance indépendante, coupure/rétablissement et accès sûr depuis la position de suivi. Réutiliser les exigences approuvées sans les rouvrir ; examiner les solutions et les preuves à prévoir, sujet par sujet, sans achat, installation, manipulation matérielle ni qualification. Aucun dispositif, montage ou moyen d'accès choisi par la spécification SH-11 ; ne pas présumer que l'interrupteur embarqué ou l'audio résout l'accès sûr.
+Cadrage documentaire du premier lot logiciel isolé, choix A de l'utilisateur le 2026-10-30 : périmètre, surfaces de code concernées (inspectées en lecture seule), doubles explicites de P5, de la preuve de fonctionnement et de la demande d'inhibition, autorisation motrice L2 et verrous, propagation de la priorité 1, déclaration de présence de la protection, non-régression balle/stop, oracles SH-09 et critères de fin. Sans code ni test créé ou exécuté pendant ce cadrage. Le lot cadré ne qualifiera aucune protection ni délai et laissera le suivi humain moteur refusé sur le robot. Options non retenues pour l'instant : comparaison documentaire des familles techniques P2/P3/P5/P6 ; implémentation directe du lot.
 
 ### Méthode de poursuite
 
-SH-11 est spécifié ; aucune question restante pour cette étude documentaire. Dans la prochaine session seulement, lire les décisions détaillées puis engager l'étape SH-02 retenue ci-dessus, sans rouvrir les acquis ni commencer une implémentation ou une campagne. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ni essai moteur pendant cette conception documentaire. Aucun Go mobile humain.
+Dans la prochaine session seulement, lire les décisions détaillées de section 4, dont la conception SH-02 des protections, puis engager le cadrage retenu ci-dessus sans rouvrir les acquis ni commencer l'implémentation. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions lorsque la proposition est structurante, valider par délégation les propositions dérivées en le signalant, consigner chaque décision dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ni essai moteur pendant ce cadrage. Aucun Go mobile humain.

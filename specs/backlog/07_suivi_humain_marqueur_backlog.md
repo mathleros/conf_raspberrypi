@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05 validés, choix techniques, réalisations et qualifications ouverts ; aucun développement engagé.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06 validés ; choix techniques, réalisations et qualifications ouverts ; aucun développement engagé.
 
 ## 1. Besoin et décision de cadrage
 
@@ -481,6 +481,164 @@ Conditions du verdict :
 | Réaliser et vérifier l'intégration | Réutilisation des arrêts existants, commandes obsolètes neutralisées, annonces/traces et non-régression balle/stop dans le même runtime |
 | Fournir les preuves de qualification | Tests déterministes, intégration, banc protégé puis cibles inertes ; maxima et distances physiques mesurés, échecs/restrictions consignés ; aucune proximité humaine avant Go explicite |
 
+### SH-06 — Spécification progressive du comportement déterministe
+
+Les six sujets d'exigences et de recette sont validés avec l'utilisateur le 2026-10-30, sans code, installation ni essai moteur. Les exigences SH-01 et les cadres SH-04/SH-05 sont repris sans réouverture ; leurs dépendances techniques et qualifications restent ouvertes. Aucun Go mobile humain.
+
+#### Sujet 1 — États et transitions
+
+**Exigence validée par l'utilisateur le 2026-10-30 :** séparer l'état du comportement, les causes et l'action nécessaire pour repartir. Les noms ci-dessous sont descriptifs ; ils n'imposent ni classes ni représentation technique.
+
+| État | Règle et transitions validées |
+|---|---|
+| Disponible, sans mission de suivi | Une demande « suis-moi » recevable ouvre l'acquisition initiale, sans mode utilisateur supplémentaire. Les préconditions SH-05 restent obligatoires |
+| Acquisition immobile | Distinguer acquisition initiale et réacquisition après reprise. Même identité verrouillée et confirmations SH-04. Acquisition initiale : au plus 10 s ; échec : tentative terminée, nouvelle commande nécessaire. Réacquisition : au plus 10 s, sans dépasser l'échéance initiale ; échec : retour en suspension si non expirée, sans nouvel essai automatique |
+| Suivi actif | Après acquisition initiale et annonce, activation et début du chronomètre selon SH-01/SH-04 ; recontrôle avant mouvement. Après réacquisition, annonce du temps restant, sans remise à zéro. L'état actif ne suffit jamais à autoriser les moteurs : chaque mouvement dépend des contrôles SH-05 |
+| Maintien normal | Session active, commande motrice nulle, aucun recul ni correction d'orientation en maintien. Redépart automatique vers le suivi seulement lorsque la situation le justifie et que toutes les conditions sont valides, sans interruption de sécurité. Frontières de distance à préciser au sujet 2, sans assimiler l'objectif de ±30 cm à une zone de commande |
+| Suspension | Arrêt demandé, aucun mouvement ; identité, échéance initiale et toutes les causes conservées. La disparition des causes ne suffit pas. « Reprends le suivi » recevable, causes corrigées et session non expirée : réacquisition immobile de la même cible |
+| Fin | Arrêt demandé, ancien contexte et commandes invalidés ; aucune reprise de cette session, nouvelle mission nécessaire. Urgence physique, coupure ou perte de contrôle : verrouillage et réarmement manuel distinct obligatoires avant une nouvelle commande |
+
+- Perte, ambiguïté, péremption, obstacle, défaut audio, orientation hors domaine, etc. sont des causes distinctes de l'état. « Perdu » et « bloqué » peuvent coexister comme causes de suspension ; aucun défaut n'est effacé par le choix d'un état unique.
+- Une fin conserve sa nature : échéance, stop/annulation, échec de démarrage, défaut imposant une nouvelle configuration ou événement exigeant un réarmement. Un défaut simultané reste visible ; « fin » ne signifie pas automatiquement « succès ».
+- L'arrêt moteur est demandé immédiatement, sans attendre l'arbitrage. Priorités SH-05 inchangées : urgence/coupure/perte de contrôle, puis stop/annulation, puis échéance, puis suspension pour condition invalide, puis maintien normal.
+- Une acquisition réussie ou une cause disparue ne l'emporte jamais sur un arrêt simultané. L'échéance termine aussi une suspension ou une réacquisition. Une calibration incompatible impose suspension puis fin/reconfiguration selon SH-04.
+- Maintien, suspension et réacquisition ne remettent jamais l'échéance à zéro. Le maintien permet un redépart conditionnel ; la suspension exige une reprise explicite ; une fin exige une nouvelle mission.
+- Distinguer arrêt demandé, commande nulle et immobilisation physique mesurée. Si le logiciel est indisponible, la protection indépendante doit arrêter sans supposer que le runtime a pu enregistrer la fin.
+
+**Choix techniques restant ouverts :** représentation des états/causes, synchronisation et mécanismes de transition. Aucun seuil nouveau ni autorisation implicite de rotation.
+
+**Preuves de qualification attendues :** tests par horloge et observations simulées couvrant transitions, causes multiples, acquisition initiale et reprise, limites des 10 s, échéance et événements simultanés ; qualification physique séparée. Aucun test exécuté par cette validation.
+
+#### Sujet 2 — Approche et maintien de la distance
+
+**Exigences validées par l'utilisateur le 2026-10-30 :** approche bornée puis maintien avec hystérésis, sans fixation de nouveaux seuils numériques.
+
+| Notion | Règle de distinction |
+|---|---|
+| Consigne et précision visée | Dégagement avant du robot–porteur demandé ; objectif stabilisé de ±30 cm à démontrer. Ni bande de commande imposée ni garantie de sécurité |
+| Zone de commande | Frontières de ralentissement, demande d'arrêt et autorisation de redépart, justifiées par précision réelle, retards, freinage et limites mécaniques |
+| Distance minimale de sécurité | Issue du budget d'arrêt SH-02, avec incertitude et marge. Ni consigne ni valeur fixée par le seuil provisoire de recette de 0,8 m |
+
+- Avance uniquement avec dégagement exploitable, cible et orientation valides et toutes les préconditions SH-05. Mesure absente ou incohérente : suspension, jamais d'avance par défaut.
+- Réduire la vitesse à l'approche du maintien, puis demander l'arrêt assez tôt pour intégrer délais, freinage et incertitude ; ne pas attendre le franchissement d'une limite physique. Loi de vitesse et seuils à concevoir ; plafond SH-01 inchangé.
+- En maintien, toutes les commandes motrices sont nulles. Si le porteur revient vers le robot, rester arrêté sans recul. Aucune garantie de distance minimale face à une personne continuant volontairement à s'approcher.
+- Hystérésis : seuil de redépart plus éloigné que le seuil d'entrée en maintien pour éviter les alternances arrêt/départ dues au bruit. Largeur et symétrie autour de la consigne non fixées. Une observation invalide n'est jamais absorbée par l'hystérésis : arrêt/suspension prioritaires.
+- Porteur s'éloignant trop vite : aucun rattrapage au-delà du plafond. Suivi dans les limites tant que les observations et le domaine de mouvement restent valides ; sortie du domaine exploitable : suspension explicite, sans poursuite aveugle.
+- Consigne incompatible avec commande, freinage et sécurité dans la configuration qualifiée : refus de départ motivé. Conditions devenant invalides en mission : suspension. Aucune modification silencieuse de la consigne ou de la distance minimale pour poursuivre.
+
+**Conséquences :** la bande réelle de commande peut différer de ±30 cm ; elle doit permettre de viser la précision demandée en respectant le budget d'arrêt. Si cette compatibilité n'est pas démontrable, restreindre le domaine ou revoir explicitement le contrat, sans masquer l'échec. Aucune rampe de confort ne retarde un arrêt prioritaire.
+
+**Choix techniques restant ouverts :** loi de vitesse, ralentissement, seuils/hystérésis, traitement des mesures selon SH-04 et compatibilité des consignes avec la dynamique réelle. Aucun nouveau chiffre fixé.
+
+**Preuves de qualification attendues :** tests simulés aux frontières et avec bruit de mesure, rapprochement/éloignement du porteur, dégagement invalide, absence de recul et respect des priorités ; mesures indépendantes sur cibles inertes du freinage, des distances et vitesses. La simulation seule ne qualifie pas la sécurité physique.
+
+#### Sujet 3 — Orientation et coordination avec l'avance
+
+**Exigences validées par l'utilisateur le 2026-10-30 :** corriger seulement pour suivre une cible actuellement exploitable, dans un domaine de mouvement explicitement qualifié.
+
+- La direction repose sur l'angle horizontal de la cible par rapport à l'avant du robot, distinct de l'inclinaison ou du lacet du marqueur servant notamment au contrôle de qualité géométrique.
+- Cible suffisamment alignée : avance possible selon les règles de distance. Décalage compatible avec une correction qualifiée : correction bornée, avec avance seulement si la combinaison est elle-même qualifiée et son volume balayé protégé. Ne pas avancer pour aider à tourner si les conditions d'avance ne sont pas remplies.
+- L'importance de la correction limite l'avance selon une règle déterministe à concevoir. Aucune combinaison avance–rotation improvisée ; bornes de vitesse, accélération, angle et durée issues des mesures SH-02.
+- Aucune rotation sur place autorisée par défaut. Son inclusion dans la configuration utilisable exige qualification propre, cible fraîche, dégagement exploitable et protection de tout le volume balayé. Correction nécessaire non réalisable avec les mouvements autorisés : arrêt/suspension et motif explicite, sans mouvement de remplacement.
+- En maintien normal, aucune rotation, même pour recentrer le marqueur. Si le porteur s'éloigne, un redépart ne peut inclure qu'une correction autorisée avec toutes les conditions de distance et de protection ; orientation nécessaire hors domaine : suspension.
+- Perte, ambiguïté ou péremption de cible, dégagement invalide ou autre interruption : arrêt prioritaire, aucune fin de rotation sur une ancienne commande, aucune correction d'après le dernier angle mémorisé. L'arrêt demandé ne signifie pas immobilisation physique instantanée.
+- Aucun recul, balayage, contournement ou recherche par rotation. La seule réapparition de la cible après suspension n'autorise pas la reprise.
+
+**Conséquence :** certains virages seront refusés si la protection est insuffisante, même lents et marqueur visible. L'opérateur doit rétablir les conditions autorisées puis demander la reprise ; aucune manoeuvre de réalignement inventée par le robot.
+
+**Choix techniques restant ouverts :** domaine d'alignement, hystérésis angulaire contre les oscillations, coordination avec l'avance et bornes de correction ; qualification éventuelle des rotations sur place. Aucun seuil angulaire ni mouvement ajouté par cette validation.
+
+**Preuves de qualification attendues :** tests simulés du sens des corrections, des frontières, des oscillations et combinaisons interdites, du maintien sans rotation et des interruptions pendant une correction ; puis vérification sur cibles inertes des vitesses, volumes balayés et arrêts. Le domaine de visibilité du marqueur SH-03 ne vaut pas autorisation de tourner du même angle.
+
+#### Sujet 4 — Redépart normal et reprise explicite
+
+**Exigences validées par l'utilisateur le 2026-10-30 :** deux chemins distincts, sans autorisation de reprise laissée en attente.
+
+Depuis le maintien normal :
+
+- Redépart automatique possible quand le porteur s'éloigne au-delà de la frontière qualifiée, avec même cible exploitable, données fraîches, dégagement/orientation autorisés, protections et audio valides, aucune cause de suspension et échéance non atteinte.
+- Pas de commande de reprise ni de nouvelle acquisition initiale imposée tant que la continuité des observations reste valide. Perte de validité : suspension, jamais maintien normal.
+- Aucun compte à rebours ni message répété de maintien ; contrôle de chaque mouvement obligatoire.
+
+Depuis une suspension :
+
+- « Reprends le suivi » recevable uniquement pour cette session suspendue non expirée. Cause bloquante connue encore active : refus motivé, sans mémoriser une permission de repartir plus tard.
+- Après perte de cible, le même marqueur doit redevenir exploitable ; les confirmations fraîches de réacquisition servent à le vérifier. Ni retour du flux ni détection isolée ne provoquent seuls une reprise.
+- Demande recevable : une tentative immobile de réacquisition, confirmations et filtres remis à zéro ; aucune confirmation antérieure réutilisée. Même identité et contexte compatibles, jamais de cible de remplacement.
+- Tentative bornée à 10 s selon SH-04 et à l'échéance initiale. Échec : reste suspendu si non expiré ; nouvelle commande nécessaire pour réessayer. Répéter « reprends » pendant la tentative ne la duplique pas et ne repousse aucune limite temporelle.
+- Réacquisition réussie : annonce de reprise, distance et temps réellement restant ; recontrôle de toutes les préconditions avant mouvement. Retour au suivi ou au maintien selon la distance ; aucun départ forcé par la demande de reprise.
+
+Depuis une fin :
+
+- Reprise refusée avec raison ; nouvelle commande « suis-moi » nécessaire, avec réarmement manuel préalable lorsque requis.
+- Une reprise ne modifie ni distance, ni cible, ni durée. Changer ces paramètres exige la fin de la mission puis une nouvelle demande selon la politique du runtime.
+
+**Conséquences :** une commande prématurée n'arme aucun départ différé. Anomalie, stop ou échéance pendant réacquisition/annonce conservent la priorité SH-05. Maintien, suspension, annonces et tentative de reprise consomment tous le temps de session déjà commencé.
+
+**Choix techniques restant ouverts :** réception/déduplication des commandes, vérification des causes et raccordement des annonces ; aucune temporisation ni seuil supplémentaire fixé.
+
+**Preuves de qualification attendues :** tests simulés du redépart normal, des reprises refusées et réussies, confirmations anciennes, demandes répétées, défauts simultanés et échéance pendant acquisition/annonce ; aucun mouvement dû à la seule disparition d'un défaut.
+
+#### Sujet 5 — Commandes, interruptions et sortie du comportement
+
+**Exigences validées par l'utilisateur le 2026-10-30 :** comportement déterministe subordonné aux garde-fous, sortie explicite et aucune commande survivante.
+
+- Arrêt prioritaire dans toutes les phases : acquisition initiale, suivi, maintien, suspension, réacquisition et annonces. Réutiliser les arrêts obstacle/voix existants ; ne jamais attendre LLM ou annonce. Perte du programme/Pi : inhibition indépendante SH-05, sans supposer un traitement par le programme indisponible.
+- Autorisation réévaluée avant chaque commande et surveillée pendant son exécution. Commande valable uniquement pour mission/contexte courants, observation et limites valides. Une interruption demande l'arrêt sans attendre la fin prévue d'une avance/correction engagée ; exécution interruptible à concevoir.
+- Suspension ou fin : invalider commandes et résultats en vol du contexte de commande interrompu. Reprise : autorisation renouvelée après vérifications, jamais réapplication d'une ancienne consigne. Acquisition, calculs ou annonces tardifs ne peuvent réactiver les moteurs ni afficher un état devenu faux.
+- Retour au runtime avec identité de mission, état, ensemble des causes, échéance initiale, action requise et état connu d'autorisation/inhibition. Suspension : mission conservée, aucune relance automatique de la skill ni étape suivante du plan. Fin : reprise de cette mission interdite ; défaut/urgence interrompent le plan, sans mission de secours, balle ou cible de remplacement.
+- Exception inattendue : arrêt demandé, défaut explicite, aucune relance automatique ni faux succès. État suspendu ou terminé selon la nature de l'événement et SH-04/SH-05 ; aucune reprise inventée par une gestion générique d'exception. Défaut simultané à l'échéance toujours signalé.
+- Nettoyage en suspension : conserver identité et échéance, invalider données de commande et confirmations requises pour la reprise. En fin : vider l'état transitoire et invalider le contexte. Préserver association persistante et ressources partagées encore utilisées par le runtime.
+- Même assistant, une seule mission motrice ; aucune substitution par une nouvelle demande pendant suivi/suspension. Préserver la politique existante du runtime, les missions balle et le stop ; aucune bascule de mode ni exigence humaine imposée globalement aux autres capacités.
+
+**Conséquences :** calcul engagé ou commande déjà en file ne justifient aucun mouvement après suspension/fin. Traces distinguant arrêt demandé, commande nulle et immobilisation mesurée ; sans retour matériel, aucune confirmation inventée d'arrêt physique ou d'inhibition.
+
+**Choix techniques restant ouverts :** forme des retours, annulation/invalidation des commandes et résultats, coordination avec contrôleur et ressources communes ; réalisation matérielle de l'inhibition toujours ouverte.
+
+**Preuves de qualification attendues :** tests d'intégration avec stop dans chaque phase, interruptions pendant commande/annonce, commandes/résultats tardifs, exception, échéance avec défaut, nettoyage et mission suivante ; non-régression balle/stop. Protection indépendante et arrêt physique : preuves distinctes.
+
+#### Sujet 6 — Recette déterministe sans moteurs
+
+**Exigences et protocole validés par l'utilisateur le 2026-10-30 :** recette reproductible par horloge, observations, commandes utilisateur et états de protection simulés. Approbation du protocole uniquement ; aucun test créé ni exécuté pendant cette étude.
+
+| Famille | Couverture attendue |
+|---|---|
+| États et transitions | Tous les chemins autorisés et refusés des sujets 1 à 5 : départ, suivi, maintien, suspension, reprise, fins et verrouillage ; distinguer état, causes et action requise |
+| Perception et identité | Confirmations sur trames distinctes ; absence, ambiguïté, qualité insuffisante, dégagement invalide, cache, répétitions, retard, trames hors ordre, temps incohérent, changement de flux et ancien contexte ; aucune adoption d'une autre cible |
+| Frontières temporelles | Juste avant, à et après les limites SH-04 de fraîcheur et d'acquisition ; âge de 200 ms inclus dans la cible actuelle, au-delà rejeté ; 10 s écoulées sans acquisition finalisée : échec. Échéance de session prioritaire même pendant maintien, suspension, réacquisition ou annonce. Aucun redémarrage du chronomètre |
+| Distance et orientation | De part et d'autre et exactement aux futures frontières qualifiées : ralentissement, arrêt, hystérésis, redépart, alignement, correction et domaine interdit. Bruit autour des frontières, porteur qui revient ou s'éloigne trop vite ; aucune confusion entre ±30 cm, zone de commande et minimum de sécurité |
+| Mouvements interdits | Aucun recul, balayage, contournement, rattrapage au-delà du plafond ou rotation sur place non autorisée ; aucune commande motrice en acquisition, maintien ou suspension ; pas d'avance sans dégagement valide, ni combinaison avance–rotation non qualifiée |
+| Événements concurrents | Combinaisons et ordres d'arrivée pertinents : confirmation contre stop, défaut contre échéance, obstacle et proximité, coupure pendant suspension, reprise avec une autre cause active ; ordre SH-05 et conservation de toutes les causes |
+| Reprises et commandes tardives | Aucun redépart sur seule disparition d'un défaut ; reprise prématurée non mémorisée, confirmations anciennes effacées, demandes répétées sans tentative parallèle ni report des limites ; aucun effet moteur de commandes/résultats/annonces obsolètes |
+| Runtime et ressources | Suspension ni succès ni étape suivante ; fin sur défaut sans relance ; exception visible ; nettoyage puis nouvelle mission sans état hérité ; caméra partagée, une seule mission motrice, non-régression balle/stop et absence de mode supplémentaire |
+
+Méthode et verdict validés :
+
+- Chaque scénario fixe entrées, chronologie, configuration et résultat attendu : états, toutes les causes, échéance, commandes autorisées/interdites, demande d'arrêt, annonces attendues ou invalidées, retour au runtime et nettoyage.
+- Rejouer les mêmes entrées avec la même configuration produit les mêmes décisions et commandes. Faire varier l'ordre d'arrivée pour vérifier l'arbitrage, sans imposer un résultat identique à des situations réellement différentes.
+- Éprouver les futurs seuils de commande avec leurs valeurs justifiées et leurs conventions de frontière documentées. Des paramètres de simulation peuvent préparer les tests, sans devenir réglages terrain ni preuves de qualification.
+- Aucun scénario obligatoire en échec ne permet une recette conforme ; moyenne ou taux de réussite ne masquent aucune violation. Rapporter configuration/version, cas exécutés, résultats attendus/obtenus, chronologies et échecs, sans images par défaut.
+
+**Limite de preuve :** ces tests démontrent des décisions et commandes logicielles, pas vitesse au sol, freinage, couverture obstacle, audio réel, inhibition indépendante ou accès sûr à la coupure. Qualifications protégées SH-02/SH-05 puis SH-10/SH-11 toujours nécessaires ; aucun Go humain n'en découle.
+
+**Choix techniques restant ouverts :** organisation des scénarios, simulateurs/doubles de test, moyens de rapport et valeurs issues des qualifications ; réutiliser l'horloge injectable et les outils du dépôt, sans nouvelle dépendance décidée.
+
+**Preuves de qualification attendues :** résultats reproductibles de la matrice ci-dessus et de l'intégration, puis preuves physiques distinctes suivant les protocoles protégés déjà validés. Aucun résultat de test déduit de l'approbation documentaire.
+
+#### SH-06 — Statut et travaux techniques restants
+
+**Cadre d'exigences et de recette spécifié et validé ; conception détaillée, implémentation et qualification à faire.** Les six validations ne clôturent ni le ticket technique ni ses dépendances SH-04/SH-05.
+
+| Travail restant | Livrable / preuve attendu |
+|---|---|
+| Qualifier les données et protections requises | Résultats SH-02/SH-03/SH-04/SH-05 : contexte et perception exploitables, domaine de mouvement, budget d'arrêt, inhibition et surveillance indépendante, accès sûr à la coupure en solo ; aucune capacité présumée à partir de sa spécification |
+| Concevoir la commande déterministe | États/causes et transitions, approche/maintien, hystérésis de distance et d'angle, coordination avance–orientation et limites ; valeurs numériques justifiées, consigne/précision/minimum de sécurité distincts |
+| Réaliser les reprises et l'intégration | Même identité et échéance, tentatives bornées, aucune commande ancienne, arrêt prioritaire, propagation explicite au runtime, annonces et ressources communes cohérentes ; balle/stop préservés |
+| Exécuter la recette logicielle | Matrice du sujet 6 avec horloge/observations simulées, frontières, défauts simultanés, résultats tardifs, absence de mouvements interdits et régression ; résultats attendus/obtenus et échecs consignés |
+| Fournir les preuves physiques et le verdict | Selon SH-02/SH-05 puis SH-10/SH-11 : banc protégé, cibles inertes, vitesses/arrêts/volumes balayés, audio et protections mesurés ; porteur uniquement après qualification et Go explicite |
+
+Aucun code, essai ou achat autorisé par cette clôture documentaire. Les protections indépendantes restent à concevoir et qualifier ; l'accès sûr à l'interrupteur embarqué depuis la position de suivi reste non résolu. Aucun Go mobile humain.
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -510,7 +668,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -519,7 +677,7 @@ SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la sectio
 | SH-03 | P0 / M | Valider le marqueur et la distance, moteurs déconnectés | SH-01, SH-02 | Selon la spécification de section 4 : choix motivés, calibration/support reproductibles ; distances d'usage 1,2/1,5/2 m, caractérisation à 1/2,5 m ; par condition nominale ≥100 images nouvelles, acceptation ≥95 %, erreur de dégagement ≤20 cm pour ≥95 % des observations acceptées ; maxima, biais, pertes et ambiguïtés consignés ; référence indépendante et incertitude ; aucune formule balle réutilisée |
 | SH-04 | P0 / M | Définir les observations et l'association de session | SH-03 | Contrat section 4 : identité famille/dictionnaire + ID verrouillée, observations typées et statuts explicites, fraîcheur de capture/trames distinctes, contexte isolé, acquisitions ≤10 s, cycle et nettoyage ; recette déterministe des frontières/défauts et régression balle/stop, sans mode supplémentaire |
 | SH-05 | P0 / L | Implémenter les garde-fous du suivi humain | SH-02, SH-04 | Selon les six sujets validés de section 4 : préconditions de départ et de chaque mouvement, arbitrage sans défaut masqué, vitesse/mouvements bornés, aucun recul/balayage, inhibition indépendante et réarmement, propagation au runtime sans relance, traces et recette ; injection de panne, y compris arrêt/blocage du pilotage et indisponibilité du Pi, validée sur banc protégé ; aucune clôture sur la seule spécification |
-| SH-06 | P0 / M | Développer le comportement de suivi déterministe | SH-04, SH-05 | États et transitions testés par horloge simulée ; confort/approche/orientation bornés ; aucune translation sans distance valide ; perte/obstacle/fin rendent statut et motif explicites |
+| SH-06 | P0 / M | Développer le comportement de suivi déterministe | SH-04, SH-05 | Selon les six sujets validés de section 4 : états/causes/transitions testés par horloge simulée ; approche/maintien avec hystérésis, consigne/précision/minimum de sécurité distincts ; orientation et avance bornées et qualifiées, aucun mouvement interdit ; redépart normal distinct de reprise explicite, échéance inchangée ; commandes obsolètes invalidées, interruptions et fins explicites au runtime ; recette déterministe et régression balle/stop ; aucune clôture sur la seule spécification |
 | SH-07 | P0 / M | Relier la commande naturelle au comportement | SH-01, SH-06 | Prompt, schéma JSON, lexique, paramètres autorisés, alias, normalisation, parser local, validator, planner, registre, budgets mission/étape et assemblage matériel raccordés dans le runtime existant ; commandes balle et « suis-moi » accessibles sans bascule manuelle ni redémarrage ; perception sélectionnée automatiquement, acquisition caméra partagée, aucune mission motrice concurrente ; « suis-moi » ne démarre jamais `yellow` par défaut |
 | SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Messages vocaux déterministes et non bloquants selon la section 1 ; absence audio au démarrage : refus, panne détectée en cours : suspension ; stop reconnu pendant les annonces et aucune auto-commande vocale ; traces avec état, ID, âge/qualité/distance, consigne, arrêt et latences ; aucun flux vidéo enregistré par défaut ; rétention des traces définie |
 | SH-09 | P0 / M | Valider hors roulage et préserver l'existant | SH-05, SH-06, SH-07, SH-08 | Tests unitaires/intégration portables, simulations/replay sans moteurs, seuils et transitions couverts ; suivi balle et stop inchangés ; chaque défaut laisse une commande d'arrêt observable |
@@ -566,9 +724,9 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise dans une nouvelle session — prochaine spécification SH-06
+## 9. Reprise dans une nouvelle session — prochaine spécification SH-07
 
-Point de reprise au 2026-10-30 : **spécifier SH-06 avec l'utilisateur, pas l'implémenter**, en commençant par les états et transitions. Les six sujets de spécification SH-05 sont validés et consignés en section 4 ; son cadre d'exigences et de recette est approuvé, mais SH-05 n'est pas techniquement terminé. SH-06 n'a pas encore été spécifié ni validé. Sa préparation documentaire s'appuie sur les contrats approuvés sans clôturer ses dépendances de réalisation et de qualification SH-04/SH-05. Aucun développement ni essai moteur n'est autorisé par cette reprise.
+Point de reprise au 2026-10-30 : **préparer la spécification de SH-07 avec l'utilisateur, pas son implémentation**, en commençant par le contrat des commandes naturelles et leur distinction avec les missions balle. Cette suite documentaire est préparée à sa demande pour une nouvelle session ; aucun choix détaillé SH-07 n'est encore validé. Les six sujets de spécification SH-06 sont validés et détaillés en section 4 ; ne pas les rouvrir ni lancer leur implémentation implicitement. Les six sujets de SH-05 restent également validés et intégralement consignés en section 4. SH-05 et SH-06 ne sont pas techniquement terminés : conception détaillée, réalisation et qualification restent ouvertes, ainsi que leurs dépendances. La préparation documentaire de SH-07 ne clôture pas sa dépendance technique à SH-06. Aucun développement ni essai moteur n'est autorisé par cette reprise.
 
 ### État à préserver
 
@@ -577,7 +735,8 @@ Point de reprise au 2026-10-30 : **spécifier SH-06 avec l'utilisateur, pas l'im
 - SH-03 : exigences et recette optique validées ; montage, taille, dictionnaire/ID et performances à déterminer après essais.
 - SH-04 : contrat de perception, cycle de mission et recette validés ; conception détaillée, implémentation et vérification à faire.
 - SH-05 : six sujets d'exigences et de recette validés, détails et travaux techniques restants en section 4 ; conception, réalisation et qualification ouvertes.
-- SH-06 : prochaine spécification documentaire ; aucun nouveau choix de comportement validé à ce stade. Réutiliser les états et règles déjà acquis, sans les rouvrir.
+- SH-06 : six sujets d'exigences et de recette validés, décisions détaillées et travaux techniques restants en section 4. Réutiliser les états et règles acquis sans les rouvrir ; conception, réalisation et qualification ouvertes, aucune clôture technique.
+- SH-07 : prochaine spécification documentaire ; sujets ci-dessous proposés comme ordre d'étude, non comme décisions approuvées. Ticket technique à faire, dépendances SH-01/SH-06 inchangées.
 - Aucun code, achat, acquisition caméra ou essai moteur effectué dans cette étude ; aucun Go mobile humain.
 - Un seul assistant/runtime : « suis-moi » et « cherche la balle jaune » sont des commandes naturelles, sans mode supplémentaire. « Rapproche-toi des autres robots » reste un besoin futur hors MVP.
 - Les arrêts logiciels sur obstacle et commande vocale sont déjà disponibles et déclarés testés : les réutiliser, pas les présenter comme manquants.
@@ -593,17 +752,28 @@ Point de reprise au 2026-10-30 : **spécifier SH-06 avec l'utilisateur, pas l'im
 
 Ne pas transformer les objectifs provisoires en garanties matérielles. Les dispositifs d'inhibition et de surveillance indépendante ne sont pas choisis ni déclarés installés ; l'interrupteur embarqué prévu n'a pas d'accessibilité qualifiée depuis la position de suivi.
 
-### Sujets à détailler pour SH-06
+### Sujets SH-06 validés — détails à préserver en section 4
 
-1. États et transitions du comportement : acquisition, suivi, maintien, suspension et fin ; distinguer état, motif et action de reprise. Réutiliser le cycle SH-04 et les priorités SH-05.
-2. Approche et maintien de la distance demandée : zone de confort, ralentissement et immobilisation, seuils/hystérésis à justifier ; distinguer consigne, objectif de précision et distance minimale de sécurité.
-3. Correction d'orientation et coordination avec l'avance : cible exploitable et dégagement valide, corrections bornées et volume balayé protégé ; aucune autorisation implicite de rotation sur place, aucun recul, balayage ou contournement.
-4. Redépart normal lorsque le porteur s'éloigne et reprise explicite après interruption : ne pas les confondre ; même cible, nouvelle acquisition lorsque requise, préconditions et échéance initiale conservées.
-5. Commandes, interruptions et sortie du comportement : arrêt prioritaire, aucune commande obsolète, aucun défaut transformé en succès ni relance automatique ; propagation au runtime commun sans régression balle/stop.
-6. Recette déterministe par horloge et observations simulées : états/transitions, frontières de distance/orientation/temps, défauts simultanés et absence de mouvement interdit ; distinguer preuves logicielles et qualification physique ultérieure.
+1. États et transitions du comportement : acquisition, suivi, maintien, suspension et fin ; distinguer état, motif et action de reprise. Cycle SH-04 et priorités SH-05 réutilisés. **Validé ; décision détaillée en section 4.**
+2. Approche et maintien de la distance demandée : zone de confort, ralentissement et immobilisation, seuils/hystérésis à justifier ; distinguer consigne, objectif de précision et distance minimale de sécurité. **Validé ; décision détaillée en section 4.**
+3. Correction d'orientation et coordination avec l'avance : cible exploitable et dégagement valide, corrections bornées et volume balayé protégé ; aucune autorisation implicite de rotation sur place, aucun recul, balayage ou contournement. **Validé ; décision détaillée en section 4.**
+4. Redépart normal lorsque le porteur s'éloigne et reprise explicite après interruption : ne pas les confondre ; même cible, nouvelle acquisition lorsque requise, préconditions et échéance initiale conservées. **Validé ; décision détaillée en section 4.**
+5. Commandes, interruptions et sortie du comportement : arrêt prioritaire, aucune commande obsolète, aucun défaut transformé en succès ni relance automatique ; propagation au runtime commun sans régression balle/stop. **Validé ; décision détaillée en section 4.**
+6. Recette déterministe par horloge et observations simulées : états/transitions, frontières de distance/orientation/temps, défauts simultanés et absence de mouvement interdit ; distinguer preuves logicielles et qualification physique ultérieure. **Validé ; décision détaillée en section 4.**
 
 Les paramètres d'usage SH-01 restent acquis : dégagement demandé par défaut 1,5 m, plage demandable 1,2 à 2 m dans le domaine qualifié, objectif stabilisé ±30 cm, plafond physique initial 0,15 m/s, durée par défaut 60 s et plage 10 à 300 s après qualification. Ils ne déterminent pas à eux seuls les seuils de commande, l'hystérésis, le freinage ou les bornes de rotation. Ne pas inventer ces valeurs ni convertir le seuil provisoire de 0,8 m en garantie.
 
+### Sujets proposés pour spécifier SH-07
+
+1. **Contrat des commandes et distinction des capacités :** « suis-moi » désigne le porteur du marqueur configuré, pas une balle ; commandes de départ, reprise et arrêt selon les cycles acquis ; formulations ambiguës et refus/clarifications à préciser. Aucun nouvel identifiant fourni ou inventé par le LLM, aucune cible `yellow` choisie par défaut.
+2. **Paramètres, valeurs par défaut et validation :** extraction de distance/durée, unités, normalisation et alias ; respect des paramètres SH-01 dans le domaine qualifié ; demandes invalides ou hors plage refusées explicitement, sans correction silencieuse ni relèvement vocal du plafond. Une reprise ne modifie pas les paramètres de la session.
+3. **Contrat d'intention et chaîne de validation :** prompt, schéma JSON, lexique, parser local, validator et gardes ; séparation entre compréhension LLM et décisions déterministes, traitement explicite des erreurs et absence de substitution de mission. Inspecter les surfaces existantes en lecture seule avant de proposer leur adaptation.
+4. **Raccordement au runtime commun :** planner, registre, assemblage matériel et sélection automatique de perception ; caméra et moteurs partagés sans pilotes concurrents ; une seule mission motrice et politique existante des nouvelles demandes préservée, y compris pendant une suspension.
+5. **Budgets et cycle de mission :** articulation des budgets mission/étape avec acquisition initiale, activation, échéance initiale, suspension et réacquisition ; aucune expiration générique ne doit masquer un défaut, relancer le suivi ou prolonger la session. Réutiliser les priorités SH-05 et les sorties SH-06.
+6. **Recette d'intégration sans moteurs :** formulations nominales/ambiguës/invalides, valeurs par défaut et frontières, départ/reprise/stop, résultats LLM invalides ou tardifs, absence de substitution et non-régression balle ; scénarios dans le même runtime sans bascule manuelle ni redémarrage.
+
+Cet ordre d'étude ne valide aucune nouvelle règle de langage, aucun alias, schéma, mécanisme de parser ou politique de clarification. Les exigences déjà acquises restent obligatoires ; les nouveaux choix seront soumis un par un à l'utilisateur. Le détail des messages et de la conservation des traces relève de SH-08, sans retirer les obligations d'arrêt, de retour explicite et d'observabilité déjà validées.
+
 ### Méthode de poursuite
 
-Lire les décisions détaillées des sections précédentes, puis avancer sujet par sujet : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Commencer SH-06 par les états et transitions. Distinguer à chaque fois exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas rouvrir les décisions acquises sans contradiction ou demande utilisateur ; ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, ne lancer aucun essai moteur et n'installer aucune dépendance.
+Les six sujets SH-06 sont validés et consignés ; aucune question restante n'est nécessaire pour clôturer cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées et commencer SH-07 par le contrat des commandes naturelles, sans rouvrir le cycle SH-04 ni les décisions SH-05/SH-06. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas rouvrir les décisions acquises sans contradiction ou demande utilisateur ; ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, ne lancer aucun essai moteur et n'installer aucune dépendance pendant cette spécification.

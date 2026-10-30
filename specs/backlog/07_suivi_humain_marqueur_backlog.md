@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10 validés ; orientations SH-08, cadre de recette SH-09 et cadre de mesure SH-10 consignés, choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10/SH-11 validés ; orientations SH-08, cadre de recette SH-09, cadre de mesure SH-10 et six sujets de recette progressive/Go-No-Go SH-11 consignés ; choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé. Prochaine étape retenue : conception détaillée documentaire SH-02 des protections et de l'organisation solo, non commencée.
 
 ## 1. Besoin et décision de cadrage
 
@@ -1372,6 +1372,159 @@ Aucun code ni test créé, aucun test exécuté, acquisition matérielle, instal
 
 Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge, installation ou essai moteur lancé pendant cette spécification. Six décisions détaillées de chacun des tickets SH-05 à SH-09 préservées intégralement. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi en solo non résolu. Aucun Go mobile humain.
 
+### SH-11 — Spécification progressive de la recette et de la décision Go/No-Go
+
+Étude strictement documentaire avec l'utilisateur le 2026-10-30. Les sujets validés sont détaillés ci-dessous ; statut de progression en fin de cette sous-section. Les six décisions détaillées de chacun des tickets SH-05 à SH-10 sont préservées intégralement. Aucune dépendance technique satisfaite par sa seule spécification ; aucune réalisation, recette, mesure ou qualification déduite de cette validation. Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge, essai moteur ou installation de dépendance exécuté. Aucun Go mobile humain.
+
+#### Sujet 1 — Portes d'entrée et preuves requises par niveau d'essai
+
+**Exigences validées par l'utilisateur le 2026-10-30 :** chaque niveau possède une porte d'entrée propre et produit un dossier de preuves limité à ce qui a réellement été éprouvé. Une réussite ne déclenche jamais automatiquement le niveau suivant. La validation de ces portes n'autorise aucune exécution.
+
+| Niveau | Porte d'entrée validée | Preuves à obtenir à ce niveau |
+|---|---|---|
+| Sans propulsion | Pour SH-09 : isolation logicielle prévue par son cadre. Pour les observations réelles : moteurs déconnectés, déconnexion vérifiée, sorties explicitement non actionnantes ; configuration, composants disponibles, protocole et instrumentation identifiés. Une fonction absente bloque son cas, sans interdire une caractérisation partielle clairement délimitée | Séparément : résultats logiciels SH-09 ; mesures réelles Pi SH-10 ; qualification optique SH-03 ; audio/journal réels SH-08. Aucune conclusion sur la dynamique ou la protection physique |
+| Banc protégé | Protocole sous puissance distinct, adapté à l'opérateur seul ; dispositif de banc et protection de l'opérateur effectivement vérifiés pour les défaillances injectées, moyens d'interruption et de mesure disponibles. Le banc ne peut pas compter uniquement sur la protection qu'il cherche à qualifier. Réalisations et résultats logiciels nécessaires aux cas prévus disponibles | Coupure/rétablissement, perte ou blocage du pilotage, indisponibilité du Pi, surveillance indépendante, inhibition et réarmement ; absence de réapplication d'anciennes commandes et de départ spontané. Mesures physiques adaptées au banc, sans les extrapoler au freinage au sol |
+| Cibles inertes | Résultats pertinents du banc conformes ; protections requises pour ces essais qualifiées ; terrain, organisation solo et accès sûr à la coupure vérifiés pour la position réelle d'essai. Résultats logiciels, perception, performances Pi et audio nécessaires disponibles. Protocole de caractérisation physique défini, sans supposer déjà connus les réglages qu'il doit établir | Couverture obstacle et volume balayé, vitesse au sol, réactions et immobilisation physique dans les conditions retenues ; budget d'arrêt et réglages justifiés, puis vérifiés. Audio avec motorisation réelle évalué séparément lorsque nécessaire. Aucune personne utilisée comme obstacle ou cible exposée |
+| Éventuel porteur humain | Dossiers requis SH-09/SH-10 et qualifications physiques/audio applicables complets et conformes pour la configuration retenue ; protections indépendantes qualifiées, budget d'arrêt et réglages établis, accès sûr à la coupure depuis la position de suivi démontré en solo. Go humain explicite préalable, limité à ce domaine et à ce protocole | Seulement ensuite, résultats de suivi avec porteur dans le domaine autorisé. Ils ne peuvent pas servir à découvrir ou qualifier les protections qui conditionnaient l'entrée. Cette porte reste fermée aujourd'hui |
+
+Règles transversales validées :
+
+- Exigences déjà acquises inchangées : ordre progressif, arrêt prioritaire, aucune qualification déduite d'une spécification, aucun mouvement interdit ajouté. Runtime commun humain/balle, `follow_person` distinct sans cible `yellow` par défaut, stop/reprise locaux, validation intégrale des demandes, réservation en suspension, échéance inchangée et absence de demande différée ou réessai humain automatique préservés.
+- Chaque dossier indique configuration/version, prérequis effectivement vérifiés, attendus/obtenus, références et incertitudes, maxima, dépassements, échecs et manques. Une preuve obligatoire absente ou inexploitable bloque le passage concerné ; moyennes et p95 ne compensent aucun dépassement obligatoire.
+- Preuves logicielles SH-09, performances Pi SH-10, audio réel et propriétés physiques distincts. Simulation et durée simulée ne qualifient aucun réglage ou délai Pi.
+- Précision visée, zone de commande et distance minimale de sécurité distinctes ; aucun seuil nouveau ni objectif provisoire transformé en garantie.
+- Arrêt demandé, commande nulle, inhibition confirmée et immobilisation physique mesurée restent quatre faits distincts. Aucune confirmation d'annonce, d'audition, de persistance ou de protection inventée.
+- Politique de données SH-08 inchangée ; l'audio ne remplace aucune protection.
+
+**Conséquence :** les préparations et caractérisations partielles sans propulsion restent distinguées de la qualification complète. Le banc sert notamment à qualifier les protections, mais sa propre protection pour les défaillances prévues doit être établie avant l'essai. Aucun succès de banc ne qualifie à lui seul la dynamique au sol. Le porteur humain n'est jamais un moyen de qualification initiale des protections.
+
+**Choix techniques restant ouverts :** conception du banc, inhibition et surveillance indépendante, solution d'accès sûr à la coupure en solo, instrumentation, réglages et budgets non établis. Aucun dispositif ni valeur choisi par cette décision ; accès sûr à l'interrupteur embarqué depuis la position de suivi toujours non résolu.
+
+**Preuves attendues :** dossiers effectifs par niveau selon le tableau, avec limites et blocages explicites. Aucune preuve d'exécution produite par cette spécification ; aucun passage autorisé ni Go mobile humain.
+
+#### Sujet 2 — Cas et critères applicables par niveau
+
+**Organisation validée par l'utilisateur le 2026-10-30 :** réutiliser les matrices approuvées et les sections 5/7 dans une matrice de passage documentaire, sans créer de tests ni de nouveaux comportements.
+
+Chaque obligation est reliée à sa décision source et à son statut exact (exigence validée, objectif à qualifier ou choix technique ouvert), ses scénarios/préconditions/niveaux pertinents, son attendu, ses actions interdites et sa convention de frontière, sa preuve nécessaire (logiciel SH-09, mesure Pi SH-10, audio réel ou propriété physique), ses blocages et limites de conclusion.
+
+| Niveau | Cas à y rattacher |
+|---|---|
+| Sans propulsion | Logique, demandes invalides, transitions, concurrence, échéances et non-régression SH-09 ; optique, performances Pi et audio réel dans des volets distincts, selon les réalisations disponibles |
+| Banc protégé | Défaillances de contrôle, coupure/rétablissement, inhibition, réarmement et absence de départ spontané. Les injections dangereuses ne sont pas reportées près d'un porteur |
+| Cibles inertes | Couverture, dynamique, arrêts, frontières de commande et mouvements effectivement candidats à la qualification ; audio sous motorisation réelle dans son volet propre |
+| Éventuel porteur | Seulement les scénarios compatibles avec le domaine déjà qualifié et le futur Go explicite. Aucun scénario de la matrice générale n'autorise implicitement une mise en danger humaine |
+
+- Chiffres de la section 5 conservant leur statut, jamais tous transformés en seuils obligatoires qualifiés par recopie. Le minimum provisoire de 0,8 m ne fixe pas la distance de sécurité ; les objectifs de délais restent à confronter aux mesures et au budget d'arrêt. Exigences déjà validées obligatoires avec leur portée exacte.
+- Cas obligatoire non exécuté, critère nécessaire encore ouvert ou preuve inadéquate empêchant la conformité du périmètre concerné.
+- Cas déclaré non applicable justifié, sans supprimer une obligation : sa vérification reste rattachée au niveau approprié.
+
+**Conséquence :** couverture jugée par obligation et nature de preuve, pas par taux global de réussite ; aucune obligation physique remplacée par une simulation ni scénario dangereux déplacé vers le porteur.
+
+**Choix techniques restant ouverts :** format concret, scénarios détaillés, instrumentation et valeurs encore à justifier.
+
+**Preuves attendues :** couverture traçable de chaque obligation, avec attendus et blocages explicites. Aucune matrice exécutable ni test créé ; aucun essai ni Go mobile humain.
+
+#### Sujet 3 — Déroulement, interruption et remise en état
+
+**Organisation validée par l'utilisateur le 2026-10-30 :** chaque futur essai dispose d'une fiche établie avant exécution : niveau, objectif, configuration figée, prérequis effectivement vérifiés, scénario, moyens d'observation, conditions d'interruption et procédure de remise en état.
+
+| Étape | Règles validées |
+|---|---|
+| Avant l'essai | Vérifier la porte du niveau et l'organisation solo. Aucun second opérateur présumé, aucun accès improvisé à l'interrupteur ; moyens de protection adaptés au cas effectivement disponibles. Toute modification pertinente impose de réexaminer les prérequis affectés |
+| Pendant l'essai | Rester dans le scénario et le domaine autorisés. Écart obligatoire, protection requise indisponible, sortie du domaine ou observation indispensable perdue : interruption du cas et blocage des cas qui dépendent de sa sûreté ou de sa preuve. Demander l'arrêt sans attendre audio, journal ou LLM ; en cas de perte du pilotage, seule la protection indépendante prévue et qualifiée pour l'essai peut être créditée de l'inhibition |
+| Après l'essai | Établir l'état réellement observable, sans assimiler demande d'arrêt à immobilisation. Aucune approche des roues, manipulation ou remise sous puissance sur la seule foi d'une commande nulle. L'accès et la remise en état suivent la procédure protégée propre au montage, encore à concevoir |
+
+- Panne volontairement injectée distincte d'un échec du cas : réaction attendue à démontrer et protections propres à l'essai restant effectives. Perte de ces protections ou référence de mesure défaillante interdisant de poursuivre comme si le cas était probant.
+- Après anomalie : cause et premier échec conservés, correction puis revalidation des prérequis et nouvelle exécution explicitement décidée.
+- Aucun départ différé, réessai humain automatique ou réarmement implicite ; reprise d'une mission exactement selon SH-01/SH-06/SH-07.
+
+**Conséquence :** la campagne ne repose ni sur une intervention improvisée de l'opérateur seul ni sur un compte rendu logiciel supposé disponible après perte du pilotage. Le comportement attendu face à une panne injectée ne dispense pas de protéger l'essai lui-même.
+
+**Choix techniques restant ouverts :** montage du banc, gestes et moyens sûrs d'intervention, critères techniques encore à établir.
+
+**Preuves attendues :** fiche préparée, chronologie réelle, motif d'interruption, état final et remise en état vérifiables. Rien exécuté par cette spécification.
+
+#### Sujet 4 — Dossier de preuves et rapport de campagne
+
+**Organisation validée par l'utilisateur le 2026-10-30 :** dossier par configuration et domaine éprouvés reliant les décisions de passage aux preuves effectives ; aucun rapport d'essai produit pendant cette spécification.
+
+| Partie | Contenu attendu |
+|---|---|
+| Références | Versions, montage, calibration, paramètres, protections, audio, conditions de sol/charge/batterie et configuration Pi pertinentes |
+| Couverture | Obligations et critères avec leur statut exact, cas prévus/exécutés/non exécutés, non-applicabilités justifiées, blocages et dépendances |
+| Résultats | Attendus/obtenus, chronologies, moyens de mesure, horloges, références d'injection et incertitudes ; effectifs, distributions utiles, maxima et chaque dépassement obligatoire |
+| Provenance | Logiciel SH-09, performances Pi SH-10, audio réel et physique séparés. Aucun intervalle revendiqué si ses bornes ne sont pas observables |
+| Historique | Échecs initiaux, corrections, nouvelles configurations, revalidations et restrictions ; aucune répétition favorable effaçant un échec |
+| Synthèse vérifiable | Conclusions par propriété, niveau et configuration, preuves manquantes et limites ; jamais une simple mention « tout fonctionne » |
+
+- Référence manquante ou observateur défaillant : conclusion concernée indisponible, jamais favorable par défaut.
+- Distinguer ce que le logiciel demande, ce qui est transmis/appliqué, l'inhibition effectivement confirmée et l'immobilisation mesurée.
+- Lecture achevée distincte d'audition ; événement écrit distinct de persistance garantie.
+- Politique SH-08 strictement identique : données locales minimales, aucun média ou texte brut réel par défaut, aucun export automatique ; clôture explicite puis suppression des traces après rapport produit et vérifié, rapport jusqu'à suppression explicite, sans nouvelle durée calendaire.
+
+**Conséquence :** chaque conclusion doit rester justifiable par ses preuves utiles et leurs limites, y compris après suppression des traces détaillées ; absence de preuve jamais transformée en réussite.
+
+**Choix techniques restant ouverts :** format, instruments et vérification concrète du dossier.
+
+**Preuves attendues :** rapport contrôlé permettant de justifier le verdict après suppression des traces détaillées. Aucun rapport d'essai ni collecte produit aujourd'hui.
+
+#### Sujet 5 — Verdict de recette et décision Go/No-Go
+
+**Règles validées par l'utilisateur le 2026-10-30 :** verdict sur les résultats distinct de la décision d'autoriser un essai précis.
+
+| Verdict de recette | Condition |
+|---|---|
+| Conforme dans le périmètre déclaré | Toutes ses obligations applicables démontrées, critères nécessaires établis et justifiés, résultats exploitables et rapport vérifié ; aucun échec ni cas obligatoire manquant |
+| Non conforme | Au moins un écart observé à une exigence obligatoire ; manques et blocages également rapportés |
+| Incomplet / bloqué | Conclusion impossible faute de réalisation, prérequis, critère établi, cas obligatoire ou preuve exploitable. Un écart déjà observé reste explicitement non conforme |
+
+- Caractérisation exploratoire rapportable, sans qualification d'un réglage encore ouvert.
+- Go seulement après revue des preuves requises et validation explicite de la porte concernée. Niveau, configuration, domaine, protocole et restrictions identifiés ; décision datée et attribuée à l'utilisateur.
+- No-Go si une exigence ou protection nécessaire échoue, reste inconnue/non qualifiée, ou si une preuve obligatoire manque. Motifs et conditions de réexamen consignés.
+- Verdict conforme distinct de Go ; Go pour le banc ou les cibles inertes jamais assimilé à un Go humain.
+- Restriction sans dispense d'obligation nécessaire. Réduction du domaine exigeant décision explicite et preuves adaptées ; aucune conformité rétroactive du domaine initial.
+- Go préalable à un éventuel essai humain distinct de validation de l'usage général ; bilan après cet essai distinct.
+
+**Conséquence actuelle : aucun Go mobile humain**, notamment parce que l'inhibition et la surveillance indépendante restent à concevoir et qualifier et que l'accès sûr à la coupure depuis la position de suivi reste non résolu.
+
+**Choix techniques restant ouverts :** valeurs et qualifications manquantes, support concret de la décision.
+
+**Preuves attendues :** verdict et décision motivés, reliés au dossier, sans seuil inventé ni dérogation implicite. Aucun verdict d'essai produit ni Go donné pendant cette spécification.
+
+#### Sujet 6 — Validité, clôture et passage à la suite
+
+**Règles et prochaine étape validées par l'utilisateur le 2026-10-30 :**
+
+- Preuves et éventuelle autorisation valables uniquement pour la configuration et le domaine documentés. Modification pertinente du logiciel, montage, calibration, paramètres, alimentation, protection, audio ou charge Pi : analyser les propriétés affectées, revalider ce qui est nécessaire et réexaminer l'autorisation avant l'essai concerné. Ni maintien automatique d'un Go ni reprise automatique d'une mission.
+- Après échec, historique conservé ; correction, nouvelle série identifiée et régressions pertinentes. Un nouvel essai ne gomme pas l'échec initial.
+- Clôture documentaire : six décisions approuvées et consignées, backlog et reprise cohérents. Clôture uniquement de cette étude de spécification.
+- Clôture technique SH-11 : réalisations et dépendances effectivement traitées, preuves obligatoires du périmètre convenu produites, écarts résolus, rapport vérifié et décision explicite. Campagne partielle ou bloquée insuffisante. No-Go utile comme décision, mais ni recette réussie ni autorisation ; aucun essai humain imposé pour « terminer ».
+- Aucune poursuite automatique vers SH-12, aucun achat, code, test, mesure ou essai déclenché par cette clôture.
+
+**Prochaine étape explicitement retenue :** revenir à la conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05 : inhibition, surveillance indépendante, coupure/rétablissement et accès sûr depuis la position de suivi. Réutiliser les exigences déjà approuvées sans les rouvrir ; examiner solutions et preuves à prévoir, sujet par sujet, sans installation, achat, manipulation matérielle ni qualification. Ne pas commencer cette étape dans la présente session.
+
+**Conséquence :** ne pas préparer une campagne en présumant disponibles des protections encore à concevoir ou un accès non résolu. La spécification SH-11 ne satisfait aucune dépendance technique ni porte d'entrée.
+
+**Choix techniques restant ouverts :** solutions concrètes et analyse d'impact des futurs changements.
+
+**Preuves attendues ultérieurement :** revalidations nécessaires, dossier final et décision motivée. Aujourd'hui : uniquement la spécification, aucun Go mobile humain.
+
+#### SH-11 — Statut et travaux techniques restants
+
+**Six sujets de spécification validés avec l'utilisateur le 2026-10-30 ; étude documentaire terminée. Conception détaillée, réalisations et exécution de la recette à faire.** Ticket technique et dépendances SH-09/SH-10 non clôturés ; préconditions physiques SH-02/SH-05 effectivement requises selon le niveau.
+
+| Travail restant | Livrable / preuve attendu |
+|---|---|
+| Établir les portes réelles | Configuration, réalisations et résultats disponibles ; protection du banc et organisation solo vérifiées, protections et accès à la coupure qualifiés selon le niveau ; aucune dépendance satisfaite par documentation seule |
+| Décliner la couverture | Obligations/cas/critères issus des décisions approuvées, statut exact et frontières, niveau et nature de preuve, non-applicabilités justifiées et blocages visibles |
+| Préparer les protocoles protégés | Fiches préalables, moyens d'observation et d'interruption, protection propre aux injections, remise en état et nouvelle exécution explicitement décidée |
+| Réaliser les campagnes autorisées | SH-09 logiciel, SH-10 Pi, optique/audio réels et propriétés physiques distincts ; banc puis cibles inertes ; éventuel porteur seulement après qualifications et Go explicite |
+| Produire et vérifier le dossier | Références, attendus/obtenus, chronologies, incertitudes, maxima/dépassements, échecs et historique ; rapport probant avec politique SH-08 inchangée |
+| Statuer et maintenir la validité | Verdict limité au périmètre démontré, Go/No-Go distinct et motivé ; revalidation après changements, aucune clôture sur campagne partielle ou sur approbation documentaire |
+
+Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge, installation, manipulation matérielle ou essai moteur exécuté pendant cette spécification. Six décisions détaillées de chacun des tickets SH-05 à SH-10 préservées intégralement. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi en solo non résolu. Aucun Go mobile humain. Prochaine étape documentaire SH-02 retenue au sujet 6, non commencée.
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -1401,7 +1554,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 et SH-12 sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 est **spécifié : six sujets de recette progressive et Go/No-Go validés en section 4, conception détaillée, réalisations et recette à faire** ; SH-12 est **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -1415,7 +1568,7 @@ SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la sectio
 | SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Selon les six sujets validés de section 4 : catalogue fermé et synthèse locale, paramètres retenus et temps restant exacts ; audio bidirectionnel et Jabra candidat à qualifier, stop pendant annonce sans auto-commande ; priorité/invalidation/budgets qualifiés sans retarder l'arrêt ; JSONL corrélé et niveaux de preuve distincts, journal obligatoire indisponible : refus ou arrêt/suspension ; collecte minimale locale sans médias/textes bruts par défaut, conservation par campagne et suppression vérifiable ; recette simulée distincte d'audio réel et de qualification physique ; aucune clôture sur la seule spécification |
 | SH-09 | P0 / M | Valider hors roulage et préserver l'existant | SH-05, SH-06, SH-07, SH-08 | Selon les six sujets validés de section 4 : tests unitaires, intégration simulée et replay recalculant les décisions, sans matériel/réseau ni découverte automatique ; exigences/scénarios/attendus indépendants, frontières et concurrence ; composants logiciels réels à périphériques simulés, même runtime et non-régression balle/primitives/stop ; commandes d'arrêt observées selon les moyens disponibles, sans trace ni arrêt physique inventés ; rapports/provenances et données SH-08, verdict conforme/non conforme/incomplet justifié ; fonctions/réglages/preuves manquants bloquants, aucune clôture sur la seule spécification |
 | SH-10 | P0 / M | Mesurer le système intégré sur Pi | SH-03, SH-07, SH-08 | Selon les six sujets validés de section 4 : prérequis réels et première étape sans propulsion isolée ; charge intégrée vision/audio/LLM/journal et concurrence autorisée, conditions reproductibles ; débit/âge depuis capture, intervalles/horloges, CPU/RAM/température, incertitudes et maxima/dépassements ; dégradations bornées, simulation/réel distincts ; dossier vérifié, réglages identifiés et échecs conservés, données SH-08 ; verdict limité au périmètre démontré et blocages explicites, aucune qualification physique ni clôture sur la seule spécification |
-| SH-11 | P0 / L | Effectuer la recette progressive et décider Go/No-Go | SH-09, SH-10 | Préconditions SH-02 revérifiées ; banc puis cible inerte mobile puis porteur uniquement après qualification des protections et de l'accès sûr à la coupure dans une organisation compatible avec l'opérateur seul, sans second opérateur présumé ; critères section 5 et matrice section 7 satisfaits ; rapport, limites et décision signés |
+| SH-11 | P0 / L | Effectuer la recette progressive et décider Go/No-Go | SH-09, SH-10 | Selon les six sujets validés de section 4 : portes d'entrée et preuves distinctes sans propulsion, banc protégé, cibles inertes, puis éventuel porteur après qualifications et Go explicite ; préconditions SH-02/SH-05 effectivement vérifiées selon le niveau, organisation solo et accès sûr à la coupure démontrés ; cas/critères des sections 5/7 et matrices approuvées rattachés aux niveaux pertinents avec leur statut exact, sans seuil inventé ni obligation supprimée ; préparation/interruption/remise en état protégées ; dossier vérifié et données SH-08 ; verdict de recette distinct de Go/No-Go daté et attribué, limites et décision signées ; changements réévalués et propriétés affectées revalidées. Conception détaillée, réalisations et recette à faire ; aucune dépendance clôturée par la spécification ni Go mobile humain |
 | SH-12 | P1 / L | Étudier le suivi naturel et la navigation avancée | SH-11 | Étude séparée sans marqueur : sélection de personne, identités croisées, occultation, profondeur/capteurs, besoin odométrie/contournement et nouveau domaine de sécurité ; aucun élargissement implicite du MVP |
 
 SH-02 et SH-03 sont des portes de décision : si la sécurité ou la perception échouent, réviser matériel/domaine avant de poursuivre le contrôle mobile. SH-07 et SH-08 peuvent avancer en parallèle après leurs prérequis ; ne pas attendre la recette pour ajouter les traces.
@@ -1455,11 +1608,13 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 4. **Intégration :** SH-07/SH-08, puis SH-09/SH-10.
 5. **Recette :** SH-11 ; SH-12 reste une évolution distincte.
 
+Progression documentaire au 2026-10-30 : cadres SH-02 à SH-11 approuvés, réalisations et qualifications ouvertes. Prochaine étape explicitement retenue après la spécification SH-11 : conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05, sans la commencer ici ; aucune autorisation de campagne.
+
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise dans une nouvelle session — prochaine spécification SH-11
+## 9. Reprise — conception détaillée documentaire SH-02 des protections et de l'organisation solo
 
-Point de reprise au 2026-10-30 : **spécifier SH-11 avec l'utilisateur, pas l'implémenter ni lancer de recette**. SH-10 est spécifié : ses six sujets sont validés et détaillés en section 4, sans réalisation ni mesure. Commencer SH-11 uniquement par les portes d'entrée et les preuves requises pour chaque niveau d'essai. Cette suite est préparée pour une nouvelle session ; SH-11 n'a pas commencé et aucun nouveau choix détaillé SH-11 n'est approuvé. Les six sujets de chacun des tickets SH-05 à SH-10 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, installation ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+Point de reprise au 2026-10-30 : **SH-11 spécifié et validé, sans exécuter la recette**. Ses six décisions sont détaillées en section 4 ; clôture documentaire seulement, ticket technique et dépendances SH-09/SH-10 ouverts. Prochaine étape explicitement retenue par l'utilisateur au sujet 6 : conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05 ; non commencée pendant la spécification SH-11. Les six sujets de chacun des tickets SH-05 à SH-10 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
 
 ### État à préserver
 
@@ -1473,7 +1628,7 @@ Point de reprise au 2026-10-30 : **spécifier SH-11 avec l'utilisateur, pas l'im
 - SH-08 : six sujets et orientations validés en section 4, travaux techniques restants explicités ; conception détaillée, réalisation et qualification à faire. Dépendances SH-01/SH-06 inchangées, aucune clôture technique.
 - SH-09 : six sujets validés en section 4, travaux techniques restants explicités ; conception détaillée, réalisation et exécution de recette à faire. Dépendances SH-05/SH-06/SH-07/SH-08 inchangées, aucune clôture technique ni preuve physique.
 - SH-10 : six sujets de spécification validés et détaillés en section 4 ; conception détaillée, réalisation et mesures à faire. Dépendances SH-03/SH-07/SH-08 inchangées et non satisfaites par leurs seules spécifications.
-- SH-11 : prochaine spécification documentaire, nouveaux choix détaillés non encore validés. Ticket technique à faire ; dépendances SH-09/SH-10 inchangées et non satisfaites par leurs seules spécifications. Préconditions physiques SH-02/SH-05 toujours requises selon le niveau d'essai.
+- SH-11 : six sujets spécifiés et validés, décisions détaillées et travaux techniques restants en section 4. Conception détaillée, réalisations et recette à faire ; dépendances SH-09/SH-10 inchangées et non satisfaites par leurs seules spécifications. Préconditions physiques SH-02/SH-05 toujours requises selon le niveau d'essai. Aucun Go mobile humain.
 - Aucun code, achat, acquisition caméra ou essai moteur effectué dans cette étude ; aucun Go mobile humain.
 - Un seul assistant/runtime : « suis-moi » et « cherche la balle jaune » sont des commandes naturelles, sans mode supplémentaire. « Rapproche-toi des autres robots » reste un besoin futur hors MVP.
 - Les arrêts logiciels sur obstacle et commande vocale sont déjà disponibles et déclarés testés : les réutiliser, pas les présenter comme manquants.
@@ -1542,10 +1697,34 @@ Les six sujets SH-09 sont validés ; outillage, doubles, instrumentation, matric
 
 Les six sujets SH-10 sont validés ; instrumentation, scénarios concrets, budgets ouverts, réalisations, mesures et verdicts restent à produire. Aucun instrument ni seuil nouveau choisi, aucune charge ni acquisition autorisée implicitement.
 
-### Premier sujet proposé pour spécifier SH-11
+### Sujet 1 SH-11 validé — détails à préserver en section 4
 
-Portes d'entrée et preuves requises pour chaque niveau : sans propulsion, banc protégé, cibles inertes, puis éventuel porteur humain uniquement après qualification des protections, accès sûr à la coupure en solo et Go explicite. Distinguer preuves logicielles SH-09, performances Pi SH-10 et propriétés physiques/audio effectivement qualifiées ; résultats absents, paramètres fictifs et dépendances ouvertes restent bloquants selon le périmètre. Ce sujet est un point de départ d'étude, pas une décision détaillée approuvée ni une autorisation d'essai.
+Portes d'entrée et preuves requises pour chaque niveau : sans propulsion, banc protégé, cibles inertes, puis éventuel porteur humain uniquement après qualifications, accès sûr à la coupure en solo et Go explicite. Décision détaillée validée en section 4 : protection propre du banc avant qualification des dispositifs essayés, caractérisation physique distincte de validation des réglages, aucun passage automatique. Preuves logicielles SH-09, performances Pi SH-10, audio réel et propriétés physiques distincts ; résultats absents, paramètres fictifs et dépendances ouvertes restent bloquants selon le périmètre. Validation documentaire uniquement, aucune autorisation d'essai ; aucun Go mobile humain.
+
+### Sujet 2 SH-11 validé — détails à préserver en section 4
+
+Sélection des cas et critères applicables à chaque niveau : sections 5/7 et matrices détaillées approuvées réutilisées, statut exact des critères conservé, chaque obligation reliée à ses cas/niveaux/preuves. Non-applicabilité justifiée sans suppression d'obligation ; cas obligatoire manquant ou critère nécessaire ouvert bloquant. Décision détaillée validée en section 4, aucune exécution.
+
+### Sujet 3 SH-11 validé — détails à préserver en section 4
+
+Fiche d'essai préalable, portes revérifiées, organisation solo sans intervention improvisée, interruption et blocage des cas dépendants en cas d'écart ou preuve/protection perdue ; panne injectée distincte d'échec du cas, remise en état protégée et nouvelle exécution explicitement décidée. Règles de mission inchangées, aucune exécution.
+
+### Sujet 4 SH-11 validé — détails à préserver en section 4
+
+Dossier par configuration/domaine, couverture et résultats traçables, provenances séparées, maxima/dépassements et historique des échecs conservés ; références manquantes et limites explicites. Rapport vérifiable après suppression des traces détaillées ; politique SH-08 inchangée. Aucun rapport d'essai ni collecte produit.
+
+### Sujet 5 SH-11 validé — détails à préserver en section 4
+
+Verdict conforme dans le périmètre déclaré / non conforme / incomplet-bloqué selon les preuves ; écart observé jamais masqué par un blocage. Go distinct, explicite, daté et attribué, limité au niveau/configuration/domaine/protocole ; preuves ou protections nécessaires manquantes imposant No-Go. Aucun Go mobile humain, aucune autorisation d'usage général déduite d'un Go d'essai.
+
+### Sujet 6 SH-11 validé — détails à préserver en section 4
+
+Validité limitée à la configuration et au domaine, analyse d'impact et revalidation après changements, historique des échecs conservé. Clôture documentaire distincte de clôture technique, campagne partielle/bloquée insuffisante et No-Go distinct de recette réussie. Prochaine étape documentaire SH-02 explicitement retenue, non commencée ; aucune poursuite automatique vers SH-12.
+
+### Prochaine étape explicitement retenue — non commencée
+
+Conception détaillée documentaire SH-02 des protections et de l'organisation solo, en lien avec SH-05 : inhibition, surveillance indépendante, coupure/rétablissement et accès sûr depuis la position de suivi. Réutiliser les exigences approuvées sans les rouvrir ; examiner les solutions et les preuves à prévoir, sujet par sujet, sans achat, installation, manipulation matérielle ni qualification. Aucun dispositif, montage ou moyen d'accès choisi par la spécification SH-11 ; ne pas présumer que l'interrupteur embarqué ou l'audio résout l'accès sûr.
 
 ### Méthode de poursuite
 
-SH-10 est spécifié ; aucune question restante pour cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées puis commencer uniquement le premier sujet SH-11 ci-dessus, sans rouvrir les acquis ni commencer une implémentation ou une campagne. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle, charge ni essai moteur pendant cette spécification.
+SH-11 est spécifié ; aucune question restante pour cette étude documentaire. Dans la prochaine session seulement, lire les décisions détaillées puis engager l'étape SH-02 retenue ci-dessus, sans rouvrir les acquis ni commencer une implémentation ou une campagne. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle, charge, achat, installation, manipulation matérielle ni essai moteur pendant cette conception documentaire. Aucun Go mobile humain.

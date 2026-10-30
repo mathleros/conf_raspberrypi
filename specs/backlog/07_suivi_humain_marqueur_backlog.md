@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09 validés ; orientations SH-08 et cadre de recette SH-09 consignés, choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres d'exigences et protocoles SH-02/SH-03/SH-04/SH-05/SH-06/SH-07/SH-08/SH-09/SH-10 validés ; orientations SH-08, cadre de recette SH-09 et cadre de mesure SH-10 consignés, choix techniques restants, réalisations et qualifications ouverts ; aucun développement engagé.
 
 ## 1. Besoin et décision de cadrage
 
@@ -1216,6 +1216,162 @@ Inclure stop et primitives existantes pertinentes ; aucune exigence humaine de m
 
 Aucun code ni test créé, aucun test exécuté, acquisition matérielle, installation ou essai moteur pendant cette spécification ; inspections en lecture seule et mise à jour documentaire uniquement. Les six décisions de chacun des tickets SH-05 à SH-08 sont préservées. Aucune qualification physique ni clôture de dépendance, aucun Go mobile humain. Inhibition/surveillance indépendante et accès sûr à l'interrupteur embarqué en solo restent à concevoir/résoudre et qualifier.
 
+### SH-10 — Spécification progressive des mesures du système intégré sur Pi
+
+Étude documentaire avec l'utilisateur le 2026-10-30. Six sujets validés ; conception détaillée, réalisation et mesures à faire, sans qualification ni clôture technique implicite. Aucun code ni test créé, aucun test, mesure, acquisition matérielle, charge, installation ou essai moteur lancé. Les six décisions détaillées de chacun des tickets SH-05 à SH-09 sont préservées intégralement. Dépendances SH-03/SH-07/SH-08 inchangées, aucune réalisation ni qualification déduite de leur spécification. Aucun Go mobile humain.
+
+#### Sujet 1 — Périmètre et prérequis des mesures
+
+**Périmètre et prérequis validés par l'utilisateur le 2026-10-30 :** mesurer les performances du système effectivement intégré sur Pi ; limiter chaque conclusion aux composants réellement présents et aux conditions éprouvées.
+
+| Niveau | Périmètre validé | Prérequis et limites |
+|---|---|---|
+| Première étape sans propulsion | Vision réelle, audio bidirectionnel, LLM local et journalisation sur Pi, séparément puis ensemble selon leur disponibilité ; observation des décisions et demandes de commande sans actionnement réel | Moteurs déconnectés, configuration identifiée, composants mesurés réalisés, protocole et instrumentation préparés. Toute sortie motrice observée explicitement non actionnante ; aucun contournement des préconditions du suivi réel pour obtenir artificiellement une activation |
+| Éventuels essais protégés ultérieurs | Compléments nécessitant une motorisation réelle, notamment son bruit et ses effets sur le système intégré | Protocole distinct compatible avec l'opérateur seul, risques maîtrisés et protections requises pour l'essai effectivement disponibles et vérifiées. Ordre SH-02/SH-05 : banc protégé puis cibles inertes. Aucun essai sous puissance autorisé par la spécification SH-10 |
+| Propriétés exclues des conclusions de performance | Sécurité physique globale, vitesse au sol, freinage, couverture obstacle, efficacité de l'inhibition indépendante, accès sûr à la coupure et aptitude au suivi mobile humain | Preuves propres aux qualifications concernées. Ni mesure de latence ni succès audio ne démontre ces propriétés ; aucun Go humain implicite |
+
+- Les protections encore ouvertes ne bloquent pas par principe toute caractérisation sans propulsion correctement isolée. Celle-ci ne les qualifie pas et ne lève aucun verrou du fonctionnement réel.
+- Avant chaque mesure, identifier les réalisations nécessaires, les vérifications disponibles et les limites encore ouvertes. Aucune dépendance technique satisfaite par sa seule spécification.
+- Fonction absente : mesure correspondante bloquée. Une caractérisation partielle reste possible, mais ne constitue pas une qualification du système intégré complet.
+- Distinguer composants réellement exécutés, simulés, absents et non qualifiés ; aucune durée simulée présentée comme mesure Pi.
+- Exigences SH-01 à SH-09 inchangées : runtime commun, arrêts prioritaires, contrats de perception/mission/observabilité, collecte minimale et niveaux de preuve distincts. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi en solo non résolu.
+
+**Conséquences :** la première étape caractérise uniquement le périmètre sans propulsion réellement disponible. Elle ne démontre ni les effets des moteurs réels ni les propriétés physiques ; toute extension sous puissance reste conditionnée à ses preuves et à son protocole propres.
+
+**Choix techniques restant ouverts :** raccordement non actionnant, moyens de vérification de la déconnexion, instrumentation et protocoles protégés. Aucun instrument ni seuil numérique choisi par cette validation.
+
+**Preuves attendues :** dossier par mesure identifiant configuration, périmètre réellement exécuté ou simulé, réalisations nécessaires, prérequis effectivement vérifiés et limites de conclusion. Aucune preuve d'exécution produite pendant cette étude documentaire.
+
+#### Sujet 2 — Charges et scénarios représentatifs
+
+**Organisation validée par l'utilisateur le 2026-10-30 :** comparer des références par composant à leur fonctionnement conjoint réel, sans nouveau comportement ni charge artificiellement illimitée.
+
+| Famille | Scénarios sans propulsion |
+|---|---|
+| Références séparées | Chaque chaîne disponible : vision, audio bidirectionnel, compréhension locale/LLM, journal ; dépendances nécessaires documentées. Points de comparaison, pas preuve d'intégration |
+| Charge intégrée nominale | Acquisition caméra et traitement marqueur, écoute active, synthèse/lecture du catalogue, LLM et journal réellement raccordés ; distinguer ressources chargées en mémoire et traitements effectivement actifs |
+| Transitions | Préparation initiale, acquisition, annonce, suivi logique, maintien, suspension, reprise et fin ; première utilisation distincte du fonctionnement déjà initialisé. Dépendances simulées explicitement étiquetées, aucune qualification du suivi réel déduite |
+| Concurrence autorisée | Stop local pendant annonce et attente LLM ; reprise locale recevable ; nouvelles demandes selon l'admission existante. Aucune seconde mission ni inférence concurrente artificiellement engagée si le runtime ne doit pas l'engager |
+| Enchaînements et répétitions | Balle puis humain puis balle dans le même runtime sans redémarrage ni actionnement, selon les réalisations disponibles ; répétitions pour observer dérives de ressources et échauffement, durées et nombres à justifier ultérieurement |
+
+- Référence reproductible : Pi, alimentations, refroidissement, versions, modèle LLM/réglages, caméra/montage/calibration, chaîne audio et journal identifiés. Conditions optiques/acoustiques et autres activités du Pi consignées ; chaque variation étudiée constitue un cas identifié.
+- Références séparées insuffisantes pour conclure sur la concurrence. LLM en mémoire distinct d'une inférence active ; concurrence revendiquée seulement si effectivement observée.
+- Séquence partiellement simulée : portée limitée aux chemins réels traversés. Aucun contournement des préconditions acquises.
+- Pannes et surcharges provoquées à cadrer au sujet 4 ; aucun stress arbitraire décidé.
+- Aucun média ni texte brut réel conservé par défaut selon SH-08 ; formulations synthétiques identifiées utilisables pour les cas de langage.
+
+**Choix techniques restant ouverts :** jeux d'entrées précis, organisation des séquences, durées et répétitions ; aucun nouveau seuil fixé.
+
+**Preuves attendues :** configuration, composants réels/simulés, chronologie et activité effective des chaînes par scénario, pour rattacher les futures mesures à une charge identifiable. Aucun scénario exécuté par cette validation.
+
+#### Sujet 3 — Mesures et références temporelles
+
+**Cadre validé par l'utilisateur le 2026-10-30 :** mesurer des intervalles précisément définis, pas une latence globale sans étapes explicables.
+
+| Chaîne | Mesures attendues |
+|---|---|
+| Vision | Débit de trames et observations nouvelles, acceptations/rejets et séries de pertes ; capture vers publication ; âge depuis capture à la décision. Retard de traitement, répétition et ancien cache distingués |
+| Compréhension et mission | Entrée structurée disponible vers validation/admission ou refus ; temps local et LLM séparés ; acquisition et préparation initiale distinctes du temps de mission ; échéance monotone unique et temps réellement restant |
+| Audio | Préparation/synthèse, attente avant lecture, lecture, interruption et détection des défauts. Stop vocal : émission acoustique de référence, disponibilité de transcription, reconnaissance locale et demande d'arrêt distinguées selon les moyens disponibles |
+| Arrêt | Événement déclencheur, détection, demande d'arrêt, commande nulle transmise ou appliquée : intervalles seulement entre étapes observables. Inhibition confirmée et immobilisation physique distinctes, jamais déduites de ces temps |
+| Pi et journal | CPU, mémoire, température, fréquence et éventuelle limitation thermique ; évolution temporelle, ressources du processus et du système distinguées. Retard d'écriture, pertes et erreurs selon les confirmations disponibles |
+
+- Temps monotone pour les durées, UTC pour situer la campagne. Autre horloge : rapprochement et incertitude documentés.
+- Bornes de début/fin définies avant mesure ; événement indisponible : intervalle non mesurable, jamais zéro.
+- Panne injectée : référence d'injection indépendante de la détection logicielle. Référence manquante : seul le segment effectivement mesuré peut être revendiqué.
+- Effectifs, distributions, p95 pertinent, maxima, chaque dépassement obligatoire et données manquantes rapportés. Aucune moyenne ne compense une violation.
+- Coût de l'instrumentation évalué ; comparaison avec journalisation allégée ne remplaçant pas la mesure dans la configuration à journal obligatoire.
+- Objectifs/frontières acquis conservés avec leur statut exact ; cibles à qualifier et objectifs provisoires ne deviennent pas garanties. Aucun nouveau seuil numérique.
+- Aucun média implicitement autorisé pour établir une référence ; politique SH-08 inchangée. Durées simulées distinctes des mesures Pi.
+
+**Choix techniques restant ouverts :** instruments, points d'observation, fréquence d'échantillonnage, synchronisation et incertitudes.
+
+**Preuves attendues :** définition, source, horloge, méthode, incertitude, scénario et limites de chaque métrique. Résultats caractérisant les essais effectués, pas un pire cas garanti dans toutes les situations. Aucune mesure effectuée pendant cette validation.
+
+#### Sujet 4 — Dégradations et limites
+
+**Matrice et limites validées par l'utilisateur le 2026-10-30 :** dégradations contrôlées d'abord sans propulsion, pour vérifier les délais observables et les réactions déjà exigées.
+
+| Famille | Cas à préparer | Attendus acquis |
+|---|---|---|
+| Vision | Ralentissement, flux figé, répétitions/retards, perte/rejet/ambiguïté de cible, indisponibilité caméra | Aucun rajeunissement ni ancienne observation autorisant le mouvement ; refus ou arrêt/suspension selon la phase |
+| LLM et contention | Réponse lente, erreur/indisponibilité ; concurrence représentative CPU/mémoire | Stop/reprise locaux indépendants du LLM ; aucun départ partiel, secours moteur ou réessai humain ; repli de compréhension uniquement selon SH-07 |
+| Audio | Perte de chaque sens, synthèse/lecture lente ou bloquée, déconnexion/reconnexion | Refus avant activation ou arrêt/suspension après ; aucune reprise spontanée ni audition prétendument confirmée |
+| Journal | Erreur, permission refusée, écriture bloquée, capacité indisponible, perte d'événements détectée | Arrêt indépendant de l'écriture ; événements obligatoires manquants empêchant conformité de session |
+| Temps et concurrence | Budget dépassé, stop pendant attente/annonce, échéance pendant reprise, défaut simultané | Priorités SH-05, échéance inchangée, causes conservées, résultats tardifs inopérants |
+
+- Panne simulée à une interface distincte d'une défaillance réelle du périphérique/processus : preuves différentes.
+- Avant chaque injection : périmètre, référence temporelle, risques, borne d'exécution, conditions d'interruption et remise en état définis.
+- Moyens isolés et bornés ; aucune saturation du stockage global ni perturbation d'autres usages, périmètre dédié. Charge supplémentaire éventuelle justifiée ; aucun stress illimité ni franchissement improvisé des limites matérielles.
+- Blocage/arrêt du pilotage, indisponibilité du Pi, coupure/rétablissement sous puissance : protocoles protégés SH-02/SH-05 distincts. Processus indisponible jamais supposé avoir journalisé sa propre fin.
+- Injection ou observateur défaillant : résultat inconclusif et interruption de la campagne concernée, jamais réussite par absence de trace.
+- Budgets approuvés conservant leur statut ; autres budgets à justifier et qualifier. Caractérisation exploratoire utile pour les établir, mais ne validant pas un seuil encore ouvert. Aucune valeur fictive ne devient réglage Pi.
+
+**Choix techniques restant ouverts :** moyens d'injection/observation, bornes justifiées, limites matérielles applicables, budgets non encore établis et procédures de remise en état.
+
+**Preuves attendues :** panne effectivement produite, chronologie, attendus/obtenus, dépassements, état final et remise en état. Bonne détection distincte d'inhibition indépendante et d'arrêt physique. Aucune injection ni charge lancée pendant cette validation.
+
+#### Sujet 5 — Rapports et gestion des réglages
+
+**Cadre validé par l'utilisateur le 2026-10-30 :** dossier de campagne permettant de comprendre et vérifier le verdict, y compris après suppression des traces détaillées selon SH-08.
+
+| Partie | Contenu attendu |
+|---|---|
+| Références | Version logicielle, configuration effective, matériel/montage, calibration, modèle LLM, audio, journal, instrumentation et conditions de charge |
+| Traçabilité | Exigence source et statut : exigence validée, objectif à qualifier ou choix ouvert ; liens vers scénarios, métriques et critères établis avant exécution |
+| Résultats | Cas prévus/exécutés/non exécutés, réel/simulé, attendus/obtenus, effectifs, distributions, maxima, dépassements, données manquantes, incertitudes et limites |
+| Écarts | Échecs, blocages, erreurs d'instrumentation et anomalies préexistantes, sans compensation par les réussites d'autres cas |
+| Synthèse probante | Verdict par propriété/configuration ; éléments structurés nécessaires pour vérifier sa justification sans conservation implicite de toutes les traces ni de médias |
+
+- Chaque configuration mesurée figée et identifiée ; modification, raison et propriétés potentiellement affectées consignées.
+- Après correction/réglage : référence de l'échec initial conservée, nouvelle série distincte ; aucune répétition jusqu'au succès effaçant les échecs.
+- Revalidation des propriétés affectées et régressions pertinentes. Résolution, modèle, audio, refroidissement ou journalisation peuvent affecter plusieurs budgets.
+- Aucun seuil déplacé ni périmètre réduit silencieusement pour déclarer conformité. Restriction explicite ne validant pas le périmètre initial.
+- Révision d'une exigence acquise : décision distincte obligatoire ; aucun réglage contournant une protection ou relevant le plafond de vitesse.
+- Politique SH-08 inchangée : collecte locale minimale sans médias/textes bruts réels par défaut, aucun export automatique ; traces jusqu'à clôture explicite puis suppression après rapport produit et vérifié ; rapport jusqu'à suppression explicite. Aucun délai calendaire ajouté.
+
+**Choix techniques restant ouverts :** format concret du dossier, références de configuration et méthode de vérification du rapport ; aucun outil imposé.
+
+**Preuves attendues :** dossier vérifié reliant chaque conclusion aux résultats utiles, historique des réglages et limites conservé. Rapport incomplet ou données manquantes jamais transformés en réussite. Aucun rapport d'essai produit pendant cette validation.
+
+#### Sujet 6 — Verdict et articulation avec SH-11
+
+**Règles validées par l'utilisateur le 2026-10-30 :** séparer validation documentaire, résultats de mesure et autorisation d'essai.
+
+| Verdict futur | Conditions |
+|---|---|
+| Conforme dans le périmètre mesuré déclaré | Toutes les obligations de ce périmètre vérifiées, critères applicables justifiés, résultats exploitables et rapport vérifié ; aucun dépassement obligatoire ni cas obligatoire manquant |
+| Non conforme | Au moins un écart observé à une exigence obligatoire ; autres blocages et cas non exécutés également visibles |
+| Incomplet / bloqué | Réalisation absente, prérequis non satisfait, critère nécessaire encore ouvert, scénario obligatoire non exécuté ou preuve indisponible/inexploitable empêchant la conclusion |
+
+- Caractérisation exploratoire rapportable avec résultats et limites, sans qualification si critères non établis. Objectif provisoire conservant son statut ; atteinte ne démontrant pas à elle seule une propriété de sécurité.
+- Sous-ensemble conforme distinct de conformité globale SH-10 et de clôture d'une dépendance.
+- Maxima, dépassements et cas manquants décisifs ; aucune moyenne, p95 ou répétition favorable ne les efface.
+- Conformité informatique sans propulsion ne qualifiant ni audio avec moteurs réels, ni dynamique, inhibition indépendante ou accès sûr à la coupure.
+- Clôture technique SH-10 seulement après réalisations, mesures requises, traitement explicite des dépendances et rapport vérifié ; jamais sur approbation documentaire.
+- Prochaine session : spécifier SH-11, sans commencer les essais. Premier sujet : portes d'entrée et preuves nécessaires à chaque étape, sans propulsion, banc protégé, cibles inertes, puis éventuel porteur humain uniquement après qualifications et Go explicite.
+- Dossier de passage maintenant visibles les résultats SH-09/SH-10 à produire, protections SH-02/SH-05 à concevoir et qualifier, accès sûr à la coupure en solo non résolu, autres réalisations/réglages/preuves manquants.
+- Aucun passage automatique à une campagne, aucun Go mobile humain ; SH-11 non commencé par cette validation.
+
+**Choix techniques restant ouverts :** critères encore à justifier/qualifier, agrégation des résultats, gestion des blocages et dossier de passage concret. Aucun nouveau seuil ni dispositif choisi.
+
+**Preuves attendues :** verdict motivé par propriété/configuration, rapport vérifié et dossier des preuves manquantes avant chaque étape ultérieure. Aucun résultat de mesure produit.
+
+#### SH-10 — Statut et travaux techniques restants
+
+**Six sujets de spécification validés avec l'utilisateur le 2026-10-30. Conception détaillée, réalisation et mesures à faire.** Ticket technique et dépendances SH-03/SH-07/SH-08 non clôturés.
+
+| Travail restant | Livrable / preuve attendu |
+|---|---|
+| Établir les prérequis réels | Configuration Pi et réalisations disponibles identifiées ; périmètre sans propulsion isolé, limites et fonctions absentes explicites ; aucun prérequis satisfait par documentation seule |
+| Préparer les scénarios représentatifs | Références séparées, charge intégrée et activité réelle, transitions, concurrence autorisée et séquences runtime commun ; conditions, durées et répétitions justifiées |
+| Concevoir l'instrumentation | Intervalles/horloges, références indépendantes nécessaires, incertitudes et coût ; vision/audio/arrêt/Pi/journal distincts, sans faux acquittement ni preuve physique déduite |
+| Préparer les dégradations contrôlées | Moyens bornés/isolés, risques, références d'injection et remise en état ; simulation distincte du réel, essais sous puissance selon protocoles protégés séparés |
+| Réaliser les mesures et gérer les réglages | Résultats réels, maxima/dépassements et données manquantes, configurations identifiées, historique des échecs et revalidation ; politique SH-08 appliquée |
+| Vérifier le rapport et fournir le verdict | Conclusions limitées au périmètre démontré, obligations et dépendances traitées explicitement, blocages et dossier de passage SH-11 ; aucun Go humain implicite |
+
+Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge, installation ou essai moteur lancé pendant cette spécification. Six décisions détaillées de chacun des tickets SH-05 à SH-09 préservées intégralement. Inhibition et surveillance indépendante restent à concevoir et qualifier ; accès sûr à l'interrupteur embarqué depuis la position de suivi en solo non résolu. Aucun Go mobile humain.
+
 ## 5. Critères mesurables proposés
 
 Ces nombres sont des **objectifs de recette initiaux**, pas des capacités constatées ni des garanties de sécurité. Les paramètres d'usage de l'étape 4 de SH-01 sont validés comme cibles ; leur faisabilité et les autres seuils techniques restent à qualifier, notamment en SH-02, avant programmation des limites.
@@ -1245,7 +1401,7 @@ Si le Pi ne tient pas les délais : réduire vitesse/résolution ou éloigner l'
 
 ## 6. Nouveau backlog
 
-SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; tous les autres tickets sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
+SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la section 1 ; SH-02 est **en cours : exigences et protocole validés, conception détaillée et qualification restantes** ; SH-03 est **spécifié : exigences et recette validées, choix techniques et qualification à faire**, sans clôture de sa dépendance à SH-02 ; SH-04 est **spécifié : contrat/cycle/recette validés, conception détaillée et vérification à faire**, sous réserve des résultats SH-03 ; SH-05 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-06 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-07 est **spécifié : six sujets d'exigences et de recette validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-08 est **spécifié : six sujets et orientations validés en section 4, conception détaillée, réalisation et qualification à faire** ; SH-09 est **spécifié : six sujets de validation hors matériel et de non-régression approuvés en section 4, conception détaillée, réalisation et exécution de recette à faire** ; SH-10 est **spécifié : six sujets de mesure intégrée sur Pi approuvés en section 4, conception détaillée, réalisation et mesures à faire** ; SH-11 et SH-12 sont **à faire**. Cela ne vaut ni implémentation ni qualification matérielle. P0 = nécessaire au MVP ; P1 = après MVP. Les tailles S/M/L sont relatives, pas des engagements calendaires ; chiffrer après les essais de faisabilité.
 
 | ID | Priorité / taille | Ticket et livrable | Dépendances | Critères d'acceptation |
 |---|---|---|---|---|
@@ -1258,7 +1414,7 @@ SH-01 est **validé et terminé pour le cadrage**, selon le tableau de la sectio
 | SH-07 | P0 / M | Relier la commande naturelle au comportement | SH-01, SH-06 | Selon les six sujets validés de section 4 : commandes humaines autonomes et reprise/stop locaux, `follow_person` distinct de balle sans `yellow` par défaut ; paramètres/alias/unités et schéma stricts sans réparation silencieuse ; prompt, lexique, parser, validator, gardes, planner, registre, budgets et assemblage raccordés dans le runtime existant ; perception/caméra partagées, admission unique même en suspension ; échéance préservée sans réessai automatique ; recette d'intégration sans moteurs et non-régression balle/stop ; aucune clôture sur la seule spécification |
 | SH-08 | P0 / S | Rendre le suivi observable et compréhensible | SH-01, SH-06 | Selon les six sujets validés de section 4 : catalogue fermé et synthèse locale, paramètres retenus et temps restant exacts ; audio bidirectionnel et Jabra candidat à qualifier, stop pendant annonce sans auto-commande ; priorité/invalidation/budgets qualifiés sans retarder l'arrêt ; JSONL corrélé et niveaux de preuve distincts, journal obligatoire indisponible : refus ou arrêt/suspension ; collecte minimale locale sans médias/textes bruts par défaut, conservation par campagne et suppression vérifiable ; recette simulée distincte d'audio réel et de qualification physique ; aucune clôture sur la seule spécification |
 | SH-09 | P0 / M | Valider hors roulage et préserver l'existant | SH-05, SH-06, SH-07, SH-08 | Selon les six sujets validés de section 4 : tests unitaires, intégration simulée et replay recalculant les décisions, sans matériel/réseau ni découverte automatique ; exigences/scénarios/attendus indépendants, frontières et concurrence ; composants logiciels réels à périphériques simulés, même runtime et non-régression balle/primitives/stop ; commandes d'arrêt observées selon les moyens disponibles, sans trace ni arrêt physique inventés ; rapports/provenances et données SH-08, verdict conforme/non conforme/incomplet justifié ; fonctions/réglages/preuves manquants bloquants, aucune clôture sur la seule spécification |
-| SH-10 | P0 / M | Mesurer le système intégré sur Pi | SH-03, SH-07, SH-08 | Vision + audio + LLM sous charge, CPU/RAM/température, latences/maxima, débit et vieillissement mesurés ; version/config et échecs archivés ; réglages corrigés jusqu'au respect des objectifs |
+| SH-10 | P0 / M | Mesurer le système intégré sur Pi | SH-03, SH-07, SH-08 | Selon les six sujets validés de section 4 : prérequis réels et première étape sans propulsion isolée ; charge intégrée vision/audio/LLM/journal et concurrence autorisée, conditions reproductibles ; débit/âge depuis capture, intervalles/horloges, CPU/RAM/température, incertitudes et maxima/dépassements ; dégradations bornées, simulation/réel distincts ; dossier vérifié, réglages identifiés et échecs conservés, données SH-08 ; verdict limité au périmètre démontré et blocages explicites, aucune qualification physique ni clôture sur la seule spécification |
 | SH-11 | P0 / L | Effectuer la recette progressive et décider Go/No-Go | SH-09, SH-10 | Préconditions SH-02 revérifiées ; banc puis cible inerte mobile puis porteur uniquement après qualification des protections et de l'accès sûr à la coupure dans une organisation compatible avec l'opérateur seul, sans second opérateur présumé ; critères section 5 et matrice section 7 satisfaits ; rapport, limites et décision signés |
 | SH-12 | P1 / L | Étudier le suivi naturel et la navigation avancée | SH-11 | Étude séparée sans marqueur : sélection de personne, identités croisées, occultation, profondeur/capteurs, besoin odométrie/contournement et nouveau domaine de sécurité ; aucun élargissement implicite du MVP |
 
@@ -1301,9 +1457,9 @@ Pour chaque essai : version logicielle, configuration, matériel, lumière/sol, 
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise dans une nouvelle session — prochaine spécification SH-10
+## 9. Reprise dans une nouvelle session — prochaine spécification SH-11
 
-Point de reprise au 2026-10-30 : **spécifier SH-10 avec l'utilisateur, pas l'implémenter ni lancer de mesures**. Commencer par le périmètre de mesure du système intégré sur Pi et les prérequis de chaque niveau d'essai, sans rouvrir les acquis SH-01 à SH-09. Cette suite est uniquement préparée pour une nouvelle session ; aucun nouveau choix détaillé SH-10 n'est approuvé et l'étude SH-10 n'a pas commencé. Les six sujets de chacun des tickets SH-05 à SH-09 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que toutes les dépendances techniques ; la spécification de SH-03/SH-07/SH-08 ne satisfait pas les prérequis techniques SH-10. Aucun code, test, mesure, acquisition matérielle, installation ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
+Point de reprise au 2026-10-30 : **spécifier SH-11 avec l'utilisateur, pas l'implémenter ni lancer de recette**. SH-10 est spécifié : ses six sujets sont validés et détaillés en section 4, sans réalisation ni mesure. Commencer SH-11 uniquement par les portes d'entrée et les preuves requises pour chaque niveau d'essai. Cette suite est préparée pour une nouvelle session ; SH-11 n'a pas commencé et aucun nouveau choix détaillé SH-11 n'est approuvé. Les six sujets de chacun des tickets SH-05 à SH-10 sont validés et intégralement consignés en section 4. Conception, réalisation et qualification restent ouvertes, ainsi que les dépendances techniques ; aucune spécification ne satisfait à elle seule un prérequis. Aucun code, test, mesure, acquisition matérielle, charge, installation ou essai moteur autorisé par cette reprise ; aucun Go mobile humain.
 
 ### État à préserver
 
@@ -1316,7 +1472,8 @@ Point de reprise au 2026-10-30 : **spécifier SH-10 avec l'utilisateur, pas l'im
 - SH-07 : six sujets d'exigences et de recette validés, décisions détaillées et travaux techniques restants en section 4 ; conception, réalisation et qualification ouvertes, dépendances SH-01/SH-06 inchangées.
 - SH-08 : six sujets et orientations validés en section 4, travaux techniques restants explicités ; conception détaillée, réalisation et qualification à faire. Dépendances SH-01/SH-06 inchangées, aucune clôture technique.
 - SH-09 : six sujets validés en section 4, travaux techniques restants explicités ; conception détaillée, réalisation et exécution de recette à faire. Dépendances SH-05/SH-06/SH-07/SH-08 inchangées, aucune clôture technique ni preuve physique.
-- SH-10 : prochaine spécification documentaire ; nouveaux choix détaillés non encore validés. Ticket technique à faire, dépendances SH-03/SH-07/SH-08 inchangées et non satisfaites par leurs seules spécifications.
+- SH-10 : six sujets de spécification validés et détaillés en section 4 ; conception détaillée, réalisation et mesures à faire. Dépendances SH-03/SH-07/SH-08 inchangées et non satisfaites par leurs seules spécifications.
+- SH-11 : prochaine spécification documentaire, nouveaux choix détaillés non encore validés. Ticket technique à faire ; dépendances SH-09/SH-10 inchangées et non satisfaites par leurs seules spécifications. Préconditions physiques SH-02/SH-05 toujours requises selon le niveau d'essai.
 - Aucun code, achat, acquisition caméra ou essai moteur effectué dans cette étude ; aucun Go mobile humain.
 - Un seul assistant/runtime : « suis-moi » et « cherche la balle jaune » sont des commandes naturelles, sans mode supplémentaire. « Rapproche-toi des autres robots » reste un besoin futur hors MVP.
 - Les arrêts logiciels sur obstacle et commande vocale sont déjà disponibles et déclarés testés : les réutiliser, pas les présenter comme manquants.
@@ -1374,17 +1531,21 @@ Les six sujets SH-08 sont validés. Les valeurs des budgets, moteur/voix, moyens
 
 Les six sujets SH-09 sont validés ; outillage, doubles, instrumentation, matrice concrète, rapports et résultats restent à réaliser. Aucune exécution autorisée par la validation documentaire ; une réussite simulée ne qualifie ni l'audio réel, ni les protections, ni les performances du Pi.
 
-### Sujets proposés pour spécifier SH-10
+### Sujets SH-10 validés — détails à préserver en section 4
 
-1. **Périmètre et prérequis des mesures :** système intégré réellement disponible, configuration Pi et domaine documentés ; distinguer mesures sans propulsion, éventuels essais protégés ultérieurs et propriétés exclues. Aucune dépendance déclarée satisfaite par sa spécification.
-2. **Charges et scénarios représentatifs :** vision, audio bidirectionnel, LLM et journal, transitions et sollicitations concurrentes ; référence de charge et conditions reproductibles à proposer sans nouveau comportement.
-3. **Mesures et références temporelles :** débit, vieillissement depuis capture, latences/maxima, CPU/RAM/température et chronologies ; instrumentation, incertitudes et niveaux de preuve, sans assimiler durées simulées ou moyennes à des garanties.
-4. **Dégradations et limites :** ralentissements, indisponibilités et erreurs, budgets issus des décisions/qualifications, interruptions et absence de reprise spontanée ; moyens d'injection et préconditions à valider avant tout essai réel.
-5. **Rapports et gestion des réglages :** version/configuration, résultats et échecs, restrictions ; collecte minimale et conservation SH-08 ; toute modification pertinente exige revalidation des propriétés affectées, aucun seuil ajusté silencieusement pour masquer un échec.
-6. **Verdict et articulation avec SH-11 :** critères mesurables justifiés, résultats conformes/non conformes/bloqués et preuves encore manquantes ; aucun Go humain déduit de performances informatiques ou d'une préparation documentaire.
+1. **Périmètre et prérequis des mesures : validé, décision détaillée en section 4.** Première étape sans propulsion explicitement isolée ; éventuels essais sous puissance selon protocole protégé distinct et prérequis réels ; conclusions limitées aux propriétés mesurées, aucune qualification physique ni Go humain implicite. Aucune dépendance déclarée satisfaite par sa spécification.
+2. **Charges et scénarios représentatifs : validé, décision détaillée en section 4.** Références séparées, charge intégrée réelle, transitions, concurrence autorisée et enchaînements/répétitions reproductibles ; activité réelle distincte des ressources en mémoire, simulation signalée, durées et nombres à justifier.
+3. **Mesures et références temporelles : validé, décision détaillée en section 4.** Intervalles/horloges et sources explicites, vision/audio/arrêt/Pi/journal distincts, références indépendantes lorsque nécessaires, incertitudes et coût d'instrumentation ; maxima/dépassements visibles, aucun nouveau seuil ni preuve physique déduite.
+4. **Dégradations et limites : validé, décision détaillée en section 4.** Injections contrôlées d'abord sans propulsion, simulation/panne réelle distinctes, moyens bornés/isolés, réactions acquises et budgets ouverts explicites ; perte de contrôle sous puissance selon protocoles protégés.
+5. **Rapports et gestion des réglages : validé, décision détaillée en section 4.** Dossier traçable/vérifiable, configurations identifiées, échecs conservés après correction, revalidation des propriétés affectées ; aucun changement silencieux de seuil/périmètre, données selon SH-08.
+6. **Verdict et articulation avec SH-11 : validé, décision détaillée en section 4.** Conforme dans le périmètre mesuré, non conforme ou incomplet/bloqué selon les preuves ; caractérisation exploratoire distincte de qualification ; aucune clôture technique ni autorisation humaine déduite de la spécification ; prochaine session documentaire SH-11 uniquement.
 
-Cet ordre propose des sujets de discussion SH-10, pas des décisions approuvées ni une autorisation de mesure. Ne choisir aucun instrument ou seuil, ne lancer aucune charge ni acquisition implicitement.
+Les six sujets SH-10 sont validés ; instrumentation, scénarios concrets, budgets ouverts, réalisations, mesures et verdicts restent à produire. Aucun instrument ni seuil nouveau choisi, aucune charge ni acquisition autorisée implicitement.
+
+### Premier sujet proposé pour spécifier SH-11
+
+Portes d'entrée et preuves requises pour chaque niveau : sans propulsion, banc protégé, cibles inertes, puis éventuel porteur humain uniquement après qualification des protections, accès sûr à la coupure en solo et Go explicite. Distinguer preuves logicielles SH-09, performances Pi SH-10 et propriétés physiques/audio effectivement qualifiées ; résultats absents, paramètres fictifs et dépendances ouvertes restent bloquants selon le périmètre. Ce sujet est un point de départ d'étude, pas une décision détaillée approuvée ni une autorisation d'essai.
 
 ### Méthode de poursuite
 
-SH-09 est spécifié ; aucune question restante pour cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées puis commencer SH-10 par le périmètre et les prérequis des mesures, sans rouvrir les acquis ni commencer une implémentation ou une campagne. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle ni essai moteur pendant cette spécification.
+SH-10 est spécifié ; aucune question restante pour cette étape documentaire. Dans la nouvelle session, lire les décisions détaillées puis commencer uniquement le premier sujet SH-11 ci-dessus, sans rouvrir les acquis ni commencer une implémentation ou une campagne. Conserver la méthode : expliquer une proposition et ses conséquences, poser une seule question de validation à la fois avec l'outil de questions, attendre la réponse, la consigner dans ce fichier et passer au sujet suivant. Distinguer exigence approuvée, choix technique ouvert et preuve à obtenir. Ne pas clôturer un ticket technique sur sa seule validation documentaire. Ne créer aucun code, test ou dépendance ; ne lancer aucun test, mesure, acquisition matérielle, charge ni essai moteur pendant cette spécification.

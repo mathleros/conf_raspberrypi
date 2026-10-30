@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+import sys
 from unittest.mock import patch
 
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
@@ -19,6 +20,7 @@ from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.config.settings import RuntimeSettings
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.language_controller import LanguageController
+from irobot.interfaces.plan_guards import requests_human_follow
 from irobot.interfaces.protection import (
     HumanConditions, MissionPermit, ProtectionFault, ProtectionPorts, ProtectionState,
 )
@@ -26,6 +28,15 @@ from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from irobot.interfaces import voice_runtime as vr
 from tests.unit.fake_robot import FakeRobot
+
+
+REQUIRED_HUMAN_CONDITIONS = (
+    "request_valid", "configuration_qualified", "terrain_checked",
+    "safe_access_demonstrated", "protections_qualified", "camera_context_valid",
+    "marker_acquired", "identity_valid", "observations_fresh", "distance_valid",
+    "obstacle_clear", "swept_volume_protected", "input_audio_ready",
+    "output_audio_ready", "journal_ready", "movement_allowed", "limits_valid",
+)
 
 
 def cases(names, values):
@@ -138,7 +149,7 @@ class Rig:
         self.p5 = P5(self.clock)
         self.witness = Witness()
         self.motor = Motor(self.witness)
-        self.facts = HumanConditions(**{key: True for key in HumanConditions.__dataclass_fields__})
+        self.facts = HumanConditions(**{key: True for key in REQUIRED_HUMAN_CONDITIONS})
         self.condition_hook = None
         ports = ProtectionPorts(self.p5, self.witness, self.witness, 0.25, self.witness)
         self.robot = RobotController(
@@ -171,7 +182,7 @@ def nonzero(motor):
     return [c for c in motor.commands if c != "stop"]
 
 
-@cases("condition", tuple(HumanConditions.__dataclass_fields__))
+@cases("condition", REQUIRED_HUMAN_CONDITIONS)
 def test_o1_each_human_condition(condition):
     rig = Rig()
     permit = rig.human()
@@ -281,8 +292,8 @@ def test_o3_no_public_delegation_or_internal_temporized_bypass():
     assert new.mission == permit.mission and new.context != permit.context
     with expect_error(ProtectionFault, match="obsolete_context"):
         old.left()
-    rig.robot.bind(new).backward()
-    assert nonzero(rig.motor) == ["backward"]
+    rig.robot.bind(new).forward()
+    assert nonzero(rig.motor) == ["forward"]
 
 
 def test_o4_complete_order_idle_and_partial_cycle():
@@ -309,7 +320,7 @@ def test_o4_complete_order_idle_and_partial_cycle():
     assert rig.robot.reservation.phase == "locked"
 
 
-@cases("condition", tuple(HumanConditions.__dataclass_fields__))
+@cases("condition", REQUIRED_HUMAN_CONDITIONS)
 def test_o1_admission_conditions_independently(condition):
     rig = Rig()
     rig.facts = replace(rig.facts, **{condition: False})
@@ -516,15 +527,25 @@ def test_o3_executor_discards_previous_result_and_never_runs_stale_step():
     "suis-moi", "follow me", "suis une personne", "suis nous",
     "avance puis suis-moi", "suis-moi puis cherche la balle jaune",
     "cherche la balle puis suis moi pendant 20 secondes",
+    "suis ma femme", "suis mon mari", "suis mes enfants", "follow my wife",
+    "avance puis suis ma femme", "suis notre ami", "suivez votre opérateur",
+    "suis une autre personne", "suis ma jeune femme", "suis l'autre opérateur",
 ])
 def test_o9_real_human_refusal_all_entries(text, tmp_path):
     rig = Rig(present=False)
-    runtime = rig.runtime(tmp_path)
+    registry = SkillRegistry.default()
+    registry.register(FollowObjectSkill(
+        settings=RuntimeSettings(), time_fn=rig.clock.time, sleep_fn=rig.clock.sleep,
+    ))
+    runtime = VoiceRuntime(
+        robot=rig.robot, registry=registry, use_llm=False,
+        threaded=False, trace_dir=str(tmp_path),
+    )
     with patch.object(vr, "ask_llm_for_intent_plan_with_trace", unexpected_llm):
         for entry in (runtime.handle_text, runtime.handle_text_as_plan, runtime.handle_transcript):
             assert entry(text)["reason"] == "human_capability_unavailable"
     assert IntentParser().parse(text).name == "follow_person"
-    assert LanguageController(robot=rig.robot).handle_text(text)["status"] == "rejected"
+    assert LanguageController(robot=rig.robot, registry=registry).handle_text(text)["status"] == "rejected"
     assert not nonzero(rig.motor)
 
 
@@ -901,6 +922,276 @@ def test_o4_listener_cannot_renew_for_blocked_worker(tmp_path):
     assert not runtime._worker.is_alive()
     assert results[0]["status"] == "aborted"
     assert not nonzero(rig.motor) and rig.robot.reservation is None
+
+
+def test_o1_required_conditions_match_independent_contract():
+    assert set(HumanConditions.__dataclass_fields__) == set(REQUIRED_HUMAN_CONDITIONS)
+    assert set(HumanConditions().failures()) == set(REQUIRED_HUMAN_CONDITIONS)
+
+
+@cases("text", [
+    "suis la balle de ma femme", "suis la balle jaune de mon ami",
+    "follow the yellow ball of my friend",
+])
+def test_o9_human_reference_does_not_replace_explicit_ball_target(text):
+    assert not requests_human_follow(text)
+    assert IntentParser().parse(text).name == "follow_object"
+
+
+@cases("text", ["suivre la 2 minutes", "suis-la deux minutes"])
+def test_o10_historical_object_pronoun_with_unprefixed_duration(text):
+    intent = IntentParser().parse(text)
+    assert intent.name == "follow_object"
+    assert intent.parameters["duration_s"] == 120.0
+
+
+@cases("text", [
+    "suis une dame", "suis Mathieu", "suis une cible inconnue",
+    "suis la balle bleue", "avance puis suis Mathieu", "follow someone",
+    "suis",
+])
+def test_o9_unsupported_follow_target_refused_before_any_llm_or_partial_plan(text, tmp_path):
+    rig = Rig(False)
+    runtime = rig.runtime(tmp_path)
+    runtime.use_llm = True
+    with patch.object(vr, "ask_llm_for_intent", unexpected_llm):
+        with patch.object(vr, "ask_llm_for_intent_plan_with_trace", unexpected_llm):
+            for entry in (runtime.handle_text, runtime.handle_text_as_plan, runtime.handle_transcript):
+                result = entry(text)
+                assert result["status"] == "rejected"
+                assert result["reason"] == "unsupported_follow_target"
+    assert LanguageController(robot=rig.robot).handle_text(text)["reason"] == "unsupported_follow_target"
+    assert IntentParser().parse_plan(text)[0].name == "unknown"
+    assert not nonzero(rig.motor)
+
+
+@cases("step", [
+    {"intent": "follow_object", "target": "blue"},
+    {"intent": "follow_object", "parameters": {"target_object": "person"}},
+    {"intent": "follow", "target": "person", "parameters": {"target_object": "yellow"}},
+    {"intent": "follow_object", "target": "yellow", "parameters": {"target_object": "blue"}},
+    {"intent": "follow_red_ball", "parameters": {"target_object": "person"}},
+    {"intent": "execute_path", "parameters": {"path": [
+        {"action": "follow_object", "target": "blue", "parameters": []},
+    ]}},
+])
+def test_o9_raw_unsupported_llm_target_never_filtered_or_repaired(step, tmp_path):
+    rig = Rig(False)
+    runtime = rig.runtime(tmp_path)
+    runtime.use_llm = True
+    content = json.dumps({"steps": [{"intent": "move_forward"}, step]})
+    with patch.object(vr, "_post_llm_chat", return_value=content):
+        result = runtime.handle_text_as_plan("avance")
+    assert result["status"] == "rejected"
+    assert result["reason"] == "unsupported_follow_target"
+    assert not nonzero(rig.motor)
+
+
+def test_o9_internal_unsupported_target_cannot_be_overwritten_by_valid_color(tmp_path):
+    rig = Rig(False)
+    runtime = rig.runtime(tmp_path)
+    intent = Intent("follow_object", target="person", parameters={"target_object": "yellow"})
+    normalized = runtime._normalize_plan_intent_names([intent])[0]
+    assert normalized.target == "person"
+    assert runtime.controller.handle_intent(normalized)["status"] == "rejected"
+    unknown_parameter = Intent("follow_object", parameters={"target_object": "blue"})
+    assert runtime.controller.handle_intent(unknown_parameter)["status"] == "rejected"
+    assert not runtime.validator.validate(
+        Intent("follow_red_ball", parameters={"target_object": "person"})
+    )
+    runtime.use_llm = True
+    with patch.object(vr, "_post_llm_chat", return_value=json.dumps({
+        "intent": "follow_object", "target": "blue",
+    })):
+        assert runtime.handle_text("avance")["status"] == "rejected"
+    assert not nonzero(rig.motor)
+
+
+@cases("threaded", [False, True])
+def test_o7_transcript_observing_first_armament_is_not_admitted(threaded, tmp_path):
+    rig = Rig()
+    runtime = rig.runtime(tmp_path)
+    runtime.threaded = threaded
+    rig.robot.priority_one("P1")
+    rig.clock.now = 2.0
+    rig.p5.transition("inhibited", "after-interrupt", "P1")
+    runtime.supervise_once()
+    rig.clock.now = 3.0
+    rig.p5.transition("armed", "new-armament")
+
+    def request():
+        result = runtime.handle_transcript("avance pendant 1 seconde")
+        if threaded and runtime._worker is not None:
+            runtime._worker.join(2)
+            assert not runtime._worker.is_alive(), "transcript worker did not finish"
+            result = runtime.last_result
+        return result
+
+    first = request()
+    assert first["status"] == "aborted" and "rearm_required" in first["causes"]
+    assert not nonzero(rig.motor) and rig.robot.reservation is None
+    assert request()["status"] == "accepted"
+    assert nonzero(rig.motor) == ["forward"]
+
+
+def test_o7_queued_transcript_cannot_survive_new_interrupt_and_armament(tmp_path):
+    rig = Rig()
+    runtime = rig.runtime(tmp_path)
+    runtime.threaded = True
+    entered = threading.Event()
+    release = threading.Event()
+    original_worker = runtime._mission_worker
+
+    def delayed_worker(*args, **kwargs):
+        entered.set()
+        if not release.wait(2):
+            raise AssertionError("controlled admission wait timed out")
+        original_worker(*args, **kwargs)
+
+    runtime._mission_worker = delayed_worker
+    runtime.handle_transcript("avance pendant 1 seconde")
+    try:
+        assert entered.wait(2), "queued request observer unavailable"
+        rig.robot.priority_one("P6")
+        rig.clock.now = 2.0
+        rig.p5.transition("inhibited", "queued-off", "P6")
+        rig.robot.supervise()
+        rig.clock.now = 3.0
+        rig.p5.transition("armed", "queued-new-arm")
+        rig.robot.supervise()
+    finally:
+        release.set()
+        runtime._worker.join(2)
+    assert not runtime._worker.is_alive()
+    assert runtime.last_result["status"] == "aborted"
+    assert not nonzero(rig.motor) and rig.robot.reservation is None
+
+
+@cases("command", ["backward", "backward_for"])
+def test_o1_human_backward_forbidden_even_with_all_conditions_true(command):
+    rig = Rig()
+    permit = rig.human()
+    motion = getattr(rig.robot.bind(permit), command)
+    with expect_error(ProtectionFault, match="human_backward_forbidden"):
+        motion(0.1) if command.endswith("_for") else motion()
+    assert not nonzero(rig.motor)
+    assert rig.motor.commands[-1] == "stop"
+    assert rig.robot.reservation.phase == "suspended"
+    assert rig.witness.requests == ["startup"]
+
+
+@cases("event", ["stop", "deadline"])
+def test_o6_known_stop_precedes_blocked_conditions(event):
+    rig = Rig()
+    permit = rig.human()
+    rig.robot.bind(permit).forward()
+    if event == "deadline":
+        rig.clock.now = 7.0
+        rig.p5.refresh()
+    entered = threading.Event()
+    release = threading.Event()
+    errors = []
+
+    def conditions():
+        entered.set()
+        if not release.wait(2):
+            raise AssertionError("controlled conditions wait timed out")
+        return replace(rig.facts, output_audio_ready=False)
+
+    def cycle():
+        try:
+            rig.robot.supervise(events=("stop",) if event == "stop" else ())
+        except Exception as exc:
+            errors.append(exc)
+
+    rig.condition_hook = conditions
+    before = len(rig.witness.cycles)
+    worker = threading.Thread(target=cycle, name="isolated-known-stop")
+    worker.start()
+    try:
+        assert entered.wait(2), "conditions observer unavailable"
+        assert rig.motor.commands[-1] == "stop", "zero must precede callback"
+        assert rig.robot.reservation.phase == "ended"
+        assert not rig.robot.valid_result(permit)
+        assert len(rig.witness.cycles) == before
+    finally:
+        release.set()
+        worker.join(2)
+    assert not worker.is_alive() and not errors
+    assert rig.robot.reservation.phase == "ended"
+    assert set(rig.robot.causes) >= {event, "output_audio_ready"}
+    assert nonzero(rig.motor) == ["forward"]
+    assert rig.witness.requests == ["startup"]
+
+
+@cases("fail_zero,fail_request", [(True, False), (True, True), (False, True)])
+def test_o5_startup_attempts_both_outputs_and_preserves_errors(fail_zero, fail_request):
+    clock = Clock()
+    witness = Witness()
+    motor = Motor(witness)
+    motor.fail_stop = fail_zero
+    witness.fail_request = fail_request
+    attempts = []
+    original_request = witness.request
+
+    def request(cause):
+        attempts.append(cause)
+        original_request(cause)
+
+    witness.request = request
+    try:
+        RobotController(
+            motor, clock.time, clock.sleep, protection="present",
+            ports=ProtectionPorts(P5(clock), witness, witness, 0.25, witness),
+        )
+    except ExceptionGroup as exc:
+        assert fail_zero and fail_request
+        assert {str(error) for error in exc.exceptions} == {
+            "scripted zero output failure", "scripted inhibition port",
+        }
+    except OSError as exc:
+        assert fail_zero != fail_request
+        assert str(exc) == (
+            "scripted zero output failure" if fail_zero else "scripted inhibition port"
+        )
+    else:
+        raise AssertionError("startup output failure was hidden")
+    assert attempts == ["startup"]
+    assert ("zero_attempted", None) in witness.events
+    assert not witness.cycles
+
+
+@cases("present", [False, True])
+def test_o10_listen_once_uses_only_explicit_audio_and_transcript_doubles(present, tmp_path):
+    rig = Rig(present)
+    runtime = rig.runtime(tmp_path)
+    audio = sys.modules["irobot.hardware.audio.audio_utils"]
+    with patch.object(audio, "resolve_input_device", return_value="fictional-input") as resolve:
+        with patch.object(vr, "transcribe_loop", return_value=iter(["stop"])) as transcribe:
+            result = runtime.listen_once()
+    resolve.assert_called_once_with("auto")
+    transcribe.assert_called_once_with("fictional-input")
+    assert result["status"] == "accepted"
+    assert not nonzero(rig.motor) and rig.motor.commands[-1] == "stop"
+
+
+def test_o12_wall_bound_is_not_a_catchable_business_exception():
+    from tests.isolated import run_lot_a as harness
+
+    rig = Rig(False)
+    context = SkillContext(
+        robot=rig.robot, perception=SimpleNamespace(detect=lambda **_: harness.timeout()),
+    )
+    skill = FollowObjectSkill(
+        settings=RuntimeSettings(), time_fn=rig.clock.time, sleep_fn=rig.clock.sleep,
+    )
+    before = len(harness.VIOLATIONS)
+    with expect_error(harness.CampaignTimeout, match="120 s"):
+        skill.execute(context)
+    assert len(harness.VIOLATIONS) == before + 1
+    assert not issubclass(harness.CampaignTimeout, Exception)
+    assert rig.motor.commands[-1] == "stop"
+    harness.VIOLATIONS.pop()
 
 
 def load_tests(loader, tests, pattern):

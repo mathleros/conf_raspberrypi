@@ -9,7 +9,7 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.interfaces.protection import (
-    HumanConditions, MissionPermit, ProtectionFault, ProtectionPorts,
+    AdmissionRequest, HumanConditions, MissionPermit, ProtectionFault, ProtectionPorts,
     ProtectionState, Reservation, protection_presence,
 )
 
@@ -57,8 +57,22 @@ class RobotController:
         self._last_p1_state: tuple[str, float] | None = None
         self.causes: tuple[str, ...] = ()
         if self.protection_present:
+            self._stop_and_request_inhibition("startup")
+
+    def _stop_and_request_inhibition(self, cause: str) -> None:
+        errors: list[Exception] = []
+        try:
             self.stop()
-            self._ports.inhibition.request("startup")
+        except Exception as exc:
+            errors.append(exc)
+        try:
+            self._ports.inhibition.request(cause)
+        except Exception as exc:
+            errors.append(exc)
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise ExceptionGroup("Stop and inhibition request failed", errors)
 
     @property
     def protection_present(self) -> bool:
@@ -130,11 +144,10 @@ class RobotController:
                 self._interrupt_sequence += 1
                 self._interrupt_at = self.time_fn()
                 self._pending_causes = tuple(dict.fromkeys((*self._pending_causes, *causes)))
-                try:
+                if self.protection_present:
+                    self._stop_and_request_inhibition("+".join(causes))
+                else:
                     self.stop()
-                finally:
-                    if self.protection_present:
-                        self._ports.inhibition.request("+".join(causes))
         finally:
             with self._lock:
                 self._apply_pending_interrupt()
@@ -152,12 +165,26 @@ class RobotController:
             if self._reservation is not None:
                 self._reservation.phase = "locked"
 
+    def capture_admission_request(self) -> AdmissionRequest:
+        """Snapshot at request receipt, before a cycle can observe a new armament."""
+        with self._emission_lock:
+            armament = (
+                self._ready_armament
+                if self._applied_interrupt == self._interrupt_sequence else None
+            )
+            return AdmissionRequest(self._generation, armament, self._interrupt_sequence)
+
     def admit(
         self, *, human: bool = False, deadline: float | None = None,
         conditions: Callable[[], HumanConditions] | None = None,
+        request: AdmissionRequest | None = None,
     ) -> MissionPermit:
         with self._lock:
             self._apply_pending_interrupt()
+            request = request if request is not None else self.capture_admission_request()
+            if (request.generation != self._generation
+                    or request.interrupt_sequence != self._interrupt_sequence):
+                raise ProtectionFault("rearm_required")
             if self._reservation is not None:
                 raise ProtectionFault("mission_reserved")
             if human and (not self.protection_present or conditions is None):
@@ -170,7 +197,7 @@ class RobotController:
                 raise ProtectionFault("deadline")
             armament = ""
             if self.protection_present:
-                armament_at_request = self._ready_armament
+                armament_at_request = request.armament
                 self.supervise()
                 state = self._last_p5
                 if (state is None or state.state != "armed"
@@ -193,6 +220,7 @@ class RobotController:
                     raise ProtectionFault("rearm_required")
             with self._emission_lock:
                 if (self._applied_interrupt != self._interrupt_sequence
+                        or request.interrupt_sequence != self._interrupt_sequence
                         or (self.protection_present and self._ready_armament != armament)):
                     self._apply_pending_interrupt()
                     raise ProtectionFault("rearm_required")
@@ -256,6 +284,14 @@ class RobotController:
         return (reservation is not None and reservation.permit == permit
                 and reservation.phase == "active")
 
+    def _ordinary_stop(self, reservation: Reservation, causes: tuple[str, ...]) -> None:
+        self.stop()
+        self.causes = tuple(dict.fromkeys((*self.causes, *causes)))
+        if reservation.phase not in {"locked", "ended"}:
+            reservation.phase = "ended" if any(
+                cause in causes for cause in ("stop", "deadline")
+            ) else "suspended"
+
     def supervise(
         self, permit: MissionPermit | None = None,
         command: str | None = None, value: float | None = None,
@@ -310,15 +346,18 @@ class RobotController:
                         ordinary.append("stop")
                     if reservation.deadline is not None and self.time_fn() >= reservation.deadline:
                         ordinary.append("deadline")
-                    if reservation.human:
-                        ordinary.extend(reservation.conditions().failures())
+                    if reservation.human and command == "backward":
+                        ordinary.append("human_backward_forbidden")
                     if ordinary:
-                        self.stop()
-                        self.causes = tuple(dict.fromkeys((*self.causes, *ordinary)))
-                        if reservation.phase != "locked":
-                            reservation.phase = "ended" if any(
-                                e in ordinary for e in ("stop", "deadline")
-                            ) else "suspended"
+                        self._ordinary_stop(reservation, tuple(ordinary))
+                    if reservation.human:
+                        failures = reservation.conditions().failures()
+                        if failures:
+                            self._ordinary_stop(reservation, failures)
+                    if (reservation.deadline is not None
+                            and self.time_fn() >= reservation.deadline
+                            and "deadline" not in ordinary):
+                        self._ordinary_stop(reservation, ("deadline",))
                 if command is not None:
                     if reservation is None:
                         reasons.append("no_mission")

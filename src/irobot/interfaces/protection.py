@@ -78,6 +78,13 @@ class HumanConditions:
 
 
 @dataclass(frozen=True)
+class AdmissionRequest:
+    generation: str
+    armament: str | None
+    interrupt_sequence: int
+
+
+@dataclass(frozen=True)
 class MissionPermit:
     mission: int
     context: int

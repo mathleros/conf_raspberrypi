@@ -27,6 +27,10 @@ class IsolationViolation(RuntimeError):
     pass
 
 
+class CampaignTimeout(KeyboardInterrupt):
+    pass
+
+
 VIOLATIONS: list[str] = []
 POLICY_PROBES: list[str] = []
 
@@ -34,6 +38,12 @@ POLICY_PROBES: list[str] = []
 def forbidden(label: str):
     VIOLATIONS.append(label)
     raise IsolationViolation(label)
+
+
+def timeout(*_):
+    label = "external campaign wall bound exceeded (120 s)"
+    VIOLATIONS.append(label)
+    raise CampaignTimeout(label)
 
 
 class ImportGuard(importlib.abc.MetaPathFinder):
@@ -130,9 +140,6 @@ def main():
     install_guards()
     check_policy_without_resource_access()
     sys.path[:0] = [str(root / "src"), str(root)]
-    def timeout(*_):
-        forbidden("external campaign wall bound exceeded (120 s)")
-
     signal.signal(signal.SIGALRM, timeout)
     signal.alarm(120)
     before_threads = set(threading.enumerate())
@@ -175,4 +182,8 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except CampaignTimeout as exc:
+        print(f"INCONCLUSIVE/FAILED ISOLATION: {exc}; campaign interrupted")
+        raise SystemExit(2) from exc

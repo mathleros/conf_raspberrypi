@@ -48,6 +48,20 @@ localement sans exécuter les `.pth` ; dépendance absente = blocage, sans insta
 Les nombres de temps/protection du nouveau socle sont exclusivement fictifs.
 Une tentative interdite ou un thread résiduel invalide la campagne.
 
+La borne murale du harnais interrompt explicitement la campagne avec un code
+non nul ; son exception ne peut pas être absorbée par les traitements métier
+`except Exception`. Une campagne interrompue ou un observateur indisponible
+reste inconclusif, jamais une preuve d'absence de sortie. Les tests injectent
+la borne dans un vrai skill à horloge/perception/moteur factices, sans attendre
+son échéance murale.
+
+Les cas du lot vérifient aussi le refus intégral des demandes humaines et des
+cibles de suivi non prises en charge, avant LLM factice, filtrage ou exécution
+partielle : aucun repli d'une cible inconnue vers `yellow`. L'omission de
+couleur d'une demande objet historique prise en charge reste compatible.
+Les préconditions humaines sont énumérées dans un contrat d'exigences fixe,
+indépendant des champs du type de production.
+
 Voir le [rapport SH-09 du lot A](../specs/backlog/08_lot_a_rapport_sh09.md) pour
 la référence, les oracles, résultats, exclusions et limites. Le suivi humain
 moteur réel demeure refusé ; aucune qualification Pi/audio/physique.

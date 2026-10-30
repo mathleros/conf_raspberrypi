@@ -11,7 +11,7 @@ from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidato
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.protection import MissionPermit, ProtectionFault
 from irobot.interfaces.robot_controller import RobotController
-from irobot.interfaces.plan_guards import requests_human_follow
+from irobot.interfaces.plan_guards import follow_request_refusal
 
 
 class LanguageController:
@@ -60,8 +60,9 @@ class LanguageController:
             return False
 
     def handle_text(self, text: str):
-        if requests_human_follow(text):
-            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        refusal = follow_request_refusal(text)
+        if refusal:
+            return {"status": "rejected", "reason": refusal}
         if isinstance(self.robot, RobotController) and self.robot.protection_present:
             return self.handle_intent(self.parser.parse(text))
         intent = self.parser.parse(text)
@@ -117,8 +118,11 @@ class LanguageController:
         }
 
     def handle_intent(self, intent: Intent, *, permit: MissionPermit | None = None):
-        if intent.name in {"follow_person", "resume_follow_person"} or requests_human_follow(intent.raw_text):
+        if intent.name in {"follow_person", "resume_follow_person"}:
             return {"intent": intent, "status": "rejected", "reason": "human_capability_unavailable"}
+        refusal = follow_request_refusal(intent.raw_text)
+        if refusal:
+            return {"intent": intent, "status": "rejected", "reason": refusal}
         protected = isinstance(self.robot, RobotController) and self.robot.protection_present
         if not protected or intent.name == "stop":
             return self._handle_intent(intent, self.robot)

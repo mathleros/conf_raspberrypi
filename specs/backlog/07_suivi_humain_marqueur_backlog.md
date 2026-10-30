@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A logiciel isolé réalisé et vérifié**, après autorisation explicite : L2/P5, admission/verrous, refus humain réel et preuves limitées au lot. Rapport [SH-09 du lot A](08_lot_a_rapport_sh09.md) : 121 cas du socle réussis, non-régression ciblée de 214 tests réussis sur référence et version livrée. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
+Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A corrigé sur autorisation explicite ; conforme dans le seul périmètre logiciel isolé éprouvé, dossier logiciel corrigé validé explicitement par l'utilisateur**, voir [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire). Revue initiale non conforme conservée ; E1–E6 traités. Série finale reproduite : 164 cas du lot, 214 tests ciblés et quatre contrats ; comparaison de référence 214 et quatre, sept exclusions inchangées. Corrections persistantes non commitées ; validation limitée au dossier logiciel isolé, aucun lot suivant commencé. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
 
 ## 1. Besoin et décision de cadrage
 
@@ -1799,6 +1799,15 @@ Aucun code ni test créé ; aucun test, mesure, acquisition matérielle, charge,
 
 ### Lot A — Réalisation isolée du 2026-10-30
 
+**Historique de livraison conservé.** Les résultats et le verdict ci-dessous
+sont ceux de la réalisation initiale, pas une validation utilisateur.
+La revue contradictoire initiale conclut à la non-conformité du lot
+([rapport, section 8](08_lot_a_rapport_sh09.md#8-revue-contradictoire-du-2026-10-30)) ;
+les corrections ensuite autorisées et vérifiées figurent en section 9 du
+rapport. Le dossier corrigé a ensuite été validé explicitement pour le seul
+périmètre logiciel isolé, voir section 9 ci-dessous. Aucun acquis A1–A6 ou
+SH-02 à SH-11 n'est modifié.
+
 Autorisation : demande explicite de réalisation isolée dans la session courante.
 Les décisions documentaires ci-dessus restent historiques et intégralement applicables.
 Référence propre avant modification : `a5c397b483fc0eda0938e5d444ecf1a3968430f9`,
@@ -1952,9 +1961,99 @@ Progression au 2026-10-30 : cadres SH-02 à SH-11 approuvés, qualifications et 
 
 Le choix « marqueur accepté » et les cinq étapes de SH-01 sont acquis : périmètre d'usage, association fixe, arrêts/reprises, paramètres cibles et retour vocal. Les choix techniques et autres seuils proposés ne sont pas validés par cette clôture du cadrage ; la qualification physique reste nécessaire. Aucun achat, dépendance, modification du code ou essai moteur n'est autorisé par ce document seul.
 
-## 9. Reprise — lot A logiciel isolé livré et vérifié, aucune activation humaine réelle
+## 9. Reprise — lot A corrigé, dossier logiciel validé
 
-Point de reprise au 2026-10-30 : **lot A réalisé et vérifié exclusivement en logiciel isolé**, sur demande explicite de l'utilisateur, après constat d'un arbre propre à la référence indiquée au rapport. Les six sujets SH-02 et les six décisions détaillées de chacun des tickets SH-05 à SH-11 restent intégralement préservés en section 4, comparaison effectuée avec la référence. Aucun composant, montage électrique, famille P6 ou réglage réel choisi ; conception électrique, réalisation/qualification P2–P6 et accès sûr solo toujours ouverts. Aucune spécification ou double ne satisfait une dépendance physique. Aucun accès matériel/réseau, acquisition, charge Pi, achat, installation ou essai moteur exécuté. Aucun Go mobile humain.
+**État courant après corrections autorisées : conforme dans le périmètre
+logiciel isolé éprouvé, dossier corrigé validé explicitement par l'utilisateur.**
+La réponse « Je valide le constat de revue. Effectue les correctifs nécessaires
+afin d'être 100% ok. » valide le constat initial et autorise les correctifs
+bornés, pas leur approbation anticipée. La seconde décision « Ne pas faire de
+repli par défaut vers yellow si la cible de suivi n'est pas pris en charge. »
+fixe le traitement des cibles inconnues. Aucun lot suivant ni Go humain autorisé.
+
+- E1–E6 traités : instantané d'admission à réception, refus humain et cibles
+  inconnues avant toute exécution partielle, aucun recul humain à L2, zéro/fin
+  avant conditions bloquées si arrêt connu, deux ports startup toujours tentés,
+  résolveur audio ponctuel importé localement.
+- Attendus renforcés depuis les exigences : contrat fixe indépendant des
+  17 préconditions, contre-exemples de transcription/worker, callbacks bloqués,
+  ports en panne, alias de suivi et entrée audio exclusivement factice.
+- Série finale : **164 cas isolés réussis**, **214 tests historiques ciblés
+  réussis et 7 désélectionnés**, **4 contrats complémentaires réussis** ;
+  référence exportée de nouveau et contrôlée : **214 + 7 désélections**, puis
+  **4 contrats**. Cinq processus finaux : zéro accès interdit observé, zéro
+  thread résiduel, trois sondes synthétiques refusées chacun.
+- Historique préservé au [rapport, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire) :
+  campagne interrompue inconclusive, 142 cas avec 9 échecs/9 erreurs avant
+  correction, régression de durée historique réellement détectée puis corrigée
+  sans modifier son attendu, et deux échecs complémentaires sur l'alias rouge
+  avant fermeture du chemin. Aucun échec masqué par un compteur final.
+- Douze nouvelles empreintes distinctes de la livraison historique, cinq
+  critères A6 réévalués, liens et préservation des acquis contrôlés. Les
+  corrections sont persistantes non commitées, HEAD inchangé ; aucun test
+  historique, driver ou comportement balle modifié.
+
+**Décision reçue le 2026-10-30 avec l'outil de questions :**
+**« Valider le dossier logiciel corrigé du lot A uniquement »**.
+Validation limitée au dossier logiciel isolé éprouvé, sans choix ni lancement
+de suite ; aucune clôture globale SH-05/SH-09, aucun Go mobile humain.
+Limites et interdictions de la revue
+maintenues ; P2–P6 à réaliser/qualifier, famille P6 non choisie, accès sûr solo
+non démontré, ni par proximité ni par audio. Politique SH-08 inchangée.
+Les paragraphes suivants conservent les deux états historiques antérieurs ;
+leurs décisions alors en attente ont été reçues comme indiqué ci-dessus.
+
+### Historique de revue initiale — constat non conforme avant corrections
+
+**Point de reprise après revue contradictoire du 2026-10-30 : non conforme dans
+le périmètre logiciel du lot A ; fin non confirmée.** Autorisation de revue
+et de documentation seulement, aucun correctif de code ni suite autorisés.
+Le [rapport, section 8](08_lot_a_rapport_sh09.md#8-revue-contradictoire-du-2026-10-30)
+distingue exigences, choix techniques, résultats historiques, preuves reproduites
+et constats statiques.
+
+- État Git initial effectivement observé : arbre/index propres, lot déjà dans
+  `b1864aba3e78560fbb7f4ab020e886b1766cfa2a`, parent de référence
+  `a5c397b483fc0eda0938e5d444ecf1a3968430f9`. La transmission « non commité »
+  ne décrit plus cet état ; aucun commit ni révocation effectué par la revue.
+- Douze empreintes reproduites ; blocs acquis des six sujets SH-02, A1–A6 et
+  chacun des six sujets détaillés de SH-05 à SH-11 comparés à la référence,
+  identiques. Aucun code, test ou attendu historique modifié par la revue.
+- Après inspection du lanceur/imports/doubles/collecte, commandes ciblées
+  seulement avec `-I -S` : 121 cas du socle ; 214 tests, 7 désélectionnés,
+  sur livraison puis nouvel export local contrôlé de la référence ; quatre
+  contrats complémentaires sur chaque version. Cinq processus : zéro accès
+  interdit observé, zéro thread résiduel, trois sondes synthétiques refusées
+  chacun. Export temporaire distinct de l'ancienne session, vérifié puis nettoyé.
+- Écarts E1–E6 du rapport : préobservation d'armement dans la transcription
+  avant admission de cette même demande ; garde humaine incomplète laissant
+  un repli `follow_object/yellow` ; recul d'une réservation humaine accepté
+  par un oracle existant reproduit ; zéro après callback malgré échéance déjà
+  connue ; demande d'inhibition de startup sautée si son zéro échoue ;
+  résolveur non défini dans `listen_once`. E3 observé dans la matrice ; autres
+  contre-exemples issus de l'analyse statique, non exécutés comme nouveaux cas.
+- Les cinq critères A6 ont été réexaminés : les succès ciblés ne démontrent
+  pas tous les chemins et ne compensent ni écart obligatoire ni cas manquant.
+  Ancien verdict de livraison conservé comme historique, non reconduit.
+- Aucun matériel, réseau, modèle/serveur réel, audio réel, installation,
+  acquisition, charge/mesure Pi ou essai moteur. SH-09 logiciel distinct de
+  SH-10 et des qualifications physiques. Arrêt demandé, tentative de zéro,
+  zéro reçu et inhibition attestée par double P5 distincts ; immobilisation
+  physique non mesurée. Paramètres simulés fictifs exclusivement.
+
+**Décision utilisateur attendue :** validation du constat de revue seulement,
+pas approbation du lot ni autorisation de corriger. Une seule question à la
+fois avec l'outil. Les correctifs bornés sont proposés dans le rapport mais
+non appliqués. Aucun Go mobile humain, aucune clôture globale SH-05/SH-09.
+P2/P3/P4/P5/P6 restent à réaliser et qualifier, famille P6 non choisie et accès
+sûr solo non démontré ; ni proximité ni audio ne démontrent cet accès.
+Politique SH-08 inchangée.
+
+**Historique de livraison avant cette revue :** le point de reprise suivant
+et les bilans de réalisation restent conservés ; leurs affirmations générales
+de conformité sont remplacées, pour l'état courant, par le verdict ci-dessus.
+
+Point de reprise consigné à la livraison au 2026-10-30 : **lot A réalisé et vérifié exclusivement en logiciel isolé**, sur demande explicite de l'utilisateur, après constat d'un arbre propre à la référence indiquée au rapport. Les six sujets SH-02 et les six décisions détaillées de chacun des tickets SH-05 à SH-11 restent intégralement préservés en section 4, comparaison effectuée avec la référence. Aucun composant, montage électrique, famille P6 ou réglage réel choisi ; conception électrique, réalisation/qualification P2–P6 et accès sûr solo toujours ouverts. Aucune spécification ou double ne satisfait une dépendance physique. Aucun accès matériel/réseau, acquisition, charge Pi, achat, installation ou essai moteur exécuté. Aucun Go mobile humain.
 
 ### Lot A cadré — décisions et bilan à reprendre
 
@@ -2091,10 +2190,13 @@ La réalisation du lot A borné par A1–A6, précédemment retenue pour une ses
 
 ### Prochaine étape proposée — à validation explicite, non commencée
 
-Revoir et valider le [rapport du lot A](08_lot_a_rapport_sh09.md), puis choisir
-explicitement le prochain lot logiciel isolé ou l'étude documentaire des
-protections. Aucune suite engagée automatiquement ; aucune famille P6 choisie,
-aucune recette matérielle/Pi/audio ou activation humaine autorisée.
+Le [dossier logiciel corrigé du lot A](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire)
+a été validé explicitement pour ce seul périmètre ; aucune suite choisie.
+Proposition bornée : relever les dépendances encore
+ouvertes et présenter des options documentaires de prochaine étape, sans
+rouvrir les acquis, puis faire choisir un seul périmètre autorisé. Ce relevé
+n'est pas commencé. Aucun lot B ni intégration matérielle supposé choisi ;
+aucune famille P6, recette matérielle/Pi/audio ou activation humaine autorisée.
 
 ### Méthode de poursuite
 

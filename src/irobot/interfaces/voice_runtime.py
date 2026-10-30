@@ -33,9 +33,10 @@ from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidato
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import (
-    build_formats, grounding_check, is_pure_stop, requests_human_follow, fold, contains_human_step,
+    build_formats, grounding_check, is_pure_stop, fold, contains_human_step,
+    follow_request_refusal, contains_unsupported_follow_step, TARGET_COLOR_SYNONYMS,
 )
-from irobot.interfaces.protection import MissionPermit, ProtectionFault
+from irobot.interfaces.protection import AdmissionRequest, MissionPermit, ProtectionFault
 from irobot.interfaces.robot_controller import RobotController
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.skills.base_skill import Skill, SkillContext
@@ -344,8 +345,8 @@ def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
 
 def ask_llm_for_intent(text: str) -> Intent:
     """Demande un JSON de type Intent au LLM local, puis reconstruit l'objet Intent."""
-    if requests_human_follow(text):
-        return Intent(name="follow_person")
+    if follow_request_refusal(text):
+        return IntentParser().parse(text)
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
     try:
@@ -357,6 +358,8 @@ def ask_llm_for_intent(text: str) -> Intent:
         parsed = _parse_llm_json_payload(content)
         if contains_human_step(parsed):
             return Intent(name="follow_person")
+        if contains_unsupported_follow_step(parsed):
+            return Intent(name="unsupported_follow_target")
         intent = _intent_from_llm_step(parsed, text) if parsed else None
         return intent if intent is not None else IntentParser().parse(text)
     except Exception:
@@ -389,8 +392,9 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
       -> repli sur IntentParser (texte d'origine).
     """
-    if requests_human_follow(text):
-        return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
+    refusal = follow_request_refusal(text)
+    if refusal:
+        return [], {"source": "llm_follow_refused", "guard_reason": refusal}
     normalized_text = preprocess(text)
     settings = load_llm_settings()
     payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
@@ -426,6 +430,8 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
         return _fallback("JSON invalide", llm_content=content, reason="invalid json")
     if contains_human_step(parsed):
         return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
+    if contains_unsupported_follow_step(parsed):
+        return [], {"source": "llm_follow_refused", "guard_reason": "unsupported_follow_target"}
 
     raw_steps = parsed.get("steps")
     if not isinstance(raw_steps, list):
@@ -554,16 +560,6 @@ PLAN_INTENT_SYNONYMS = {
 # Sources de plan rejetées sans repli parseur ni mouvement.
 UNSUPPORTED_PLAN_SOURCES = {"llm_unsupported", "llm_ungrounded"}
 OBJECT_INTENTS = {"search_and_approach_object", "follow_object"}
-TARGET_COLOR_SYNONYMS = {
-    "jaune": "yellow",
-    "yellow": "yellow",
-    "balle jaune": "yellow",
-    "yellow_ball": "yellow",
-    "rouge": "red",
-    "red": "red",
-    "balle rouge": "red",
-    "red_ball": "red",
-}
 DEFAULT_STAND_OFF_CM = 100.0
 DEFAULT_FOLLOW_DURATION_SEC = 60.0
 MIN_OBJECT_DURATION_SEC = 1.0
@@ -812,6 +808,8 @@ class VoiceRuntime:
             return self.parser.parse(text)
 
         llm_intent = ask_llm_for_intent(text)
+        if llm_intent.name == "unsupported_follow_target":
+            return llm_intent
         if self.validator.validate(llm_intent):
             return llm_intent
         return self.parser.parse(text)
@@ -883,6 +881,10 @@ class VoiceRuntime:
         self, name: str, target: str | None, parameters: dict[str, Any]
     ) -> tuple[str | None, dict[str, Any]]:
         """Ramène les couleurs de cible (jaune, balle rouge...) à `yellow`/`red`."""
+        if name == "follow_object" and contains_unsupported_follow_step({
+            "intent": name, "target": target, "parameters": parameters,
+        }):
+            return target, parameters
         color = self._color_from_label(target)
         if color is None:
             color = self._color_from_label(parameters.get("target_object"))
@@ -1147,14 +1149,17 @@ class VoiceRuntime:
     def handle_text(self, text: str):
         if self._protected():
             return self.handle_text_as_plan(text)
-        if requests_human_follow(text):
-            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        refusal = follow_request_refusal(text)
+        if refusal:
+            return {"status": "rejected", "reason": refusal}
         intent = self._resolve_intent(text)
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
         return self.controller.handle_intent(intent)
 
-    def handle_text_as_plan(self, text: str):
+    def handle_text_as_plan(self, text: str, *, admission_request: AdmissionRequest | None = None):
+        if self._protected() and admission_request is None:
+            admission_request = self.robot.capture_admission_request()
         if is_pure_stop(text):
             if self._protected():
                 human = self.robot.reservation is not None and self.robot.reservation.human
@@ -1174,8 +1179,9 @@ class VoiceRuntime:
             return self._handle_text_as_plan(text)
         if fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
             return self._resume_reserved_skill()
-        if requests_human_follow(text):
-            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        refusal = follow_request_refusal(text)
+        if refusal:
+            return {"status": "rejected", "reason": refusal}
         if self._protected() and self.robot.reservation is not None:
             if self._worker_owns_supervision():
                 return {"status": "rejected", "reason": "mission_reserved"}
@@ -1187,7 +1193,7 @@ class VoiceRuntime:
         try:
             if self._protected():
                 self.robot.clear_emergency_stop()
-                self._active_permit = self.robot.admit()
+                self._active_permit = self.robot.admit(request=admission_request)
             return self._handle_text_as_plan(text)
         except ProtectionFault as exc:
             return {"status": "aborted", "reason": "protection_fault", "causes": (str(exc),)}
@@ -1339,11 +1345,20 @@ class VoiceRuntime:
                 "normalized_text": preprocess(text),
             }
 
-        if plan_trace.get("source") == "llm_human_refused" or any(
+        if plan_trace.get("source") in {"llm_human_refused", "llm_follow_refused"}:
+            return {"status": "rejected", "reason": plan_trace["guard_reason"], "steps": []}
+        if any(
             contains_human_step({"intent": it.name, "parameters": it.parameters})
-            or requests_human_follow(it.raw_text) for it in intents
+            for it in intents
         ):
             return {"status": "rejected", "reason": "human_capability_unavailable", "steps": []}
+        if any(
+            follow_request_refusal(it.raw_text)
+            or contains_unsupported_follow_step({
+                "intent": it.name, "target": it.target, "parameters": it.parameters,
+            }) for it in intents
+        ):
+            return {"status": "rejected", "reason": "unsupported_follow_target", "steps": []}
 
         self._write_trace_event(
             trace_path,
@@ -1499,6 +1514,7 @@ class VoiceRuntime:
         }
 
     def listen_once(self):
+        from irobot.hardware.audio.audio_utils import resolve_input_device
         device = resolve_input_device(self.input_device)
         for text in transcribe_loop(device):
             print(f"\n[VOIX] {text}", flush=True)
@@ -1535,9 +1551,12 @@ class VoiceRuntime:
     def _is_stop_phrase(self, text: str) -> bool:
         return is_pure_stop(text) or self.parser.parse(text).name == "stop"
 
-    def _mission_worker(self, text: str) -> None:
+    def _mission_worker(self, text: str, admission_request: AdmissionRequest | None = None) -> None:
         try:
-            self.last_result = self.handle_text_as_plan(text)
+            self.last_result = (
+                self.handle_text_as_plan(text, admission_request=admission_request)
+                if admission_request is not None else self.handle_text_as_plan(text)
+            )
             print(f"[RUNTIME] {self.last_result}", flush=True)
         except Exception as exc:
             self.last_result = {"status": "failed", "error": str(exc)}
@@ -1546,13 +1565,15 @@ class VoiceRuntime:
 
     def handle_transcript(self, text: str):
         """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
+        admission_request = self.robot.capture_admission_request() if self._protected() else None
         if self._protected():
             if is_pure_stop(text) or fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
                 return self.handle_text_as_plan(text)
             if not self._worker_owns_supervision():
                 self.supervise_once()
-        if requests_human_follow(text):
-            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        refusal = follow_request_refusal(text)
+        if refusal:
+            return {"status": "rejected", "reason": refusal}
         if self.mission_running():
             if self._is_stop_phrase(text):
                 print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
@@ -1564,10 +1585,17 @@ class VoiceRuntime:
         # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
         self._clear_emergency_stop()
         if not self.threaded:
-            self.last_result = self.handle_text_as_plan(text)
+            self.last_result = (
+                self.handle_text_as_plan(text, admission_request=admission_request)
+                if admission_request is not None else self.handle_text_as_plan(text)
+            )
             print(f"[RUNTIME] {self.last_result}", flush=True)
             return self.last_result
-        self._worker = threading.Thread(target=self._mission_worker, args=(text,), name="mission-worker", daemon=True)
+        self._worker = threading.Thread(
+            target=self._mission_worker,
+            args=(text, admission_request) if admission_request is not None else (text,),
+            name="mission-worker", daemon=True,
+        )
         self._worker.start()
         return None
 

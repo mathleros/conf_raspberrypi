@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits
-from irobot.interfaces.plan_guards import requests_human_follow
+from irobot.interfaces.plan_guards import follow_request_refusal, supported_follow_target
 
 
 @dataclass
@@ -182,8 +182,12 @@ class IntentParser:
             return Intent(name="unknown", raw_text=text)
 
         lowered = cleaned.lower()
-        if requests_human_follow(cleaned):
-            return Intent(name="follow_person", raw_text=text)
+        refusal = follow_request_refusal(cleaned)
+        if refusal:
+            return Intent(
+                name="follow_person" if refusal == "human_capability_unavailable" else "unknown",
+                raw_text=text,
+            )
 
         # "arrête-toi quand tu vois X" est une condition d'arrêt, pas un ordre d'arrêt immédiat.
         has_condition = any(
@@ -360,8 +364,8 @@ class IntentParser:
 
     def parse_plan(self, text: str) -> list[Intent]:
         """Découpe une phrase composée en segments et retourne la liste d'intents ordonnée."""
-        if requests_human_follow(text):
-            return [Intent(name="follow_person", raw_text=text)]
+        if follow_request_refusal(text):
+            return [self.parse(text)]
         segments = [seg for seg in self._SEGMENT_SPLIT_RE.split((text or "").strip()) if seg.strip()]
         if len(segments) <= 1:
             return [self.parse(text)]
@@ -430,12 +434,14 @@ class IntentValidator:
     }
 
     def validate(self, intent: Intent) -> bool:
-        if requests_human_follow(intent.raw_text) or intent.name in {"follow_person", "resume_follow_person"}:
+        if follow_request_refusal(intent.raw_text) or intent.name in {"follow_person", "resume_follow_person"}:
             return False
         if intent.name not in self.ALLOWED_INTENTS:
             return False
         if intent.name == "follow_red_ball":
-            return intent.target in {None, "red_ball"}
+            return (intent.target in {None, "red_ball"}
+                    and supported_follow_target(intent.parameters.get("target_object")))
         if intent.name == "follow_object":
-            return intent.target in {None, "red", "yellow"}
+            return (intent.target in {None, "red", "yellow"}
+                    and supported_follow_target(intent.parameters.get("target_object")))
         return True

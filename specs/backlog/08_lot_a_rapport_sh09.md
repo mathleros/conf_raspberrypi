@@ -3,11 +3,30 @@
 Date : 2026-10-30. Périmètre : A1–A6 du
 [backlog](07_suivi_humain_marqueur_backlog.md), pas la recette globale SH-09.
 
-**Verdict : conforme dans le périmètre logiciel isolé décrit ici.**
+**État courant après corrections autorisées : conforme dans le périmètre
+logiciel isolé effectivement éprouvé du lot A ; dossier corrigé validé
+explicitement par l'utilisateur le 2026-10-30, pour ce seul périmètre.**
+Voir la section 9 : E1–E6 traités, 164 cas isolés réussis, non-régression
+comparée et critères A6 réexaminés. Ce verdict n'est ni une garantie
+universelle, ni une clôture globale SH-05/SH-09, ni un Go mobile humain.
+
+**Verdict initial de revue contradictoire du 2026-10-30, conservé : non
+conforme ; fin non confirmée.** La section 8 consigne la revue avant les
+réponses utilisateur autorisant les corrections, dont celle de l'attendu
+synthétique contraire au non-recul humain. À ce stade initial, aucun
+correctif de code n'était autorisé ou appliqué.
+
+**Verdict initial de campagne, conservé comme historique : conforme dans le périmètre logiciel isolé décrit ici.**
 Socle livré et vérifié ; aucune clôture globale SH-05/SH-09, aucune dépendance
 matérielle satisfaite, aucun Go mobile humain. Sur le robot, le suivi humain
 moteur reste refusé. Ce verdict ne vaut ni réalisation ni qualification
 P2/P3/P4/P5/P6, audio, perception ou performance Pi.
+
+Les sections 1 à 7 conservent le dossier de livraison et ses conclusions
+initiales ; leurs affirmations générales de conformité sont réévaluées en
+section 8, puis après corrections en section 9. Elles ne valent pas validation
+utilisateur. La mention historique « non commité » de section 1 est rectifiée
+par l'état Git effectivement constaté en section 8.1.
 
 ## 1. Référence et configuration
 
@@ -255,3 +274,509 @@ Empreintes SHA-256 du code exécuté (documents exclus pour éviter auto-référ
 | `tests/isolated/run_lot_a.py` | `7d64c5279d3c9d46f3e914f9ed49bdfed5a1f57f7dfd2480beed39006334d3de` |
 | `tests/isolated/lot_a_cases.py` | `d86567f98a2b1cd3662aae2ae08c56142c1143fb4543c0bde878fbe810e2d7ea` |
 | `tests/isolated/legacy_contract.py` | `20ec49c3495a72f04f296b1f76904d6c8a64e1b6c04f2023291876ec649860a8` |
+
+## 8. Revue contradictoire du 2026-10-30
+
+**Historique de la phase initiale, avant autorisation des correctifs.**
+Les mentions « non appliqué », « décision en attente » et les localisations
+de code ci-dessous décrivent la version livrée `b1864aba3e78560fbb7f4ab020e886b1766cfa2a`.
+Les décisions reçues et les preuves de correction sont consignées en section 9,
+sans effacer le constat initial ni ses résultats.
+
+### 8.1 Autorisation, versions et préservation
+
+Autorisation limitée à la revue et aux mises à jour documentaires factuelles.
+Ni approbation du lot, ni correctif, ni lot suivant, ni Go mobile humain.
+
+- **État effectivement observé avant la revue :** arbre Git propre, index
+  propre, HEAD `b1864aba3e78560fbb7f4ab020e886b1766cfa2a`, parent
+  `a5c397b483fc0eda0938e5d444ecf1a3968430f9`. Le lot est déjà commité dans ce
+  HEAD, contrairement à l'état transmis « non commité ». Aucun commit,
+  écrasement ou révocation effectué pendant la revue. L'assertion de section 1
+  décrit l'état consigné lors de la livraison, pas l'état Git de cette reprise.
+- **Empreintes reproduites :** les douze SHA-256 de section 7 correspondent
+  exactement aux douze fichiers persistants examinés et exécutés.
+- **Préservation reproduite par comparaison au parent de référence :** bloc
+  des six sujets SH-02 identique ; cadrage A1–A6 identique ; chacun des sept
+  blocs SH-05 à SH-11 identique, avec ses six sujets détaillés. Aucun acquis
+  rouvert. Section 1 du backlog inchangée. Les ajouts de revue ne remplacent
+  pas ces décisions.
+- Tests unitaires historiques, script de gardes comparatif, driver
+  `SmartCar2WD`, `follow_object` et `target_tracking` : aucun diff entre la
+  référence et la livraison. Aucun attendu ni test modifié par cette revue.
+- Liens relatifs du rapport et de `tests/README.md` : cibles locales
+  existantes. Les liens ajoutés par la revue sont également contrôlés.
+
+### 8.2 Preuves effectivement reproduites
+
+Avant exécution : lecture du lanceur entier, de sa sélection explicite, des
+imports, des doubles P5/moteur/horloge/ports, de la collecte `load_tests`, des
+fixtures HTTP factices et du chargement documentaire du script de gardes.
+Ce script est importé pour ses fonctions ; son point d'entrée HTTP n'est pas
+appelé. Aucun pytest global, aucune découverte matériel/intégration.
+
+La référence exportée de la campagne précédente n'est pas utilisée et son
+existence n'est pas attestée ici. **Un nouvel export local temporaire distinct**
+du commit de référence a été créé pour cette revue, après contrôle des entrées
+Git : 91 blobs réguliers, sans lien symbolique ni sous-module, sans `.git`,
+`.venv`, `target` ou modèle. Chaque blob exporté a été comparé au commit ;
+export rendu non inscriptible avant tests. Les tests unitaires historiques et
+le script de gardes sont identiques à ceux de la livraison ; la documentation
+de tests a, elle, été enrichie lors de la livraison. Cet export n'est pas une
+archive retrouvée de l'ancienne session.
+
+Commandes de section 7 seulement, avec `-I -S`, et leur argument facultatif
+pour ce nouvel export :
+
+| Version / campagne reproduite | Résultat de cette revue |
+|---|---|
+| HEAD livré, `--stdlib` | 121 tests, OK ; 1,520 s murales rapportées par unittest |
+| HEAD livré, sélection pytest ciblée | 214 passed, 7 deselected ; 10,84 s |
+| HEAD livré, `--legacy-stdlib` | 4 tests, OK ; 0,143 s |
+| Nouvel export de référence, sélection pytest ciblée | 214 passed, 7 deselected ; 11,41 s |
+| Nouvel export de référence, `--legacy-stdlib` | 4 tests, OK ; 0,084 s |
+
+Pour chacun des cinq processus : code de sortie 0, zéro tentative interdite
+observée, zéro thread résiduel, trois sondes synthétiques refusées sans
+opération réelle. Les sept désélections restent celles du filtre
+`not warmup and not warm_up`, sans filtre `not main`. Le préchauffage n'est pas
+qualifié. Ces durées sont celles du harnais local, pas des performances Pi,
+ni des délais de protection.
+
+Les sept cas exclus de `test_voice_runtime.py` sont explicitement :
+`test_warm_up_sends_plan_system_prompt_in_background`,
+`test_warm_up_swallows_errors`,
+`test_text_mode_sends_real_request_after_warmup`,
+`test_text_mode_failed_warmup_still_processes_command`,
+`test_text_mode_warmup_wait_timeout_still_processes_command`,
+`test_continuous_mode_does_not_wait_for_warmup` et
+`test_llm_warmup_wait_seconds_env`. Leur exclusion ne constitue ni succès ni
+qualification de l'assemblage vocal.
+
+Les résultats de sections 4–5 restent des **résultats historiques consignés**.
+Le tableau ci-dessus constitue une nouvelle série distincte qui les reproduit
+sur les fichiers identifiés ; il ne réécrit pas leur chronologie. Aucun nouvel
+essai des contre-exemples statiques ci-dessous n'a été ajouté ni exécuté :
+la revue est limitée aux commandes autorisées et ne modifie pas les tests.
+
+### 8.3 Écarts et correctifs bornés proposés, non appliqués
+
+**E1 — La transcription peut admettre la demande qui observe l'armement.**
+
+- **Exigence validée :** A4/A-O7 et précision de réalisation : observation
+  d'un armement postérieur, puis seulement nouvelle demande ; la demande
+  déclenchant la première observation est refusée et non conservée.
+- **Chemin et preuve statique :**
+  [handle_transcript](../../src/irobot/interfaces/voice_runtime.py#L1547)
+  appelle `supervise_once()` avant `handle_text_as_plan()`, qui appelle
+  [admit](../../src/irobot/interfaces/robot_controller.py#L155).
+  Sans worker ni réservation, après observation inhibée puis transition armée
+  encore non observée, une transcription de primitive fait d'abord renseigner
+  `_ready_armament`. L'admission de cette même demande trouve alors
+  `armament_at_request` déjà égal au nouvel armement et peut l'accepter.
+  Le test A-O7 reproduit vérifie l'appel direct à `admit`, pas ce chemin.
+- **Impact :** A-O7 non démontré de bout en bout ; ordre obligatoire contourné
+  par le prétraitement d'une demande. Le refus humain nominal ne corrige pas
+  cette règle commune aux admissions protégées.
+- **Proposition :** figer l'état d'observation à la réception de la demande,
+  avant toute supervision susceptible de le changer ; refuser cette demande
+  si elle provoque la première observation. Compléter le test via transcription
+  synchrone et worker, sans file d'attente de demande.
+
+**E2 — Le refus humain lexical laisse un repli vers `follow_object/yellow`.**
+
+- **Exigence validée :** A2/A-O9, refus humain intégral sur les entrées réelles,
+  sans conversion en suivi objet ni exécution partielle.
+- **Chemin et preuve statique :** « suis ma femme » ne correspond pas à
+  [requests_human_follow](../../src/irobot/interfaces/plan_guards.py#L107) :
+  `ma` n'est pas un déterminant reconnu. Le
+  [parseur](../../src/irobot/interfaces/intent_parser.py#L214) accepte ensuite
+  le verbe générique `suis`, produit `follow_object` sans couleur ; le validator
+  accepte sa cible `None`. Le
+  [comportement objet](../../src/irobot/domain/skills/behaviors/follow_object.py#L88)
+  remplace la cible absente par `yellow`. Le contrôleur de langage et le runtime
+  sans LLM partagent cette garde. Une composition telle que « avance puis suis
+  ma femme » n'est donc pas non plus refusée intégralement par cette garde.
+- **Impact :** conversion interdite présente dans le code ; émission possible
+  selon les doubles de perception ou les capacités objet disponibles. Aucun
+  mouvement physique n'est affirmé ni essayé. Les sept formulations testées
+  ne constituent pas une preuve de refus intégral.
+- **Proposition :** compléter la garde commune et fermer le repli objet pour
+  les demandes humaines non prises en charge ; tests indépendants texte,
+  transcription, intention et plans composés, sans toucher aux attendus balle
+  explicites. Une éventuelle restriction nouvelle des demandes objet ambiguës
+  doit être explicitée et approuvée, pas introduite silencieusement.
+
+**E3 — Un oracle synthétique accepte explicitement le recul humain.**
+
+- **Exigence validée :** SH-05 sujet 3, aucun recul humain ; A1/A-O1,
+  préconditions humaines acquises obligatoires et mouvement envisagé autorisé.
+  Le hors-lot SH-06 ne rend pas licite un mouvement humain déjà interdit.
+- **Preuve effectivement reproduite :**
+  [test_o3_no_public_delegation_or_internal_temporized_bypass](../../tests/isolated/lot_a_cases.py#L266)
+  admet par `rig.human()`, suspend, reprend la même mission, puis exige
+  `bind(new).backward()` et la liste moteur exacte `["backward"]`.
+  Ce cas a réussi dans les 121 tests de cette revue.
+  [L2](../../src/irobot/interfaces/robot_controller.py#L260) accepte cette
+  direction si les 17 booléens synthétiques sont vrais ; le fournisseur de
+  conditions ne reçoit pas la commande pour vérifier sa nature.
+- **Impact :** un succès de test est ici une preuve d'acceptation contraire
+  à une exigence, pas de conformité. Les inversions des 17 booléens ne
+  démontrent pas à elles seules les limites de la commande réellement émise.
+  De plus, leurs axes sont dérivés de
+  `HumanConditions.__dataclass_fields__` : ils couvrent les conditions
+  implémentées, mais ne constituent pas une liste indépendante d'exigences
+  capable, à elle seule, de révéler l'absence d'une condition dans le code.
+- **Proposition :** refuser le recul des réservations humaines à L2, tout en
+  conservant le recul balle ; éprouver les directions et les écritures de
+  vitesse selon les autorisations applicables, sans inventer de plafond PWM
+  équivalent à une vitesse physique. Renforcer cet oracle selon l'exigence,
+  avec une liste d'obligations indépendante du type testé, et conserver son
+  résultat initial ci-dessus ; aucun attendu historique
+  non-régressif ne doit être affaibli.
+
+**E4 — Un arrêt déjà requis peut attendre le fournisseur de conditions.**
+
+- **Exigence validée :** SH-05 sujet 2, A4 étape 3 ; arrêt prioritaire dès
+  nécessité connue, échéance initiale non prolongée.
+- **Chemin et preuve statique :**
+  [supervise](../../src/irobot/interfaces/robot_controller.py#L305) ajoute
+  `stop`/`deadline` aux causes ordinaires, puis appelle
+  `reservation.conditions()` avant `self.stop()`. Si le callback bloque alors
+  que la mission émettait déjà, le zéro de ce chemin attend son retour malgré
+  l'échéance déjà détectée. Un appel préalable à `request_emergency_stop`
+  contourne cette attente pour le stop local ; il ne couvre pas l'échéance.
+- **Impact :** les tests P1/stop concurrents, qui appellent un arrêt direct,
+  ne prouvent pas ce chemin. Aucun délai physique n'est déduit de ce défaut,
+  ni aucune intervention effective de P3 supposée.
+- **Proposition :** remettre le zéro avant les callbacks supplémentaires dès
+  qu'un arrêt est requis ; classer ensuite l'état et toutes les causes.
+  Test borné d'échéance déjà atteinte avec conditions bloquées : zéro observé
+  avant libération, aucune preuve de cycle partiel, aucune nouvelle émission.
+
+**E5 — L'échec du zéro initial empêche la demande d'inhibition de démarrage.**
+
+- **Exigence validée :** A1/A-O5, demande systématique au démarrage protégé ;
+  A-O11, panne moteur explicite sans confirmation fabriquée.
+- **Chemin et preuve statique :**
+  [constructeur](../../src/irobot/interfaces/robot_controller.py#L59) appelle
+  `stop()` puis `inhibition.request("startup")` sans protection de ce second
+  appel en cas d'erreur du premier. Si le double zéro lève, la demande n'est
+  pas tentée. L'erreur reste visible, mais cette obligation n'est pas remplie.
+  Le cas reproduit de panne du zéro intervient après construction.
+- **Impact :** A-O5/A-O11 incomplets sur une panne du chemin de démarrage.
+- **Proposition :** garantir la tentative d'inhibition même si le zéro
+  initial échoue, en préservant les erreurs explicites des deux ports et sans
+  prétendre que l'un des deux effets a réussi ; ajouter ce cas isolé.
+
+**E6 — Régression statique de l'entrée vocale `--once`.**
+
+- **Exigence validée :** A2, absence de refonte/régression des parcours
+  existants hors protection ; A6.3, anomalies obligatoires non compensées.
+- **Chemin et preuve statique :**
+  [listen_once](../../src/irobot/interfaces/voice_runtime.py#L1501) appelle
+  `resolve_input_device` sans définition ni import visible dans sa portée.
+  L'import global présent à la référence a été retiré ; l'import ajouté dans
+  `listen_forever` est local à cette autre méthode. L'entrée `--once` conduit
+  donc à `NameError` avant la transcription.
+- **Impact :** non-régression de la sélection reproduite, mais pas de ce
+  chemin. Aucun audio réel exécuté pour confirmer ce constat statique.
+- **Proposition :** import local dans l'entrée concernée, après la frontière
+  d'isolation ; test uniquement avec résolveur et transcription factices,
+  sans construire de matériel ni charger de modèle.
+
+E1, E2, E4, E5 et E6 sont des constats statiques sur les sources identifiées,
+pas des résultats de nouveaux scénarios exécutés. E3 est aussi observé par
+un cas existant reproduit. Tous nécessitent traitement et preuves ciblées
+avant de reconsidérer la conformité du périmètre concerné. Aucun correctif
+ni nouvel attendu n'a été implémenté dans cette session.
+
+### 8.4 Verdict par oracle et critère A6
+
+Les attendus indépendants sont ceux du cadrage A5, pas le verdict ou les
+compteurs de la matrice. La plupart des attendus de tests sont littéraux et
+indépendants de la décision calculée ; E3 montre cependant qu'un littéral
+indépendant peut lui-même contredire l'exigence source.
+
+| Oracle | Preuve reproduite et portée de la revue |
+|---|---|
+| A-O1 | 36 cas : 17 conditions séparées à l'admission et à l'émission, nominal et échéance. Inversions vérifiées ; bornes de la commande humaine insuffisantes, E3 |
+| A-O2 | 11 cas : absents/inconnus/incohérents/inhibés/erreur, frontière fictive et absence de rajeunissement vérifiées ; aucune qualification P5 réelle |
+| A-O3 | 9 cas : identifiants, accès public/délégation, entrée interne, changements intercalés, résultats et échéance vérifiés sur les scénarios ; E3 interdit de généraliser la conformité de toute commande admise |
+| A-O4 | 3 cas : ordre de preuve, repos, cycle partiel et listener bloqué vérifiés ; pas de générateur indépendant constaté ; E4 exige un complément d'arrêt avant callback, sans preuve partielle |
+| A-O5 | 5 cas : startup nominal, P6 au repos sans répétition et arrêts ordinaires vérifiés ; exception au zéro de startup non couverte, E5 |
+| A-O6 | 27 cas : P1/P3/P6/inhibition inconnue, permutations d'événements, résultat tardif, stop/P1 concurrents vérifiés ; les permutations d'un tuple ne sont pas toutes les chronologies d'arrivée possibles ; E4 reste ouvert |
+| A-O7 | 2 cas directs : barrières temporelles, observation puis nouvelle demande et redémarrage rapide vérifiés ; chemin transcription non couvert et contraire à l'ordre, E1 |
+| A-O8 | 2 cas : worker terminé, réservation, même contexte utile, nouvelle identité de contexte, échéance inchangée et nettoyage vérifiés ; traitement d'échéance avant callback bloqué à compléter, E4 |
+| A-O9 | 11 cas : formes sélectionnées et LLM composé/malformé/imbriqué refusés ; assemblage live présent refusé avant import ; refus humain intégral non établi, E2 |
+| A-O10 | 7 cas du socle, sélection historique et contrats des deux versions : recul/rotations/balayage balle, primitives, stop, perte P5 et restauration gardée vérifiés dans la sélection ; entrée `--once` régressée hors sélection, E6 |
+| A-O11 | 4 cas : ports en erreur, zéro tenté/reçu et preuve non fabriquée vérifiés sur ces injections ; panne du zéro initial manquante, E5 |
+| A-O12 | 3 cas : replays recalculés, ordre discriminant et observateur moteur absent vérifiés ; cinq processus isolés sans tâche résiduelle ; ne couvre pas les contre-exemples statiques |
+
+**Observateurs :** `Motor.commands` et les tentatives de zéro sont alimentés
+par le double moteur, indépendamment du journal logiciel testé ; les ports
+preuve/inhibition/journal ont leurs collectes et injections distinctes.
+Le scénario P5 ne change pas automatiquement à la demande d'inhibition.
+Les cas d'ordre comparent ces flux à des attendus fixes, pas aux conclusions
+du journal. Le cas `nonzero(None)` échoue explicitement comme inconclusif ;
+les rendez-vous concurrents non observés échouent par assertions bornées.
+Pas d'observateur nécessaire signalé indisponible dans les cinq campagnes.
+Cela ne qualifie ni une instrumentation externe, ni toutes les pannes
+silencieuses possibles d'un collecteur, ni l'OS. Une future perte d'observation
+invalidera la campagne concernée, sans être interprétée comme absence de sortie.
+
+| Critère obligatoire | Verdict de revue |
+|---|---|
+| A6.1 — réalisation/raccordements et tous chemins gardés | Non satisfait intégralement : E1/E2/E3/E4/E5 ; point L2 et façades présents, mais obligations encore violées |
+| A6.2 — douze oracles sans écart obligatoire/cas manquant | Non satisfait : succès reproduits limités aux cas existants ; E3 contredit la source et compléments E1/E2/E4/E5 manquants |
+| A6.3 — non-régression absente puis présente | Sélections reproduites sur les deux versions ; pas de conformité intégrale du parcours existant `--once`, E6 |
+| A6.4 — refus humain réel et nominal exclusivement factice | Doubles nominaux isolés, aucun adaptateur réel/commutateur live livré ; refus intégral non satisfait, E2 |
+| A6.5 — rapport vérifié et traçabilité | Douze empreintes, liens, références, décisions et résultats contrôlés ; rapport initial corrigé par cet addendum, validation utilisateur encore à obtenir ; conformité ne peut plus être déduite des sections historiques |
+
+### 8.5 Conclusion, limites et décision attendue
+
+**Verdict motivé : non conforme dans le périmètre logiciel du lot A.
+Ne pas confirmer sa fin.** Les succès reproduits attestent un sous-ensemble
+utile, pas les obligations manquantes ni l'exactitude de l'ancien verdict.
+SH-05/SH-09 restent globalement ouverts. Choix technique, exigence validée,
+historique consigné, preuve reproduite et analyse statique sont distingués
+ci-dessus ; aucun contre-exemple non exécuté n'est présenté comme un nouveau
+résultat de test.
+
+Aucun matériel, GPIO, caméra, capteur, Bluetooth/audio réel, adaptateur P5 réel,
+réseau, recherche/chargement de modèle, serveur, acquisition, charge/mesure Pi,
+installation, achat, manipulation matérielle ou essai moteur. Les gardes
+signalent les opérations interceptées de la sélection, pas une garantie
+universelle d'absence d'effet de tout code Python. L'export temporaire de
+référence et les temporaires de tests sont nettoyés ; aucune trace précédente
+n'est supprimée au titre d'une clôture supposée.
+
+Les paramètres simulés restent exclusivement fictifs. Arrêt demandé,
+tentative de zéro, zéro reçu par double et inhibition attestée par double P5
+restent quatre faits distincts d'une immobilisation physique non mesurée.
+Ni SH-10, ni l'audio réel, ni les propriétés physiques ne sont qualifiés.
+P2/P3/P4/P5/P6 restent à réaliser et qualifier ; famille P6 non choisie,
+accès sûr solo non démontré, ni par proximité ni par audio. Aucun composant,
+seuil ou délai réel ajouté. Politique SH-08 inchangée.
+
+**Dossier soumis à validation explicite du constat de revue, décision en
+attente.** Cette validation ne serait ni approbation du lot, ni clôture
+technique, ni autorisation de correctif, ni Go mobile humain. La perspective
+d'un futur Go mentionnée dans la demande n'en remplace pas les prérequis.
+
+**Prochaine étape bornée proposée, non commencée :** après décision sur cette
+revue, demander une autorisation distincte pour corriger les écarts du seul
+lot A et compléter les scénarios isolés affectés, avec les mêmes interdictions
+et non-régressions. Aucun lot B ni intégration matérielle supposé retenu.
+
+## 9. Corrections autorisées et vérification contradictoire
+
+### 9.1 Décisions reçues, périmètre et état Git
+
+Après la soumission du constat de section 8, l'utilisateur a répondu :
+**« Je valide le constat de revue. Effectue les correctifs nécessaires afin
+d'être 100% ok. »** Cette réponse valide le constat et autorise les correctifs
+bornés du lot A ; elle n'approuve pas par anticipation leur résultat.
+
+Une question distincte a explicité l'impact du refus des cibles inconnues
+sur les demandes auparavant ambiguës. Réponse :
+**« Ne pas faire de repli par défaut vers yellow si la cible de suivi n'est
+pas pris en charge. »** Ce choix comportemental est appliqué aux entrées
+texte/intention/plan et aux sorties LLM factices avant normalisation, filtrage
+ou exécution partielle. L'omission historique de couleur pour une demande
+objet prise en charge reste distincte d'une cible explicitement inconnue ;
+« suis la balle » et les pronoms objets historiques restent compatibles.
+
+Exigences SH-02, cadrage A1–A6 et six décisions détaillées de chacun des tickets
+SH-05 à SH-11 inchangés. Aucun élargissement à la réalisation complète
+SH-06/SH-07, à une qualification physique, à SH-10 ou à un lot suivant.
+Le « 100% » demandé ne permet pas de promettre une absence universelle de
+défaut ou un Go physique : le verdict porte sur les obligations et preuves
+logicielles déclarées ci-dessous.
+
+HEAD demeure `b1864aba3e78560fbb7f4ab020e886b1766cfa2a`, parent de référence
+`a5c397b483fc0eda0938e5d444ecf1a3968430f9`. La livraison était déjà commitée
+à l'ouverture de la revue. Les corrections, tests et mises à jour documentaires
+de cette session sont persistants, non commités ; aucun commit, écrasement ou
+révocation de changement préexistant.
+
+### 9.2 Corrections, attendus et preuves ciblées
+
+| Écart / exigence | Correction et choix technique | Vérification indépendante exécutée |
+|---|---|---|
+| E1 — observation puis nouvelle demande | Instantané immuable de génération, armement déjà observé et séquence d'interruption, capturé à réception avant supervision ; même instantané transmis au worker et vérifié avant réservation | [Transcription synchrone/worker](../../tests/isolated/lot_a_cases.py#L1011) : demande révélant le premier armement refusée, suivante admise ; demande déjà reçue retardée dans un worker invalidée par interruption/réarmement |
+| E2 — refus intégral, pas de cible inconnue transformée en objet | Garde commune ; références humaines refusées avant LLM, composition refusée en bloc, cible inconnue explicite refusée avant normalisation ou élimination d'étapes ; contrôle de `target` et `target_object`, y compris alias `follow_red_ball` | [Demandes non prises en charge](../../tests/isolated/lot_a_cases.py#L953), LLM brut composé/imbriqué/malformé, contradiction cible/couleur, validation directe et mono-intention ; zéro mouvement observé sur les refus |
+| E3 — aucun recul humain | L2 refuse `backward` des réservations humaines, y compris temporisé ; nominal de l'ancien test synthétique de contournement remplacé par une avance, sans modifier les tests historiques ; contrat fixe des 17 préconditions indépendant du type de production | [Recul humain direct/temporisé](../../tests/isolated/lot_a_cases.py#L1071) refusé ; axes fixes admission/émission et défauts inhibants ; recul balle préservé dans les contrats exacts |
+| E4 — arrêt connu prioritaire, échéance inchangée | Zéro et fin/suspension avant callback de conditions lorsqu'un arrêt est déjà connu ; causes fusionnées, état verrouillé/terminé non rétrogradé ; échéance recontrôlée après callback | [Stop/échéance avec conditions bloquées](../../tests/isolated/lot_a_cases.py#L1084) : zéro et phase terminée observés avant libération, causes audio conservées ensuite, aucune preuve de cycle partiel |
+| E5 — startup et erreurs des ports | Zéro et demande d'inhibition tentés indépendamment au startup et en priorité 1 ; erreur unique propagée, double erreur conservée dans un `ExceptionGroup`, aucun acquittement fabriqué | [Pannes indépendantes et simultanées](../../tests/isolated/lot_a_cases.py#L1128) ; tentative de zéro distinguée de sa réception, demande `startup` observée même si zéro échoue |
+| E6 — parcours `--once` préservé | Import local de `resolve_input_device` dans `listen_once`, comme sur l'autre entrée audio | [Entrée ponctuelle](../../tests/isolated/lot_a_cases.py#L1165), protection absente puis présente : résolveur/transcription exclusivement factices, aucun module audio réel ni modèle chargé |
+
+Le tuple des 17 obligations humaines est fixé depuis les exigences, et non
+généré par réflexion sur les champs de production. Un test compare ensuite
+ce contrat indépendant au type et à ses défauts inhibants. Les commandes du
+double moteur, les tentatives de zéro et les ports preuve/inhibition/journal
+restent des collectes distinctes ; le double P5 ne s'arme ni ne confirme
+l'inhibition sur simple demande logicielle.
+
+**Fiabilité du harnais :** une interruption initiale a révélé que l'exception
+de borne murale dérivée d'`Exception` pouvait être absorbée par le métier.
+`CampaignTimeout` dérive maintenant de `KeyboardInterrupt` ; dépassement =
+arrêt explicite code 2, campagne inconclusive. Le test A-O12 injecte le handler
+dans la détection factice du vrai `FollowObjectSkill` : l'exception traverse
+son traitement métier et le nettoyage remet le zéro au double. Aucune attente
+réelle de 120 s ni ressource réelle utilisée pour cette injection.
+
+### 9.3 Chronologie des exécutions, y compris échecs
+
+Toutes les campagnes utilisent seulement les commandes de section 7 avec
+`-I -S`, après inspection du lanceur, des imports, des doubles et de la
+collecte. Aucune installation ni suite pytest globale.
+
+1. Nouveaux contre-exemples E1–E6 : première campagne interrompue manuellement.
+   Une formulation encore mal refusée atteignait le vrai skill objet avec une
+   horloge non remplacée ; la borne pouvait être absorbée. **Inconclusif :
+   aucun bilan final d'isolation exploitable**, pas un succès. Fixtures
+   corrigées avec horloge/attentes fictives explicites et borne non absorbable.
+2. Contre-exemples avant corrections métier : **142 tests, 9 échecs et
+   9 erreurs**, 2,710 s ; notamment admissions non refusées et `NameError`
+   du résolveur audio. Zéro accès interdit observé, zéro thread résiduel.
+3. E1–E6 corrigés : **142/142**, puis **148/148** après compléments ; sélection
+   historique **214 réussis, 7 désélectionnés**, contrats **4/4**.
+4. Après décision explicite sur les cibles inconnues : **161/161** cas du lot,
+   mais sélection historique **213 réussis, 1 échec, 7 désélectionnés** :
+   `test_parse_plan_spelled_distance_and_cm`, formulation `suivre la 2 minutes`.
+   Régression corrigée via le normaliseur français existant, sans changer
+   l'attendu historique ; deux cas explicites ajoutés. **163/163**, puis
+   **214 réussis, 7 désélectionnés** et **4/4**. Le contrôle ultérieur de la
+   borne dans le vrai skill factice conserve **163/163**, 4,505 s.
+5. Dernier contre-exemple E2 sur l'alias `follow_red_ball` :
+   **164 tests, 2 échecs**, 3,557 s, validation directe et sortie LLM brute.
+   L'alias pouvait ignorer `target_object=person` ; ajouté au contrôle commun
+   et à la validation du paramètre, sans ajuster les attendus pour faire passer
+   le cas. Zéro accès interdit observé, zéro thread résiduel.
+6. Série finale corrigée : tableau ci-dessous. Les campagnes intermédiaires
+   complètes ont leurs erreurs conservées ; la campagne interrompue n'est
+   jamais agrégée aux résultats finaux.
+
+Un **second nouvel export temporaire**, distinct de celui de la section 8,
+a été créé pour la comparaison finale : 91 blobs réguliers contrôlés contre
+le commit de référence, sans lien/sous-module, sources en lecture seule.
+Mêmes imports historiques inspectés, mêmes doubles et même lanceur corrigé,
+aucun ancien export supposé retrouvé. Les commandes comparatives autorisées
+ont été effectivement réexécutées sur cet export, ensuite nettoyé.
+
+| Version / campagne finale effectivement reproduite | Résultat |
+|---|---|
+| Version corrigée, `--stdlib` | 164 tests, OK |
+| Version corrigée, sélection historique ciblée | 214 passed, 7 deselected ; 14,64 s |
+| Version corrigée, `--legacy-stdlib` | 4 tests, OK ; 0,540 s |
+| Second export de référence, sélection historique ciblée | 214 passed, 7 deselected ; 8,32 s |
+| Second export de référence, `--legacy-stdlib` | 4 tests, OK ; 0,123 s |
+
+Chaque processus final : code 0, **zéro accès interdit observé, zéro thread
+résiduel**, trois sondes synthétiques refusées sans opération réelle.
+Les sept exclusions nommées en section 8.2 et le filtre
+`not warmup and not warm_up` sont inchangés. Aucun succès attribué au
+préchauffage exclu. Durées du harnais local seulement, pas des performances Pi.
+
+### 9.4 Douze oracles et cinq critères A6 réévalués
+
+Les effectifs sont un inventaire de scénarios, pas la justification du
+verdict à eux seuls. Les attendus sont issus du cadrage et vérifiés contre
+les sorties/ordres observés, notamment les contre-exemples de section 9.2.
+
+| Oracle | Cas finaux | Preuve et portée |
+|---|---:|---|
+| A-O1 | 39 | 17 conditions indépendantes, une par axe admission puis émission ; nominal, échéance, contrat des défauts, recul humain direct/temporisé refusé |
+| A-O2 | 11 | P5 absent/inconnu/périmé/incohérent/inhibé/en erreur inhibant, dates source inchangées à la lecture, frontières fictives |
+| A-O3 | 9 | L2 commun, façade sans délégation ni accès sous-jacent public, entrées internes/vitesse/restauration gardées, identifiants obsolètes et recontrôle avant émission |
+| A-O4 | 3 | Preuve changeante après cycle complet évalué, y compris repos ; cycle partiel/bloqué sans preuve, aucun générateur indépendant |
+| A-O5 | 8 | Startup/P6 au repos, demande d'inhibition, arrêts ordinaires sans inhibition abusive ; ports startup en erreur séparée ou simultanée |
+| A-O6 | 29 | Priorité 1, fin verrouillée, résultats/étapes/réessais invalidés ; permutations, concurrence, stop/échéance avant conditions bloquées, causes multiples conservées |
+| A-O7 | 5 | Observation inhibée puis armement postérieur et nouvelle demande ; première observation par transcription synchrone/worker refusée, demande retardée invalidée |
+| A-O8 | 2 | Réservation après worker terminé, même état utile à la reprise, identité de contexte renouvelée, échéance obligatoire inchangée, fin sans état humain hérité |
+| A-O9 | 38 | Refus humain intégral et cible inconnue sur texte/transcription/intention/plans/LLM factice, sans primitive/plan partiel ni repli objet ; assemblage live présent refusé avant import |
+| A-O10 | 11 | Balle/primitives/stop absente puis présente, garde de restauration, entrée ponctuelle audio factice et durées historiques ; compléments comparatifs du tableau 9.3 |
+| A-O11 | 4 | Erreurs ports/journal explicites, zéro tenté distinct de reçu, preuve/inhibition non fabriquées ; startup en panne couvert aussi par A-O5 |
+| A-O12 | 4 | Replays recalculés, ordre discriminant, observateur absent inconclusif, borne non absorbable par le métier ; bilans finaux d'isolation séparés |
+| Configuration | 1 | Valeurs de présence invalides et ports manquants refusés |
+
+Total **164**. L'observateur moteur ne lit pas le journal testé ; causes P5
+scriptées indépendantes des demandes. Un collecteur indisponible ou rendez-vous
+non observé échoue explicitement, pas une absence de mouvement déduite d'un
+silence. Cela ne qualifie pas l'OS, une instrumentation externe, toutes les
+pannes silencieuses ni toutes les chronologies concurrentes possibles.
+
+| Critère obligatoire | Réévaluation après corrections |
+|---|---|
+| A6.1 — socle, raccordements et garde unique | Satisfait dans la frontière logicielle déclarée : chemins L2/identifiants gardés ; E1/E3/E4/E5 corrigés avec scénarios discriminants |
+| A6.2 — douze oracles effectivement exécutés | Satisfait pour les obligations du lot : couverture ci-dessus, contre-exemples exécutés puis corrigés, aucun écart obligatoire connu ni observateur nécessaire indisponible dans la série finale |
+| A6.3 — non-régression absente puis présente | Satisfait dans la sélection convenue et les contrats exacts, comparaison de référence reproduite ; E6 corrigé, régression de durée et alias corrigés sans modifier les tests historiques |
+| A6.4 — refus réel, nominal uniquement factice | Satisfait dans les chemins éprouvés : E2 fermé, aucun adaptateur P5 réel ni commutateur live humain ; nominal humain uniquement à moteur et fournisseurs factices |
+| A6.5 — rapport vérifié et traçabilité | Satisfait pour le dossier technique : références, douze empreintes corrigées, liens, décisions préservées, erreurs et exclusions consignées ; validation explicite du dossier corrigé reçue et consignée en section 9.6 |
+
+Verdict motivé : **conforme dans le seul périmètre logiciel isolé éprouvé**,
+et non « 100 % sûr » ou SH-09 globalement achevé. Les limites de la grammaire
+testée ne constituent pas une réalisation complète de SH-07. Aucun critère
+obligatoire connu non résolu dans cette frontière ; toute découverte ultérieure
+oblige à réévaluer le verdict, pas à modifier les attendus pour le maintenir.
+
+### 9.5 Empreintes corrigées et contrôles documentaires
+
+SHA-256 des mêmes douze fichiers de code/harnais que la livraison.
+La table de section 7 reste **historique**, vérifiée avant corrections ; elle
+ne décrit plus les huit fichiers modifiés. Les quatre autres restent identiques.
+
+| Fichier | SHA-256 après corrections |
+|---|---|
+| `src/irobot/interfaces/protection.py` | `2e69b644ffceec5ecfa1d89d806ab2fdb983e368a3145892c6f31eca70c8fcd9` |
+| `src/irobot/interfaces/robot_controller.py` | `28009b61075a2db95a1c881cdccaee1b8e78a2f254b112ac559609bdaabfef9c` |
+| `src/irobot/interfaces/voice_runtime.py` | `feb0caad693641835350831b0fdf2b35876667e06c3d371e996164195fd94c78` |
+| `src/irobot/interfaces/language_controller.py` | `916f89a34357d80054bb8410509dde9680d85f17f13f35a7edc520c0884f134b` |
+| `src/irobot/interfaces/intent_parser.py` | `d793781de97f60ebf75458b0f59a410ae167b7e9a16172578f8bd177a6286f94` |
+| `src/irobot/interfaces/plan_guards.py` | `60804515f549dcdd07ddcf9144c9fd4cc5de7d840bbd5b3ab952dc91c2deae45` |
+| `src/irobot/interfaces/__init__.py` | `7b6da8aea7403808710e80aeed445084c3512a9074a144d755743d93c688a0af` |
+| `src/irobot/domain/orchestrator/executor.py` | `c248dbf857e601ed5e352e8e20b6d11e952a48fcb47e6309d3c1392baa071254` |
+| `src/irobot/config/settings.py` | `1403cd5dd55b7c6acffacdbd006ce18a129786534c252d465f469923106a9dc8` |
+| `tests/isolated/run_lot_a.py` | `b1cc91a1f8372ac886e2adcfa1a834b9ed18895a14fb2d9cea94df3aafc4a9a3` |
+| `tests/isolated/lot_a_cases.py` | `51e0f5415d15aea7a732c602064c75b7ba3378c1ecc44ce8a6cae8810e24d534` |
+| `tests/isolated/legacy_contract.py` | `20ec49c3495a72f04f296b1f76904d6c8a64e1b6c04f2023291876ec649860a8` |
+
+Contrôle final : empreintes recalculées ; liens de fichiers et nouvelles
+localisations de scénarios contrôlés ; syntaxe Python vérifiée sans imports
+supplémentaires ; `git diff --check` sans erreur. Aucun outil de typage/lint
+configuré ou installé pour cette revue. Section 1 du backlog, six sujets
+SH-02, cadrage A1–A6 et sept blocs détaillés SH-05 à SH-11 comparés à la
+référence et préservés intégralement. Tests historiques, script de gardes,
+driver SmartCar2WD et comportements balle inchangés.
+
+### 9.6 Limites maintenues et décision explicite
+
+Aucun matériel, GPIO, caméra, capteur, Bluetooth/audio réel, adaptateur P5
+réel, réseau, modèle/serveur réel, acquisition, mesure/charge Pi, installation,
+achat, manipulation matérielle ou essai moteur. Les sondes refusées ne sont
+pas des opérations de ressource ; les campagnes hors sélection restent
+**non exécutées**. Une campagne interrompue reste **inconclusive**.
+
+Arrêt demandé, tentative de zéro, zéro remis au double et inhibition attestée
+par double P5 sont distincts ; immobilisation physique **non mesurée**.
+SH-09 logiciel, SH-10 performances Pi, audio réel et propriétés physiques
+ne sont pas confondus. Paramètres simulés exclusivement fictifs ; aucun seuil,
+délai ni composant matériel inventé. Politique SH-08 inchangée : historique
+des échecs conservé, pas de clôture de campagne présumée ni purge associée.
+
+**Décision explicite reçue le 2026-10-30 avec l'outil de questions :**
+après présentation du verdict, des preuves et des limites, l'utilisateur a
+choisi **« Valider le dossier logiciel corrigé du lot A uniquement »**.
+Cette validation distincte de celle du constat et de l'autorisation de
+corriger est limitée au dossier logiciel isolé éprouvé ; elle ne choisit ni
+ne démarre une suite. SH-05/SH-09 non terminés globalement. P2/P3/P4/P5/P6 restent
+à réaliser et qualifier ; famille P6 non choisie, accès sûr solo non démontré,
+ni par proximité ni par audio. **Aucun Go mobile humain** : cette revue ne
+peut satisfaire les prérequis physiques manquants.
+
+Prochaine étape bornée seulement proposée : établir, à partir
+des acquis et sans les rouvrir, un relevé documentaire des dépendances encore
+ouvertes et des options de prochaine étape, puis choisir explicitement un seul
+périmètre autorisé. Ce relevé n'est pas commencé ; ni lot B, ni intégration
+matérielle, ni campagne Pi/audio supposés choisis.

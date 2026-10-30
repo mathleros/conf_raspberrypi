@@ -12,6 +12,8 @@ import re
 import unicodedata
 from typing import Any
 
+from irobot.interfaces.text_normalizer import fr_numbers_to_digits
+
 STOP_WORDS = {"stop", "arrete", "arrete-toi", "halte", "pause", "robot", "toi", "vite",
               "s", "il", "te", "plait", "attends", "attend"}
 
@@ -109,11 +111,76 @@ def requests_human_follow(text: str) -> bool:
     normalized = fold(text)
     return bool(re.search(
         r"\b(?:suis|suit|suivre|suivez|suivez moi|follow|track|poursuis|rejoins)\s+"
-        r"(?:(?:un|une|le|la|l|cet|cette|cette personne)\s+)?"
+        r"(?:(?!(?:balles?|balls?|objets?|objects?)\b)[a-z0-9]+\s+)*"
         r"(?:moi|nous|me|us|personne|humain|humaine|homme|femme|person|human|"
-        r"porteur|utilisateur|operateur|proprietaire|quelqu un)\b",
+        r"porteur|utilisateur|operateur|proprietaire|quelqu un|mari|ami|amie|enfant|"
+        r"wife|husband|child|children|friend)s?\b",
         normalized,
     )) or bool(re.search(r"\b(?:reprends|reprendre|reprenez)\s+(?:le\s+)?suivi\b", normalized))
+
+
+TARGET_COLOR_SYNONYMS = {
+    "jaune": "yellow", "yellow": "yellow", "balle jaune": "yellow", "yellow_ball": "yellow",
+    "rouge": "red", "red": "red", "balle rouge": "red", "red_ball": "red",
+}
+
+FOLLOW_INTENTS = {
+    "follow_object", "follow_red_ball", "follow", "track", "track_object",
+    "follow_target", "suivre", "suit",
+}
+
+
+def supported_follow_target(value: Any) -> bool:
+    return value is None or (
+        isinstance(value, str) and value.strip().lower() in TARGET_COLOR_SYNONYMS
+    )
+
+
+def follow_request_refusal(text: str) -> str | None:
+    if requests_human_follow(text):
+        return "human_capability_unavailable"
+    for segment in re.split(r"\b(?:puis|ensuite|then|and|et)\b", fold(text)):
+        follow = re.search(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis|rejoins)\b", segment)
+        if follow is None:
+            continue
+        target = segment[follow.end():].strip()
+        known = re.match(
+            r"(?:(?:la|le|les|un|une|des|l|the|a|an)\s+)?"
+            r"(?:(?:balles?|balls?|objets?|objects?)(?:\s+(?:jaune|rouge|yellow|red))?"
+            r"|(?:jaune|rouge|yellow|red)(?:\s+(?:balles?|balls?|objets?|objects?))?)\b"
+            r"|(?:la|le|les|l|it|them)\b",
+            target,
+        )
+        if known is None:
+            return "unsupported_follow_target"
+        suffix = target[known.end():].strip()
+        numeric_suffix = re.match(
+            r"\d+(?:[.,]\d+)?\s*(?:secondes?|seconds?|secs?|s|minutes?|mins?|cm|metres?|m)\b",
+            fold(fr_numbers_to_digits(suffix)),
+        )
+        if suffix and not numeric_suffix and not re.match(
+            r"(?:pendant|pour|durant|for|during|a|at|de|du|des|d|of|jusqu|until|quand|when|please|svp)\b",
+            suffix,
+        ):
+            return "unsupported_follow_target"
+    return None
+
+
+def contains_unsupported_follow_step(value: Any) -> bool:
+    if isinstance(value, dict):
+        names = {str(value.get(key, "")).strip().lower() for key in ("intent", "name", "action")}
+        if names & FOLLOW_INTENTS:
+            parameters = value.get("parameters")
+            if parameters is not None and not isinstance(parameters, dict):
+                return True
+            if not supported_follow_target(value.get("target")):
+                return True
+            if isinstance(parameters, dict) and not supported_follow_target(parameters.get("target_object")):
+                return True
+        return any(contains_unsupported_follow_step(item) for item in value.values())
+    if isinstance(value, list):
+        return any(contains_unsupported_follow_step(item) for item in value)
+    return False
 
 
 def contains_human_step(value: Any) -> bool:
@@ -163,7 +230,10 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
       (valeurs par défaut du prompt tolérées : duration 1 pour avance/recule, angle 90 pour tourne) ;
     - après nettoyage, avance/recule sans distance ni durée -> duration 1 ; tourne sans angle ni durée -> angle 90.
     """
-    if requests_human_follow(sent_text) or any(
+    refusal = follow_request_refusal(sent_text)
+    if refusal:
+        return [], refusal, []
+    if any(
         isinstance(step, dict) and (step.get("intent") or step.get("name")) in {
             "follow_person", "resume_follow_person",
         } for step in steps

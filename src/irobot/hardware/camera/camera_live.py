@@ -37,6 +37,9 @@ def main():
             cv2.imshow("Camera 1 - Live", rotated_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+    except KeyboardInterrupt:
+        print("\nDiagnostic interrompu par l'utilisateur.", flush=True)
+        return 130
     finally:
         picam2.stop()
         cv2.destroyAllWindows()

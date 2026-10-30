@@ -118,6 +118,9 @@ def main() -> int:
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
+    except KeyboardInterrupt:
+        print("\nDiagnostic interrompu par l'utilisateur.", flush=True)
+        return 130
     finally:
         try:
             if started:

@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-31. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A corrigé sur autorisation explicite ; conforme dans le seul périmètre logiciel isolé éprouvé, dossier logiciel corrigé validé explicitement par l'utilisateur**, voir [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire). Revue initiale non conforme conservée ; E1–E6 traités. Série finale reproduite : 164 cas du lot, 214 tests ciblés et quatre contrats ; comparaison de référence 214 et quatre, sept exclusions inchangées. Corrections persistantes non commitées ; validation limitée au dossier logiciel isolé, aucun lot suivant commencé. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
+Date de création : 2026-10-29. Mise à jour : 2026-10-31. **État courant :** SH-01 validé ; cadres SH-02 à SH-11 et décisions préservés. Le lot A reste conforme uniquement dans son périmètre logiciel isolé (détails et historique en [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire)). Blocs logiciels isolés ajoutés depuis : cycle/runtime protégé, frontière trame→observation et replay synthétique jusqu'au cycle/annonces (rapport, sections 10–14). Dernière campagne : 265 tests `--stdlib`, 315 réussis/7 désélectionnés/272 sous-tests et 4 contrats legacy ; aucun accès interdit ni thread résiduel. Ces résultats ne qualifient ni caméra, protections, Pi ou mouvement réel. SH-02/03/05/06/07/08/09/10/11 et leurs qualifications restent ouverts selon leurs critères ; aucun Go terrain ou suivi humain mobile.
 
 ## 1. Besoin et décision de cadrage
 
@@ -2613,3 +2613,39 @@ préservé ; SH-05/SH-09 non clos globalement, aucun lot B et aucun Go terrain.
 Les portes SH-02/SH-11 restent obligatoires. Suite proposée : replay de la
 frontière validée vers cycle/annonces, uniquement sur doubles, avec résultats
 en vol invalidés après suspension/stop/échéance, sans activation réelle.
+
+### Replay frontière → cycle et annonces — 2026-10-31
+
+Ajout d'une entrée structurée facultative `frame` + `provider` à
+`VoiceRuntime.advance_human_follow`. Le `HumanFollowRuntime` transmet le résultat
+de `HumanPerceptionProvider.observe` à `HumanMarkerAcquisition.observe_frame`,
+puis au cycle existant et à la préparation d'annonce, sans fournisseur concret
+ni branchement de production.
+
+Après le retour du fournisseur, le runtime réévalue l'état du contrôleur avant
+d'accepter l'observation. Si stop, suspension ou échéance survient pendant ce
+traitement, le résultat de la trame en vol est ignoré ; il ne valide pas
+l'acquisition et ne peut pas produire une annonce d'activation. Les tests
+synthétiques couvrent le parcours nominal jusqu'à l'annonce sans compléter
+celle-ci, ainsi que ces trois interruptions. Aucun mouvement non nul, caméra,
+audio, Pi ou matériel.
+
+Campagnes finales reproduites avec les trois commandes du protocole :
+
+| Campagne | Résultat |
+|---|---|
+| `--stdlib` | 265 tests réussis |
+| sélection contrôlée | 315 réussis, 7 désélectionnés, 272 sous-tests réussis |
+| `--legacy-stdlib` | 4 contrats réussis |
+
+Chaque processus : zéro accès interdit, zéro thread résiduel, trois sondes
+synthétiques refusées. `git diff --check` réussi. Les tests et bornes restent
+strictement logiciels et synthétiques ; le refus linguistique de production
+`follow_person` est inchangé. Aucun fournisseur concret, perception réelle,
+calibration, SH-06, qualification SH-02/03/10/11 ou Go physique. SH-05/SH-09
+ne sont pas clos globalement.
+
+Prochain bloc logiciel proposé : poursuivre SH-04 en définissant le contrat
+et l'adaptateur de fournisseur hors caméra, sans inventer de seuil ou de
+calibration de production ; traiter en parallèle la qualification SH-02/SH-03
+selon autorisations distinctes. Aucun essai mouvement/personne autorisé.

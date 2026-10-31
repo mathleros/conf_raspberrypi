@@ -10,7 +10,10 @@ from unittest.mock import patch
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.interfaces.human_follow_runtime import HumanFollowRequest
 from irobot.interfaces.human_lifecycle import HumanFollowPhase
-from irobot.interfaces.human_perception import MarkerObservation, MarkerQuality, ObservationDisposition
+from irobot.interfaces.human_perception import (
+    HumanPerceptionFrame, HumanPerceptionProvider, MarkerObservation,
+    MarkerQuality, ObservationDisposition,
+)
 from irobot.interfaces.protection import HumanConditions, ProtectionFault
 from irobot.interfaces import voice_runtime as vr
 from tests.isolated.lot_a_cases import (
@@ -78,6 +81,44 @@ class HumanFollowRuntimeTests(unittest.TestCase):
             quality=MarkerQuality(True, True),
         ), **changes)
 
+    def perception_frame(self):
+        self.frame += 1
+        now = self.rig.clock.now
+        return HumanPerceptionFrame(
+            "synthetic-camera", "synthetic-stream", self.frame, now, now, object(),
+        )
+
+    def perception_provider(self, *, entered=None, release=None):
+        class Provider:
+            def observe(_self, frame, *, context):
+                if entered is not None:
+                    entered.set()
+                    if not release.wait(2):
+                        raise AssertionError("Synthetic provider release timed out")
+                return MarkerObservation(
+                    source_id=frame.source_id,
+                    stream_generation=frame.stream_generation,
+                    frame_number=frame.frame_number,
+                    captured_at=frame.captured_at,
+                    published_at=frame.published_at,
+                    mission_id=context.mission_id,
+                    context_version=context.context_version,
+                    disposition=ObservationDisposition.VALID,
+                    identity=context.identity,
+                    image_width_px=640,
+                    image_height_px=480,
+                    center_x_px=320.0,
+                    center_y_px=240.0,
+                    bearing_deg=0.0,
+                    optical_distance_cm=160.0,
+                    robot_clearance_cm=150.0,
+                    calibration_version="synthetic-calibration",
+                    quality=MarkerQuality(True, True),
+                )
+
+        provider: HumanPerceptionProvider = Provider()
+        return provider
+
     def acquire(self):
         for _ in range(3):
             self.step()
@@ -91,6 +132,87 @@ class HumanFollowRuntimeTests(unittest.TestCase):
         result = self.runtime.advance_human_follow(completed_announcement=announcement.token)
         self.assertEqual(result["status"], "active")
         return self.runtime.human_follow_snapshot
+
+    def test_frame_provider_replay_reaches_acquisition_and_announcement_without_motion(self):
+        self.prepare()
+        provider = self.perception_provider()
+        for index in range(3):
+            self.step()
+            result = self.runtime.advance_human_follow(
+                frame=self.perception_frame(), provider=provider,
+            )
+            self.assertEqual(
+                result["status"], "acquired" if index == 2 else "acquiring",
+            )
+
+        self.assertEqual(self.runtime.human_follow_snapshot.phase, HumanFollowPhase.ACQUIRED)
+        self.assertEqual(self.runtime.pending_human_announcement.template, "activate")
+        assessed = [event for event in self.rig.witness.journal
+                    if event.get("event") == "observation_assessed"]
+        self.assertEqual(len(assessed), 3)
+        self.assertFalse(any(event.get("event") == "activated"
+                             for event in self.rig.witness.journal))
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_in_flight_frame_result_is_invalidated_by_suspend_stop_or_deadline(self):
+        for interruption in ("suspend", "stop", "deadline"):
+            with self.subTest(interruption=interruption):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                self.frame = 0
+                self.activate()
+                frame = self.perception_frame()
+                entered = threading.Event()
+                release = threading.Event()
+                provider = self.perception_provider(entered=entered, release=release)
+                results = []
+                errors = []
+
+                def replay():
+                    try:
+                        results.append(self.runtime.advance_human_follow(
+                            frame=frame, provider=provider,
+                        ))
+                    except Exception as exc:
+                        errors.append(exc)
+
+                thread = threading.Thread(target=replay)
+                thread.start()
+                try:
+                    self.assertTrue(entered.wait(2), "Synthetic provider did not start")
+                    if interruption == "suspend":
+                        self.rig.robot.supervise(events=("obstacle",), defer_proof=True)
+                    elif interruption == "stop":
+                        stop_result = self.runtime.handle_text_as_plan("stop")
+                        self.assertEqual(stop_result["reason"], "mission_reserved")
+                        self.assertEqual(self.rig.motor.commands[-1], "stop")
+                    else:
+                        self.rig.clock.now = self.rig.robot.reservation.deadline
+                        self.rig.p5.refresh()
+                finally:
+                    release.set()
+                    thread.join(8)
+
+                self.assertFalse(thread.is_alive(), "Synthetic replay thread did not terminate")
+                self.assertEqual(errors, [])
+                self.assertEqual(len(results), 1)
+                assessed_frames = [
+                    event.get("frame") for event in self.rig.witness.journal
+                    if event.get("event") == "observation_assessed"
+                ]
+                self.assertNotIn(frame.frame_number, assessed_frames)
+                self.assertFalse(nonzero(self.rig.motor))
+                if interruption == "suspend":
+                    self.assertEqual(results[0]["status"], "suspended")
+                    self.assertEqual(
+                        self.runtime.human_follow_snapshot.phase, HumanFollowPhase.SUSPENDED,
+                    )
+                    self.assertEqual(self.runtime.pending_human_announcement.template, "suspended")
+                else:
+                    self.assertEqual(results[0]["status"], "available")
+                    self.assertIsNone(self.runtime.human_follow_snapshot)
+                    self.assertIsNone(self.rig.robot.reservation)
 
     def test_reserves_before_acquisition_with_no_mission_deadline_or_output(self):
         result = self.prepare()

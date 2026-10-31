@@ -1364,3 +1364,62 @@ jusqu'au cycle humain et à ses annonces, sous doubles uniquement, avec
 invalidation de résultats en vol après suspension/stop/échéance ; conserver
 le refus réel. Fournisseur/calibration et décisions de qualification restent
 bloquants avant toute intégration réelle.
+
+## 14. Replay synthétique frontière → cycle et annonces (2026-10-31)
+
+### Réalisation
+
+`VoiceRuntime.advance_human_follow` accepte maintenant, comme entrée
+structurée facultative, une `HumanPerceptionFrame` et un
+`HumanPerceptionProvider`. Le `HumanFollowRuntime` appelle le fournisseur avec
+le contexte de mission courant, valide la provenance du résultat au moyen de
+`HumanMarkerAcquisition.observe_frame`, puis transmet l'évaluation au cycle
+existant. Une seule des deux formes d'entrée (observation préconstruite ou
+trame + fournisseur) peut être utilisée à la fois.
+
+Le runtime réévalue le contrôleur après le retour du fournisseur et avant
+d'accepter le résultat. Une suspension, un stop ou l'échéance qui survient
+pendant l'appel invalide donc la trame en vol ; aucun état d'acquisition ou
+message d'activation ne découle de ce résultat. Les erreurs de type ou de
+provenance restent explicites. Le refus de production `follow_person` n'est pas
+modifié et aucun fournisseur caméra concret n'est ajouté.
+
+### Replays et preuves
+
+Les nouveaux tests, dans
+[test_human_follow_runtime.py](../../tests/unit/test_human_follow_runtime.py),
+utilisent uniquement un fournisseur, une identité, une géométrie, des dates et
+des sorties synthétiques. Ils couvrent :
+
+- trois observations via `observe_frame` jusqu'à l'état acquis et l'annonce
+  structurée, sans compléter l'annonce ni émettre de mouvement ;
+- résultat en vol ignoré après suspension, stop d'urgence ou échéance ;
+- absence d'évaluation/journalisation de la trame invalidée, nettoyage/état de
+  session attendu, et zéro commande moteur non nulle.
+
+Résultats finaux reproduits localement avec les trois commandes exactes de la
+[campagne isolée](../../docs/test-campaign/lot-a-campagne-strictement-isolee.md) :
+
+| Campagne | Résultat |
+|---|---|
+| `--stdlib` | 265 tests réussis |
+| sélection contrôlée | 315 réussis, 7 désélectionnés, 272 sous-tests réussis |
+| `--legacy-stdlib` | 4 contrats réussis |
+
+Chaque processus : code 0, zéro accès interdit, zéro thread résiduel, trois
+sondes synthétiques refusées. `git diff --check` réussi. Aucun pytest global,
+Pi, réseau, caméra, audio réel, GPIO, moteur réel ou personne. Aucun commit.
+
+### Limites et suite
+
+Ce replay prouve uniquement le raccordement logiciel sur doubles ; l'activation
+de phase dans d'autres tests reste une transition logique sans actionneur réel.
+Aucune qualification SH-02/03/10/11, calibration, distance ou mesure réelle
+n'en découle. Aucun fournisseur concret, perception live ou loi SH-06 n'est
+livré ; SH-05/SH-09 ne sont pas clos globalement et `follow_person` reste refusé
+sur le parcours linguistique de production.
+
+Prochain bloc logiciel proposé : poursuivre SH-04 vers le contrat d'un
+fournisseur de perception non matériel et son raccordement au runtime, seulement
+avec les données qualifiées disponibles ; les essais optiques/Pi demeurent des
+campagnes distinctes soumises à préconditions et autorisations propres.

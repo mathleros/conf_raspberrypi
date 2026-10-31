@@ -147,3 +147,24 @@ intermédiaire corrigée et les limites sont conservés au
 [rapport, section 13](../../specs/backlog/08_lot_a_rapport_sh09.md#13-frontière-logicielle-trame--observation-2026-10-31).
 Le résultat Pi reste rapporté, non reproduit indépendamment. Aucun fournisseur
 concret ni raccordement caméra/runtime, aucun Go terrain ou clôture globale.
+
+### Replay synthétique vers le cycle humain — 2026-10-31
+
+Dernière campagne locale après raccordement de `observe_frame` au
+`HumanFollowRuntime` et aux annonces structurées :
+
+| Campagne | Résultat |
+|---|---|
+| `--stdlib` | 265 tests réussis |
+| sélection contrôlée | 315 réussis, 7 désélectionnés, 272 sous-tests réussis |
+| `--legacy-stdlib` | 4 contrats réussis |
+
+Chaque processus : code 0, zéro accès interdit, zéro thread résiduel, trois
+sondes synthétiques refusées. Tests exclusivement sur doubles : parcours trame
+→ acquisition → annonce ; résultats en vol invalidés après suspension, stop et
+échéance. Aucun moteur non nul, caméra, audio réel, Pi, GPIO ou personne.
+`follow_person` reste refusé par le parcours linguistique de production.
+
+Voir le [rapport SH-09, section 14](../../specs/backlog/08_lot_a_rapport_sh09.md#14-replay-synthétique-frontière--cycle-et-annonces-2026-10-31).
+Cette campagne logicielle ne qualifie ni fournisseur réel, perception optique,
+calibration, protection matérielle ni autorisation de mouvement.

@@ -13,7 +13,8 @@ from irobot.interfaces.human_lifecycle import (
 )
 from irobot.interfaces.human_perception import (
     AcquisitionAssessment, AcquisitionStatus, HumanMarkerAcquisition,
-    HumanMarkerMissionContext, MarkerObservation,
+    HumanMarkerMissionContext, HumanPerceptionFrame,
+    HumanPerceptionProvider, MarkerObservation,
 )
 from irobot.interfaces.protection import (
     DecisionJournal, HumanConditions, ProtectionFault,
@@ -246,11 +247,21 @@ class HumanFollowRuntime:
     def cycle(
         self, *, events: tuple[str, ...] = (),
         observation: MarkerObservation | None = None,
+        frame: HumanPerceptionFrame | None = None,
+        provider: HumanPerceptionProvider | None = None,
         completed_announcement: str | None = None,
     ) -> HumanFollowSnapshot:
+        if (frame is None) != (provider is None):
+            raise ValueError("A perception frame and provider must be supplied together")
+        if frame is not None and not isinstance(frame, HumanPerceptionFrame):
+            raise TypeError("Human runtime requires a structured perception frame")
+        if provider is not None and not callable(getattr(provider, "observe", None)):
+            raise TypeError("Human runtime requires a structured perception provider")
+        if observation is not None and frame is not None:
+            raise ValueError("Supply either a marker observation or a perception frame")
         try:
             self._cycle(
-                events=events, observation=observation,
+                events=events, observation=observation, frame=frame, provider=provider,
                 completed_announcement=completed_announcement,
             )
             self.robot.supervise(evaluate=self._sync)
@@ -264,6 +275,8 @@ class HumanFollowRuntime:
     def _cycle(
         self, *, events: tuple[str, ...],
         observation: MarkerObservation | None,
+        frame: HumanPerceptionFrame | None,
+        provider: HumanPerceptionProvider | None,
         completed_announcement: str | None,
     ) -> HumanFollowSnapshot:
         if self.snapshot.context is None:
@@ -297,12 +310,33 @@ class HumanFollowRuntime:
             self._sync()
             self._write("announcement_failed", reason="announcement_timeout")
             return self.snapshot
+        assessed: AcquisitionAssessment | None = None
+        if frame is not None and self.snapshot.phase is not HumanFollowPhase.SUSPENDED:
+            context = self.snapshot.context
+            acquisition = self._acquisition
+            if context is None or acquisition is None or provider is None:
+                raise ProtectionFault("no_human_acquisition")
+            observation = provider.observe(frame, context=context)
+
+            # A stop, suspension or deadline may win while the provider processes
+            # the frame. Re-evaluate the controller before accepting its result.
+            self.robot.supervise(defer_proof=True)
+            self._sync()
+            if (self.snapshot.context != context
+                    or self.snapshot.phase is HumanFollowPhase.SUSPENDED
+                    or acquisition is not self._acquisition):
+                return self.snapshot
+            now = self.robot.time_fn()
+            assessed = acquisition.observe_frame(frame, observation, now=now)
         if observation is not None and self.snapshot.phase is not HumanFollowPhase.SUSPENDED:
             if self._acquisition is None:
                 raise ProtectionFault("no_human_acquisition")
             if not isinstance(observation, MarkerObservation):
                 raise TypeError("Human runtime requires a structured marker observation")
-            self._assessment = self._acquisition.observe(observation, now=now)
+            self._assessment = (
+                assessed if assessed is not None
+                else self._acquisition.observe(observation, now=now)
+            )
             self._observation = observation
             self._write(
                 "observation_assessed", reason=self._assessment.reason.value,

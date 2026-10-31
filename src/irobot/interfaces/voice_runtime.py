@@ -35,7 +35,9 @@ from irobot.interfaces.human_follow_runtime import (
     HumanAnnouncement, HumanFollowRequest, HumanFollowRuntime,
 )
 from irobot.interfaces.human_lifecycle import HumanFollowSnapshot
-from irobot.interfaces.human_perception import MarkerObservation
+from irobot.interfaces.human_perception import (
+    HumanPerceptionFrame, HumanPerceptionProvider, MarkerObservation,
+)
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import (
     build_formats, grounding_check, is_pure_stop, fold, contains_human_step,
@@ -1270,6 +1272,8 @@ class VoiceRuntime:
     def advance_human_follow(
         self, *, events: tuple[str, ...] = (),
         observation: MarkerObservation | None = None,
+        frame: HumanPerceptionFrame | None = None,
+        provider: HumanPerceptionProvider | None = None,
         completed_announcement: str | None = None,
         holding: bool | None = None,
     ) -> dict[str, Any]:
@@ -1281,7 +1285,7 @@ class VoiceRuntime:
             return {"status": "rejected", "reason": "mission_reserved"}
         try:
             snapshot = self._human_follow.cycle(
-                events=events, observation=observation,
+                events=events, observation=observation, frame=frame, provider=provider,
                 completed_announcement=completed_announcement,
             )
             if holding is True:

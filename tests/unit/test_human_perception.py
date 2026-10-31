@@ -13,11 +13,14 @@ from irobot.interfaces.human_perception import (
     AcquisitionStatus,
     HumanMarkerMissionContext,
     HumanMarkerAcquisition,
+    HumanPerceptionFrame,
+    HumanPerceptionProvider,
     MarkerIdentity,
     MarkerObservation,
     MarkerQuality,
     OpenCVArucoMarkerDecoder,
     ObservationDisposition,
+    validate_marker_observation,
 )
 
 
@@ -47,6 +50,384 @@ class FakeArucoApi:
         if dictionary != ("dictionary", self.DICT_4X4_50) or parameters != "parameters":
             raise AssertionError("Unexpected ArUco API configuration")
         return self.detector
+
+
+class SyntheticHumanPerceptionProvider:
+    """Only fictional pixels, geometry, calibration and simulated timestamps."""
+
+    def __init__(self, **changes: object) -> None:
+        self.changes = changes
+
+    def observe(
+        self, frame: HumanPerceptionFrame, *, context: HumanMarkerMissionContext,
+    ) -> MarkerObservation:
+        return replace(MarkerObservation(
+            source_id=frame.source_id,
+            stream_generation=frame.stream_generation,
+            frame_number=frame.frame_number,
+            captured_at=frame.captured_at,
+            published_at=frame.published_at,
+            mission_id=context.mission_id,
+            context_version=context.context_version,
+            disposition=ObservationDisposition.VALID,
+            identity=context.identity,
+            image_width_px=100,
+            image_height_px=100,
+            center_x_px=50.0,
+            center_y_px=50.0,
+            bearing_deg=0.0,
+            optical_distance_cm=12.0,
+            robot_clearance_cm=10.0,
+            calibration_version="fictional-calibration",
+            quality=MarkerQuality(True, True),
+        ), **self.changes)
+
+
+class HumanPerceptionBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.context = HumanMarkerMissionContext(
+            "synthetic-mission", "synthetic-context",
+            MarkerIdentity("fictional-family", "fictional-dictionary", "fictional-id"),
+        )
+        self.provider: HumanPerceptionProvider = SyntheticHumanPerceptionProvider()
+        self.acquisition = self.context.new_acquisition(max_age_seconds=0.2)
+
+    @staticmethod
+    def frame(number: int = 1, captured: float = 0.0, **changes) -> HumanPerceptionFrame:
+        return replace(HumanPerceptionFrame(
+            "synthetic-source", "synthetic-stream", number, captured, captured, object(),
+        ), **changes)
+
+    def result(self, frame: HumanPerceptionFrame, **changes) -> MarkerObservation:
+        provider: HumanPerceptionProvider = SyntheticHumanPerceptionProvider(**changes)
+        return provider.observe(frame, context=self.context)
+
+    def assess(self, number: int, captured: float, **changes):
+        frame = self.frame(number, captured)
+        return self.acquisition.observe_frame(
+            frame, self.result(frame, **changes), now=captured,
+        )
+
+    def test_nominal_result_is_returned_unchanged_without_inspecting_opaque_pixels(self):
+        frame = self.frame(captured=1.0, published_at=1.1)
+        pixels = frame.image
+        observation = self.provider.observe(frame, context=self.context)
+        validated = validate_marker_observation(
+            frame, observation, context=self.context, now=1.1,
+        )
+        self.assertIs(validated, observation)
+        self.assertEqual((validated.captured_at, validated.published_at), (1.0, 1.1))
+        self.assertIs(frame.image, pixels)
+
+    def test_result_must_match_each_frame_and_context_coordinate(self):
+        frame = self.frame(7, 1.0, published_at=1.1)
+        changes = (
+            ("source_id", "another-source"),
+            ("stream_generation", "old-stream"),
+            ("frame_number", 6),
+            ("captured_at", 1.05),
+            ("mission_id", "another-mission"),
+            ("context_version", "obsolete-context"),
+            ("identity", MarkerIdentity("other", "other", "other")),
+        )
+        for name, value in changes:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, name):
+                    validate_marker_observation(
+                        frame, self.result(frame, **{name: value}),
+                        context=self.context, now=1.2,
+                    )
+
+    def test_frame_and_result_publications_are_distinct_with_inclusive_ordering(self):
+        frame = self.frame(captured=1.0, published_at=1.1)
+        for published in (1.1, 1.2):
+            with self.subTest(published=published):
+                observation = self.result(frame, published_at=published)
+                self.assertIs(validate_marker_observation(
+                    frame, observation, context=self.context, now=1.2,
+                ), observation)
+                self.assertEqual(observation.captured_at, 1.0)
+        for published in (0.9, 1.05, 1.200001):
+            with self.subTest(published=published):
+                with self.assertRaisesRegex(ValueError, "publication|timestamps"):
+                    validate_marker_observation(
+                        frame, self.result(frame, published_at=published),
+                        context=self.context, now=1.2,
+                    )
+
+    def test_invalid_frame_or_result_coordinates_and_timestamps_are_explicit_errors(self):
+        frame = self.frame(captured=1.0)
+        malformed = (
+            ("source_id", ""), ("source_id", None), ("source_id", True),
+            ("stream_generation", ""), ("stream_generation", 1),
+            ("frame_number", True), ("frame_number", -1), ("frame_number", 1.0),
+            ("frame_number", "1"),
+        )
+        bad_times = (None, True, "1", float("nan"), float("inf"), -float("inf"), 10**1000)
+        malformed += tuple(
+            (name, value) for name in ("captured_at", "published_at") for value in bad_times
+        )
+        for name, value in malformed:
+            for target in ("frame", "result"):
+                with self.subTest(name=name, value=value, target=target):
+                    candidate = replace(frame, **{name: value}) if target == "frame" else frame
+                    observation = self.result(frame, **{name: value}) if target == "result" else self.result(frame)
+                    with self.assertRaises(ValueError):
+                        validate_marker_observation(
+                            candidate, observation, context=self.context, now=1.0,
+                        )
+        for now in (*bad_times, 0.999999):
+            with self.subTest(now=now):
+                with self.assertRaisesRegex(ValueError, "timestamps"):
+                    validate_marker_observation(
+                        frame, self.result(frame), context=self.context, now=now,
+                    )
+        for changes in (
+            {"captured_at": 1.1}, {"published_at": 0.9}, {"published_at": 1.1},
+        ):
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(ValueError, "timestamps"):
+                    validate_marker_observation(
+                        replace(frame, **changes), self.result(frame),
+                        context=self.context, now=1.0,
+                    )
+
+    def test_wrong_outer_types_and_malformed_producer_returns_have_no_fallback(self):
+        frame = self.frame()
+        observation = self.result(frame)
+        for malformed in (None, {}, (), "valid", object()):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(TypeError):
+                    validate_marker_observation(
+                        malformed, observation, context=self.context, now=0.0,
+                    )
+                with self.assertRaises(TypeError):
+                    validate_marker_observation(
+                        frame, observation, context=malformed, now=0.0,
+                    )
+                with patch.object(self.provider, "observe", return_value=malformed):
+                    returned = self.provider.observe(frame, context=self.context)
+                self.acquisition.reset()
+                for n in range(1, 4):
+                    self.assess(n, n * 0.01)
+                next_frame = self.frame(4, 0.04)
+                with self.assertRaisesRegex(TypeError, "MarkerObservation"):
+                    self.acquisition.observe_frame(next_frame, returned, now=0.04)
+                fresh = self.acquisition.observe_frame(
+                    next_frame, self.result(next_frame), now=0.04,
+                )
+                self.assertEqual(
+                    (fresh.status, fresh.confirmations), (AcquisitionStatus.CONFIRMING, 1),
+                )
+
+    def test_malformed_optional_result_fields_and_dispositions_are_not_repaired(self):
+        frame = self.frame()
+        changes = (
+            {"mission_id": None}, {"context_version": True},
+            {"disposition": "valid"}, {"disposition": []}, {"disposition": {}},
+            {"disposition": None}, {"identity": "fictional-id"},
+            {"quality": {}}, {"quality": MarkerQuality(1, True)},
+            {"quality": MarkerQuality(True, 1)},
+            {"reason": {}}, {"calibration_version": 1},
+        )
+        changes += tuple(
+            {name: value}
+            for name in ("image_width_px", "image_height_px")
+            for value in (True, "100", 100.0)
+        )
+        changes += tuple(
+            {name: value}
+            for name in ("center_x_px", "center_y_px", "bearing_deg",
+                         "optical_distance_cm", "robot_clearance_cm")
+            for value in (True, "10", float("nan"), float("inf"), 10**1000)
+        )
+        changes += tuple(
+            {"quality": replace(MarkerQuality(True, True), **{name: value})}
+            for name in ("blur_metric", "reprojection_error_px", "obliqueness_deg")
+            for value in (True, "0", float("nan"), float("inf"))
+        )
+        for change in changes:
+            with self.subTest(change=change):
+                with self.assertRaises(ValueError):
+                    validate_marker_observation(
+                        frame, self.result(frame, **change), context=self.context, now=0.0,
+                    )
+
+    def test_no_geometry_or_identity_is_invented_to_make_a_result_acquirable(self):
+        for changes, expected in (
+            ({"quality": None}, AcquisitionReason.GEOMETRY_INVALID),
+            ({"robot_clearance_cm": None}, AcquisitionReason.GEOMETRY_INVALID),
+            ({"identity": None}, AcquisitionReason.IDENTITY_MISMATCH),
+            ({"image_width_px": 0}, AcquisitionReason.GEOMETRY_INVALID),
+        ):
+            with self.subTest(changes=changes):
+                self.acquisition.reset()
+                frame = self.frame()
+                observation = self.result(frame, **changes)
+                self.assertIs(validate_marker_observation(
+                    frame, observation, context=self.context, now=0.0,
+                ), observation)
+                assessment = self.acquisition.observe_frame(frame, observation, now=0.0)
+                self.assertEqual(
+                    (assessment.status, assessment.reason, assessment.confirmations),
+                    (AcquisitionStatus.REJECTED, expected, 0),
+                )
+
+    def test_three_distinct_fresh_confirmations_and_boundary_of_oldest_capture(self):
+        for final_capture, counts, states in (
+            (0.2, (1, 2, 3), (AcquisitionStatus.CONFIRMING,
+                             AcquisitionStatus.CONFIRMING, AcquisitionStatus.ACQUIRED)),
+            (0.200001, (1, 2, 2), (AcquisitionStatus.CONFIRMING,) * 3),
+        ):
+            with self.subTest(final_capture=final_capture):
+                self.acquisition.reset()
+                actual = [self.assess(n, captured)
+                          for n, captured in enumerate((0.0, 0.1, final_capture), 1)]
+                self.assertEqual(tuple(result.confirmations for result in actual), counts)
+                self.assertEqual(tuple(result.status for result in actual), states)
+                if final_capture > 0.2:
+                    next_result = self.assess(4, 0.21)
+                    self.assertEqual(
+                        (next_result.status, next_result.confirmations),
+                        (AcquisitionStatus.ACQUIRED, 3),
+                    )
+
+    def test_delayed_return_uses_original_capture_and_decision_time_for_all_confirmations(self):
+        for returned_at, expected in (
+            (0.2, (AcquisitionStatus.ACQUIRED, 3)),
+            (0.21, (AcquisitionStatus.CONFIRMING, 2)),
+            (0.400001, (AcquisitionStatus.REJECTED, 0)),
+        ):
+            with self.subTest(returned_at=returned_at):
+                self.acquisition.reset()
+                self.assess(1, 0.0)
+                self.assess(2, 0.1)
+                frame = self.frame(3, 0.2)
+                observation = self.result(frame, published_at=returned_at)
+                actual = self.acquisition.observe_frame(frame, observation, now=returned_at)
+                self.assertEqual((actual.status, actual.confirmations), expected)
+                self.assertEqual(observation.captured_at, 0.2)
+                if returned_at > 0.4:
+                    self.assertEqual(actual.reason, AcquisitionReason.STALE)
+
+    def test_old_capture_is_not_refreshed_by_new_publication(self):
+        for now, expected in ((1.2, AcquisitionStatus.CONFIRMING),
+                              (1.200001, AcquisitionStatus.REJECTED)):
+            with self.subTest(now=now):
+                self.acquisition.reset()
+                frame = self.frame(captured=1.0, published_at=1.1)
+                observation = self.result(frame, published_at=now)
+                assessment = self.acquisition.observe_frame(frame, observation, now=now)
+                self.assertEqual(assessment.status, expected)
+                if expected is AcquisitionStatus.REJECTED:
+                    self.assertEqual(assessment.reason, AcquisitionReason.STALE)
+
+    def test_repeated_and_out_of_order_returns_do_not_count_as_new_confirmations(self):
+        self.assess(1, 0.0)
+        frame = self.frame(1, 0.0)
+        repeated = self.acquisition.observe_frame(
+            frame, self.result(frame, published_at=0.01), now=0.01,
+        )
+        self.assertEqual(
+            (repeated.reason, repeated.confirmations), (AcquisitionReason.DUPLICATE_FRAME, 0),
+        )
+        self.assertEqual(self.assess(2, 0.02).confirmations, 1)
+        old = self.acquisition.observe_frame(frame, self.result(frame), now=0.03)
+        self.assertEqual(
+            (old.reason, old.confirmations), (AcquisitionReason.FRAME_OUT_OF_ORDER, 0),
+        )
+        gap = self.assess(4, 0.04)
+        self.assertEqual((gap.reason, gap.confirmations), (AcquisitionReason.FRAME_GAP, 0))
+
+    def test_matching_results_from_changed_or_old_streams_invalidate_acquisition(self):
+        for coordinate in ("source_id", "stream_generation"):
+            with self.subTest(coordinate=coordinate):
+                self.acquisition.reset()
+                for n in range(1, 4):
+                    self.assess(n, n * 0.01)
+                frame = self.frame(4, 0.04, **{coordinate: "new-stream-coordinate"})
+                changed = self.acquisition.observe_frame(frame, self.result(frame), now=0.04)
+                self.assertEqual(
+                    (changed.reason, changed.confirmations), (AcquisitionReason.STREAM_CHANGED, 0),
+                )
+                next_frame = self.frame(5, 0.05, **{coordinate: "new-stream-coordinate"})
+                confirming = self.acquisition.observe_frame(next_frame, self.result(next_frame), now=0.05)
+                self.assertEqual(
+                    (confirming.status, confirming.confirmations), (AcquisitionStatus.CONFIRMING, 1),
+                )
+                old = self.assess(6, 0.06)
+                self.assertEqual(
+                    (old.reason, old.confirmations), (AcquisitionReason.STREAM_CHANGED, 0),
+                )
+
+    def test_all_negative_dispositions_pass_to_acquisition_with_explicit_reasons(self):
+        for disposition, reason in (
+            (ObservationDisposition.ABSENT, AcquisitionReason.OBSERVATION_ABSENT),
+            (ObservationDisposition.AMBIGUOUS, AcquisitionReason.OBSERVATION_AMBIGUOUS),
+            (ObservationDisposition.REJECTED, AcquisitionReason.OBSERVATION_REJECTED),
+            (ObservationDisposition.FAULT, AcquisitionReason.PERCEPTION_FAULT),
+            (ObservationDisposition.STALE, AcquisitionReason.STALE),
+        ):
+            with self.subTest(disposition=disposition):
+                self.acquisition.reset()
+                for n in range(1, 4):
+                    self.assess(n, n * 0.01)
+                actual = self.assess(
+                    4, 0.04, disposition=disposition, reason="synthetic-negative",
+                    identity=None, quality=None, robot_clearance_cm=None,
+                )
+                self.assertEqual(
+                    (actual.status, actual.reason, actual.confirmations, actual.detail),
+                    (AcquisitionStatus.REJECTED, reason, 0, "synthetic-negative"),
+                )
+                fresh = self.assess(5, 0.05)
+                self.assertEqual(
+                    (fresh.status, fresh.confirmations), (AcquisitionStatus.CONFIRMING, 1),
+                )
+
+    def test_boundary_errors_clear_confirmations_and_acquired_continuity(self):
+        for changes in (
+            {"source_id": "other-source"}, {"context_version": "old-context"},
+            {"frame_number": 3}, {"captured_at": 0.035}, {"disposition": []},
+        ):
+            with self.subTest(changes=changes):
+                self.acquisition.reset()
+                for n in range(1, 4):
+                    self.assess(n, n * 0.01)
+                frame = self.frame(4, 0.04)
+                with self.assertRaises(ValueError):
+                    self.acquisition.observe_frame(frame, self.result(frame, **changes), now=0.04)
+                fresh = self.acquisition.observe_frame(frame, self.result(frame), now=0.04)
+                self.assertEqual(
+                    (fresh.status, fresh.confirmations), (AcquisitionStatus.CONFIRMING, 1),
+                )
+                self.assertEqual(self.assess(5, 0.05).confirmations, 2)
+                self.assertEqual(self.assess(6, 0.06).status, AcquisitionStatus.ACQUIRED)
+
+    def test_valid_fresh_continuity_remains_acquired_after_initial_captures_expire(self):
+        for n in range(1, 4):
+            self.assess(n, n * 0.01)
+        for n, captured in ((4, 0.2), (5, 0.4), (6, 0.6)):
+            actual = self.assess(n, captured)
+            self.assertEqual(
+                (actual.status, actual.reason, actual.confirmations),
+                (AcquisitionStatus.ACQUIRED, AcquisitionReason.ACQUIRED, 3),
+            )
+
+    def test_delayed_result_for_previous_context_cannot_confirm_a_new_acquisition(self):
+        frame = self.frame(captured=1.0)
+        delayed = self.result(frame, published_at=1.1)
+        resumed = replace(self.context, context_version="resumed-context")
+        acquisition = resumed.new_acquisition(max_age_seconds=0.2)
+        with self.assertRaisesRegex(ValueError, "context_version"):
+            validate_marker_observation(frame, delayed, context=resumed, now=1.1)
+        with self.assertRaisesRegex(ValueError, "context_version"):
+            acquisition.observe_frame(frame, delayed, now=1.1)
+        fresh = self.provider.observe(frame, context=resumed)
+        assessment = acquisition.observe_frame(frame, fresh, now=1.1)
+        self.assertEqual(
+            (assessment.status, assessment.confirmations), (AcquisitionStatus.CONFIRMING, 1),
+        )
 
 
 class HumanMarkerAcquisitionTests(unittest.TestCase):
@@ -211,6 +592,21 @@ class HumanMarkerAcquisitionTests(unittest.TestCase):
         self.assertEqual(invalid.detail, "multiple_configured_markers")
         next_frame = self.acquisition.observe(self.observation(3), now=0.04)
         self.assertEqual(next_frame.confirmations, 1)
+
+    def test_malformed_dispositions_are_explicit_rejections_and_clear_confirmations(self):
+        for disposition in ("absent", [], {}, None, True):
+            with self.subTest(disposition=disposition):
+                self.acquisition.reset()
+                self.acquisition.observe(self.observation(1), now=0.02)
+                result = self.acquisition.observe(
+                    self.observation(2, disposition=disposition), now=0.03,
+                )
+                self.assertEqual(
+                    (result.status, result.reason, result.confirmations),
+                    (AcquisitionStatus.REJECTED, AcquisitionReason.OBSERVATION_REJECTED, 0),
+                )
+                fresh = self.acquisition.observe(self.observation(3), now=0.04)
+                self.assertEqual(fresh.confirmations, 1)
 
     def test_explicit_stale_disposition_is_not_treated_as_absence(self):
         result = self.acquisition.observe(

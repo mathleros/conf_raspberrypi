@@ -41,3 +41,20 @@ Les sorties du moteur factice sont observées indépendamment du journal inject�
 en panne. Les résultats et contre-exemples sont consignés dans le
 [rapport SH-09](../specs/backlog/08_lot_a_rapport_sh09.md#12-audit-des-cas-limites-du-raccordement-protégé-2026-10-31).
 Ces tests ne raccordent aucun fournisseur humain réel.
+
+### Frontière trame → observation — replay synthétique
+
+`test_human_perception.py` éprouve aussi
+`validate_marker_observation(frame, observation, *, context, now)` et
+`HumanMarkerAcquisition.observe_frame(frame, observation, *, now)`.
+La capture appartient à la trame ; la publication du résultat peut être
+postérieure à la publication de la trame, sans rajeunir la capture.
+Les types/coordonnées incohérents lèvent une erreur explicite ; l'entrée
+d'acquisition efface les confirmations avant de la propager. Les dispositions
+négatives typées traversent les règles d'acquisition existantes avec leur motif.
+Le chemin historique `observe` reste disponible, mais ne prouve pas la
+provenance d'une trame ; un statut non typé y est maintenant refusé explicitement.
+Producteurs, pixels, géométrie et calibration restent exclusivement fictifs.
+Les trois commandes isolées ci-dessus sont les seules commandes de validation ;
+voir les résultats, contre-exemples et limites du
+[rapport, section 13](../specs/backlog/08_lot_a_rapport_sh09.md#13-frontière-logicielle-trame--observation-2026-10-31).

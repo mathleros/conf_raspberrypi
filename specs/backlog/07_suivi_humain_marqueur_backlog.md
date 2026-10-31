@@ -2573,3 +2573,43 @@ humain réel ; pas de Pi, réseau, caméra, audio, GPIO, moteur réel ou personn
 Acquis SH-02/A1–A6/SH-05 à SH-11 et mentions historiques préservés. Aucun
 réglage réel inventé, aucune qualification physique ni clôture globale
 SH-05/SH-09 ; portes SH-02/SH-11 obligatoires, aucun Go terrain.
+
+### Frontière logicielle trame → observation — 2026-10-31
+
+Reprise locale : HEAD `ef2acd1f76c7309821331cb5695246f520b87040`,
+index/arbre propres et diff complet vide ; aucun remote contacté,
+aucun commit/push effectué. Bloc logiciel borné, sans fournisseur concret
+ni raccordement caméra/runtime de production.
+
+[human_perception.py](../../src/irobot/interfaces/human_perception.py) ajoute
+une validation explicite de source/génération/numéro/capture de la trame et
+mission/version/identité éventuelle du contexte demandé. La capture originale
+est conservée ; publication trame et publication résultat sont distinctes,
+ordonnées jusqu'au temps de décision inclus. Types et dates non finies ou
+incohérentes refusés explicitement, sans fallback. L'entrée d'acquisition
+`observe_frame` propage l'erreur après effacement des confirmations et applique
+sinon les règles existantes ; aucun rajeunissement ni donnée géométrique inventée.
+Le chemin historique refuse maintenant les dispositions non typées ;
+contre-exemple reproduit avant correction, sans changement de `RobotController`.
+
+Producteurs exclusivement synthétiques dans les tests : nominal, coordonnées
+fausses, ancien contexte/flux, répétition, retard, retours malformés et
+absent/ambigu/rejet/défaut/périmé. Trois confirmations distinctes et fraîches,
+bords inclus, invalidation et continuité acquise éprouvées par attendus
+indépendants du journal. Paramètres fictifs, aucune valeur réelle ajoutée.
+
+Série locale finale : `--stdlib` **263 tests réussis** ; sélection contrôlée
+**313 réussis, 7 désélectionnés, 269 sous-tests réussis** ; legacy **4 contrats
+réussis**. Chaque processus : zéro accès interdit, zéro thread résiduel et
+trois sondes synthétiques rejetées. Série négative 247 tests / un échec /
+deux erreurs et série intermédiaire conservées au
+[rapport, section 13](08_lot_a_rapport_sh09.md#13-frontière-logicielle-trame--observation-2026-10-31).
+Pi 284/7/61 en 1,10 s reste rapporté, non reproduit indépendamment.
+
+Les décisions SH-02, A1–A6 et SH-05 à SH-11 et l'historique restent inchangés.
+Aucun fournisseur/calibration qualifié, aucun mouvement/SH-06, aucune caméra,
+audio, GPIO, Pi/réseau ou personne. Refus linguistique `follow_person`
+préservé ; SH-05/SH-09 non clos globalement, aucun lot B et aucun Go terrain.
+Les portes SH-02/SH-11 restent obligatoires. Suite proposée : replay de la
+frontière validée vers cycle/annonces, uniquement sur doubles, avec résultats
+en vol invalidés après suspension/stop/échéance, sans activation réelle.

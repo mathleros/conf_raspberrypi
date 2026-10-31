@@ -56,7 +56,7 @@ class MarkerQuality:
 
 @dataclass(frozen=True)
 class MarkerObservation:
-    """Atomic sample; monotonic timestamps, centimetres, and signed bearing degrees."""
+    """Original capture/result publication times; monotonic, cm and signed bearing degrees."""
 
     source_id: str
     stream_generation: str
@@ -134,7 +134,7 @@ class HumanMarkerMissionContext:
 
 @dataclass(frozen=True)
 class HumanPerceptionFrame:
-    """Opaque pixels with capture-owned source, sequence, and monotonic timestamps."""
+    """Opaque pixels with source-owned sequence, capture time and frame publication time."""
 
     source_id: str
     stream_generation: str
@@ -145,10 +145,82 @@ class HumanPerceptionFrame:
 
 
 class HumanPerceptionProvider(Protocol):
+    """Return this frame/context's result, retaining capture time and dating result publication."""
+
     def observe(
         self, frame: HumanPerceptionFrame, *,
         context: HumanMarkerMissionContext,
     ) -> MarkerObservation: ...
+
+
+def validate_marker_observation(
+    frame: HumanPerceptionFrame,
+    observation: MarkerObservation,
+    *,
+    context: HumanMarkerMissionContext,
+    now: float,
+) -> MarkerObservation:
+    """Validate provenance without changing timestamps, inferring geometry, or aging policy."""
+    if not isinstance(frame, HumanPerceptionFrame):
+        raise TypeError("Perception input must be a HumanPerceptionFrame")
+    if not isinstance(context, HumanMarkerMissionContext):
+        raise TypeError("Perception context must be a HumanMarkerMissionContext")
+    if not isinstance(observation, MarkerObservation):
+        raise TypeError("Perception result must be a MarkerObservation")
+
+    for sample in (frame, observation):
+        for name in ("source_id", "stream_generation"):
+            value = getattr(sample, name)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{type(sample).__name__}.{name} must be explicit")
+        if (isinstance(sample.frame_number, bool)
+                or not isinstance(sample.frame_number, int) or sample.frame_number < 0):
+            raise ValueError(f"{type(sample).__name__}.frame_number must be a non-negative integer")
+        if not HumanMarkerAcquisition._timestamps_are_coherent(sample, now):
+            raise ValueError(f"{type(sample).__name__} timestamps are incoherent")
+
+    for name in ("source_id", "stream_generation", "frame_number", "captured_at"):
+        if getattr(observation, name) != getattr(frame, name):
+            raise ValueError(f"Observation {name} does not match the supplied frame")
+    if observation.published_at < frame.published_at:
+        raise ValueError("Observation publication precedes frame publication")
+    for name in ("mission_id", "context_version"):
+        value = getattr(observation, name)
+        if not isinstance(value, str) or not value or value != getattr(context, name):
+            raise ValueError(f"Observation {name} does not match the requested context")
+    if not isinstance(observation.disposition, ObservationDisposition):
+        raise ValueError("Observation disposition must be an ObservationDisposition")
+    if observation.identity is not None:
+        if (not isinstance(observation.identity, MarkerIdentity)
+                or observation.identity != context.identity):
+            raise ValueError("Observation identity does not match the requested context")
+
+    for name in ("image_width_px", "image_height_px"):
+        value = getattr(observation, name)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            raise ValueError(f"Observation {name} must be an integer or None")
+    for name in (
+        "center_x_px", "center_y_px", "bearing_deg",
+        "optical_distance_cm", "robot_clearance_cm",
+    ):
+        value = getattr(observation, name)
+        if value is not None and not HumanMarkerAcquisition._finite(value):
+            raise ValueError(f"Observation {name} must be finite or None")
+    for name in ("calibration_version", "reason"):
+        value = getattr(observation, name)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Observation {name} must be a string or None")
+    quality = observation.quality
+    if quality is not None:
+        if (not isinstance(quality, MarkerQuality)
+                or not isinstance(quality.corners_visible, bool)
+                or not isinstance(quality.geometry_valid, bool)):
+            raise ValueError("Observation quality must be a typed MarkerQuality or None")
+        for name in ("blur_metric", "reprojection_error_px", "obliqueness_deg"):
+            value = getattr(quality, name)
+            if value is not None and not HumanMarkerAcquisition._finite(value):
+                raise ValueError(f"Observation quality {name} must be finite or None")
+    return observation
 
 
 class ArucoDetectorBackend(Protocol):
@@ -317,6 +389,24 @@ class HumanMarkerAcquisition:
         self._last_published_at = None
         self._confirmation_captures.clear()
 
+    def observe_frame(
+        self,
+        frame: HumanPerceptionFrame,
+        observation: MarkerObservation,
+        *,
+        now: float,
+    ) -> AcquisitionAssessment:
+        """Validate a frame-bound result before applying the existing acquisition rules."""
+        context = HumanMarkerMissionContext(
+            self.mission_id, self.context_version, self.expected_identity,
+        )
+        try:
+            validate_marker_observation(frame, observation, context=context, now=now)
+        except (TypeError, ValueError):
+            self._confirmation_captures.clear()
+            raise
+        return self.observe(observation, now=now)
+
     def observe(self, observation: MarkerObservation, *, now: float) -> AcquisitionAssessment:
         if not isinstance(observation, MarkerObservation):
             return self._reject(AcquisitionReason.OBSERVATION_REJECTED)
@@ -335,6 +425,10 @@ class HumanMarkerAcquisition:
         if sequence_reason is not None:
             return self._reject(sequence_reason)
 
+        if not isinstance(observation.disposition, ObservationDisposition):
+            return self._reject(
+                AcquisitionReason.OBSERVATION_REJECTED, detail="malformed_disposition",
+            )
         disposition_reasons = {
             ObservationDisposition.ABSENT: AcquisitionReason.OBSERVATION_ABSENT,
             ObservationDisposition.AMBIGUOUS: AcquisitionReason.OBSERVATION_AMBIGUOUS,
@@ -435,7 +529,9 @@ class HumanMarkerAcquisition:
         )
 
     @classmethod
-    def _timestamps_are_coherent(cls, observation: MarkerObservation, now: float) -> bool:
+    def _timestamps_are_coherent(
+        cls, observation: MarkerObservation | HumanPerceptionFrame, now: float,
+    ) -> bool:
         times = (observation.captured_at, observation.published_at, now)
         return (
             all(cls._finite(value) for value in times)

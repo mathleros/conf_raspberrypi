@@ -1221,3 +1221,146 @@ physique restent à réaliser/qualifier selon leurs portes. SH-05/SH-09 non
 terminés globalement, aucun lot B supposé, aucun Go terrain. La suite utile
 reste une validation du contrat trame → observation par replays synthétiques,
 sans fournisseur concret ni activation de matériel.
+
+## 13. Frontière logicielle trame → observation (2026-10-31)
+
+### Référence, périmètre et audit
+
+HEAD constaté localement au début : `ef2acd1f76c7309821331cb5695246f520b87040`.
+Index et arbre propres, diff complet index/arbre vide ; aucun changement
+préexistant à réécrire. Aucune consultation du remote : la déclaration de
+push n'est pas vérifiée. Consignes et documents de reprise relus.
+Les instantanés joints ne remplacent pas les sources du dépôt.
+
+L'acquisition contrôlait déjà mission/contexte, identité, géométrie,
+fraîcheur depuis capture, séquence du flux et confirmations. Elle ne pouvait
+pas prouver qu'une observation correspondait à une trame fournie :
+le protocole de producteur n'avait pas de contrôle exécutable de provenance.
+Les helpers de finitude (bool exclus et débordement entier refusé) et de
+cohérence temporelle sont réutilisés, sans nouvelle horloge ni budget.
+
+### Réalisation bornée
+
+[human_perception.py](../../src/irobot/interfaces/human_perception.py) ajoute :
+
+- `validate_marker_observation(frame, observation, *, context, now)` :
+  types explicites ; source, génération, numéro et capture exactement ceux
+  de la trame ; mission/version et identité éventuelle du contexte demandé.
+  Retour du même objet, sans mutation, copie réparatrice ou mesure inventée.
+- Distinction des publications : celle de `HumanPerceptionFrame` appartient
+  au flux, celle de `MarkerObservation` au résultat. Leur ordre inclusif est
+  `capture <= publication trame <= publication résultat <= maintenant`.
+  Capture inchangée obligatoire ; finitude de chaque date et de `now`.
+  Un résultat retardé peut rester structurellement valide mais être refusé
+  ensuite pour péremption. La validation de frontière ne décide pas du budget.
+- Vérification des types des dispositions et des champs optionnels fournis,
+  finitude des mesures/métriques présentes ; aucun remplissage de valeur
+  absente. Les règles d'exploitabilité/qualité de l'acquisition sont conservées.
+- `HumanMarkerAcquisition.observe_frame(frame, observation, *, now)` :
+  contexte repris de l'acquisition ; erreur de frontière `TypeError` ou
+  `ValueError` propagée après effacement des confirmations, y compris après
+  acquisition établie. Une observation validée passe par `observe` existant.
+  Les marqueurs de séquence déjà observés ne sont pas effacés par ce défaut,
+  pour ne pas rendre une répétition admissible.
+- Correction directement liée du chemin historique `observe` : disposition
+  non typée refusée explicitement, avant accès au dictionnaire des motifs.
+  Les motifs typés existants et la mise à jour de séquence restent conservés.
+
+Le chemin historique `observe` ne reçoit toujours pas de trame et ne prétend
+pas prouver sa provenance. Aucun appel de cette nouvelle frontière n'est
+ajouté au runtime, à la caméra ou au décodeur. Le protocole de producteur
+reste sans implémentation concrète de production. `RobotController`, le
+raccordement runtime et le refus linguistique `follow_person` sont inchangés.
+La comparaison de métadonnées est un contrat logiciel, pas une attestation
+cryptographique ou une preuve de véracité des pixels/mesures d'un fournisseur.
+
+### Attendus indépendants et contre-exemple conservé
+
+[test_human_perception.py](../../tests/unit/test_human_perception.py) définit
+les producteurs exclusivement synthétiques et seize tests de frontière,
+plus un test de régression du statut malformé. Identité, pixels opaques,
+géométrie, calibration, source et dates sont fictifs ; budget 0,2 explicitement
+injecté dans les tests, sans configuration réelle nouvelle.
+
+Les attendus sont des tuples/statuts/motifs fixés dans les tests, jamais les
+verdicts d'un journal. Les cas couvrent :
+
+- Correspondance nominale sans remplacement de l'objet ; erreur de chaque
+  coordonnée source/génération/trame/capture/mission/version/identité.
+- Types externes incorrects et retours `None`, dictionnaire, tuple, chaîne ou
+  objet quelconque ; timestamps bool/texte/absents/NaN/infinis/entier débordant,
+  temps futurs, publication avant capture et publication résultat avant trame.
+- Champs optionnels malformés ; mesures absentes non fabriquées et rejet
+  d'exploitabilité par l'acquisition. Absent/ambigu/rejet/défaut/périmé conservent
+  leurs motifs et remettent les confirmations à zéro.
+- Répétition avec publication plus récente, ancien résultat hors ordre,
+  lacune, changement de source/génération puis retour de l'ancien flux :
+  aucune confirmation supplémentaire, invalidation explicite.
+- Captures 0 / 0,1 / 0,2 : acquisition à la borne incluse ; troisième capture
+  à 0,200001 : seulement deux confirmations fraîches. Un retour de la capture
+  0,2 à 0,21 retire la capture 0 devenue périmée ; à 0,400001 le résultat
+  lui-même est périmé. Publication récente ne rajeunit jamais la capture.
+- Continuité acquise sur nouvelles trames valides après expiration des
+  premières captures ; toute invalidation exige de nouveau trois confirmations.
+  Résultat retardé de l'ancien contexte inutilisable après reprise.
+
+**Défaut reproduit avant correction :** `disposition="absent"` était assimilé
+au statut typé absent ; `[]` et `{}` levaient `TypeError: unhashable type`
+avant l'effacement des confirmations. Le test initial a produit un échec et
+deux erreurs. La correction refuse ces valeurs avec `OBSERVATION_REJECTED`
+et détail `malformed_disposition` ; la frontière nouvelle lève une erreur
+explicite sans convertir un retour malformé en observation négative.
+
+### Exécutions réellement réalisées
+
+Uniquement les trois commandes du protocole, sans installation ni pytest global :
+
+| Série | Résultat local |
+|---|---|
+| `--stdlib`, contre-exemple avant correction | 247 tests ; 1 échec, 2 erreurs ; 14,287 s |
+| `--stdlib`, frontière et correction intermédiaires | 263 tests, OK ; 11,572 s |
+| `--stdlib`, campagne finale | 263 tests, OK ; 16,256 s |
+| Sélection contrôlée finale | 313 réussis, 7 désélectionnés, 269 sous-tests réussis ; 27,73 s |
+| `--legacy-stdlib`, finale | 4 contrats, OK ; 0,300 s |
+
+Les trois commandes finales sont exactement :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --stdlib
+.venv/bin/python -I -S tests/isolated/run_lot_a.py
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --legacy-stdlib
+```
+
+Chaque processus, y compris négatif/intermédiaire : zéro accès interdit et
+zéro thread résiduel, trois sondes synthétiques rejetées. Les trois processus
+finaux sortent avec code 0 et couvrent acquisition, raccordement protégé et
+non-régression ; sept exclusions inchangées. Temps locaux du harnais seulement.
+Les temporaires des campagnes sont gérés par leurs contextes de nettoyage ;
+le replay de perception ne crée aucun thread ni fichier temporaire.
+
+Contrôle final local : HEAD inchangé, index vide ; diff complet relu,
+`git diff HEAD --check` réussi. Seuls le module, ses tests et les quatre
+documents directement liés sont modifiés ; documentation ajoutée sans
+suppression historique. Code/tests persistants sur disque après les campagnes.
+
+**Résultat rapporté séparément :** Pi 284 réussis, 7 désélectionnés,
+61 sous-tests en 1,10 s ; communiqué antérieurement par l'utilisateur,
+non reproduit indépendamment dans ce bloc. Les séries 246/296/4 de la
+section 12 restent historiques, distinctes de ces nouvelles exécutions.
+
+### Limites et suite proposée
+
+Pas de fournisseur concret, caméra/runtime live, audio, moteur ou loi SH-06.
+Aucun Pi, SSH, réseau/découverte, GPIO, campagne réelle ou personne ; aucune
+calibration, distance, seuil de qualité, budget ou configuration de production
+choisi. Aucune nouvelle qualification optique ni mesure de latence réelle.
+SH-02, A1–A6 et les six décisions de chaque ticket SH-05 à SH-11 restent
+intacts ; historique et mentions « aucun Go » conservés.
+Portes SH-02/SH-11 obligatoires, SH-05/SH-09 non clos globalement,
+aucun lot B supposé, aucun Go terrain. Aucun commit/push effectué.
+
+Prochain bloc proposé : replay synthétique de cette entrée `observe_frame`
+jusqu'au cycle humain et à ses annonces, sous doubles uniquement, avec
+invalidation de résultats en vol après suspension/stop/échéance ; conserver
+le refus réel. Fournisseur/calibration et décisions de qualification restent
+bloquants avant toute intégration réelle.

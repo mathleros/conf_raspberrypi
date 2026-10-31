@@ -115,3 +115,35 @@ Ce résultat est rapporté par l’utilisateur, non reproduit indépendamment ic
 Il confirme uniquement l’exécution de cette sélection isolée dans
 l’environnement utilisé ; il ne valide ni matériel réel, ni caméra/audio,
 ni protection physique, ni propulsion ou suivi d’une personne.
+
+### Frontière logicielle trame → observation — 2026-10-31
+
+Nouvelle série locale, distincte des résultats historiques ci-dessus, exécutée
+avec les mêmes trois commandes `-I -S`, sans élargir la sélection :
+
+| Campagne | Résultat effectivement reproduit |
+|---|---|
+| `tests/isolated/run_lot_a.py --stdlib` | 263 tests réussis ; 16,256 s |
+| `tests/isolated/run_lot_a.py` | 313 réussis, 7 désélectionnés, 269 sous-tests réussis ; 27,73 s |
+| `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats réussis ; 0,300 s |
+
+Chaque processus : code 0, zéro accès interdit, zéro thread résiduel et trois
+sondes synthétiques rejetées. Aucun nouveau thread n'est créé par le replay
+de perception ; les contrôles de raccordement concurrents existants restent
+sélectionnés. Les temps sont ceux du harnais local, pas des latences qualifiées.
+
+Les producteurs définis uniquement dans `test_human_perception.py` éprouvent
+la provenance source/génération/trame/capture/mission/contexte, l'ordre
+`capture <= publication trame <= publication résultat <= maintenant`,
+les types malformés/non finis, retards, répétitions et flux anciens/changés.
+Les résultats traversent ensuite l'acquisition existante : trois confirmations
+distinctes et fraîches, bornes incluses, invalidation et continuité acquise.
+Ni pixels opaques inspectés, ni distance/calibration/qualité inférée.
+Erreurs de frontière propagées après invalidation des confirmations ;
+statuts négatifs typés conservés, sans fallback ni confusion absence/défaut.
+
+Le contre-exemple initial (247 tests, un échec et deux erreurs), la série
+intermédiaire corrigée et les limites sont conservés au
+[rapport, section 13](../../specs/backlog/08_lot_a_rapport_sh09.md#13-frontière-logicielle-trame--observation-2026-10-31).
+Le résultat Pi reste rapporté, non reproduit indépendamment. Aucun fournisseur
+concret ni raccordement caméra/runtime, aucun Go terrain ou clôture globale.

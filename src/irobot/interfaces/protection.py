@@ -76,6 +76,10 @@ class HumanConditions:
     def failures(self) -> tuple[str, ...]:
         return tuple(name for name in self.__dataclass_fields__ if getattr(self, name) is not True)
 
+    def preparation_failures(self) -> tuple[str, ...]:
+        pending = {"marker_acquired", "identity_valid", "observations_fresh", "distance_valid"}
+        return tuple(name for name in self.failures() if name not in pending)
+
 
 @dataclass(frozen=True)
 class AdmissionRequest:

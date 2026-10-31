@@ -180,7 +180,10 @@ class HumanFollowLifecycle:
                 causes=tuple(dict.fromkeys((*state.causes, cause))),
             )
             return HumanLifecycleTransition(self._snapshot)
-        if state.phase not in {HumanFollowPhase.ACTIVE, HumanFollowPhase.HOLDING}:
+        if (state.phase not in {
+                HumanFollowPhase.ACTIVE, HumanFollowPhase.HOLDING,
+                HumanFollowPhase.ACQUIRING, HumanFollowPhase.ACQUIRED,
+        } or state.mission_deadline is None):
             raise RuntimeError("Only an active human-follow session can be suspended")
         self._snapshot = replace(
             state,
@@ -203,7 +206,9 @@ class HumanFollowLifecycle:
         )
         return HumanLifecycleTransition(self._snapshot)
 
-    def request_resume(self, *, now: float) -> HumanLifecycleTransition:
+    def request_resume(
+        self, *, now: float, context_version: str | None = None,
+    ) -> HumanLifecycleTransition:
         self._require_time(now)
         state = self._snapshot
         if state.phase is not HumanFollowPhase.SUSPENDED:
@@ -212,8 +217,14 @@ class HumanFollowLifecycle:
             raise RuntimeError("Suspended-session causes must be explicitly resolved first")
         if state.mission_deadline is None or now >= state.mission_deadline:
             return self._finish("deadline")
+        if state.context is None:
+            raise RuntimeError("Suspended human-follow session has no marker context")
         self._snapshot = replace(
             state,
+            context=(
+                replace(state.context, context_version=context_version)
+                if context_version is not None else state.context
+            ),
             phase=HumanFollowPhase.ACQUIRING,
             acquisition_mode=AcquisitionMode.RESUME,
             acquisition_deadline=self._next_acquisition_deadline(now, state.mission_deadline),

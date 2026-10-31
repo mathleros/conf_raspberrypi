@@ -178,8 +178,11 @@ class RobotController:
         self, *, human: bool = False, deadline: float | None = None,
         conditions: Callable[[], HumanConditions] | None = None,
         request: AdmissionRequest | None = None,
+        acquisition: bool = False,
     ) -> MissionPermit:
         with self._lock:
+            if acquisition and (not human or deadline is not None):
+                raise ProtectionFault("invalid_acquisition_reservation")
             self._apply_pending_interrupt()
             request = request if request is not None else self.capture_admission_request()
             if (request.generation != self._generation
@@ -191,14 +194,14 @@ class RobotController:
                 raise ProtectionFault("human_capability_unavailable")
             if human and self._ports.journal is None:
                 raise ProtectionFault("journal_unavailable")
-            if human and deadline is None:
+            if human and deadline is None and not acquisition:
                 raise ProtectionFault("deadline_required")
             if deadline is not None and (not math.isfinite(deadline) or deadline <= self.time_fn()):
                 raise ProtectionFault("deadline")
             armament = ""
             if self.protection_present:
                 armament_at_request = request.armament
-                self.supervise()
+                self.supervise(defer_proof=acquisition)
                 state = self._last_p5
                 if (state is None or state.state != "armed"
                         or self._ready_armament != state.armament
@@ -206,7 +209,8 @@ class RobotController:
                     raise ProtectionFault("rearm_required")
                 armament = state.armament
             if human:
-                failures = conditions().failures()
+                facts = conditions()
+                failures = facts.preparation_failures() if acquisition else facts.failures()
                 if failures:
                     raise ProtectionFault("+".join(failures))
                 try:
@@ -228,7 +232,10 @@ class RobotController:
                     raise ProtectionFault("deadline")
                 self._serial += 1
                 permit = MissionPermit(self._serial, self._serial, armament, self._generation)
-                self._reservation = Reservation(permit, human, deadline, conditions)
+                self._reservation = Reservation(
+                    permit, human, deadline, conditions,
+                    phase="acquiring" if acquisition else "active",
+                )
                 self._pending_causes = ()
                 self.causes = ()
             return permit
@@ -243,19 +250,21 @@ class RobotController:
     def suspend(self, reason: str) -> None:
         with self._lock:
             self.stop()
-            if self._reservation is not None and self._reservation.phase == "active":
+            if (self._reservation is not None
+                    and self._reservation.phase in {"active", "acquiring", "holding", "suspended"}):
                 self._reservation.phase = "suspended"
                 self.causes = tuple(dict.fromkeys((*self.causes, reason)))
 
-    def resume(self) -> MissionPermit:
+    def resume(self, *, acquisition: bool = False) -> MissionPermit:
         with self._lock:
             reservation = self._reservation
             if reservation is None or not reservation.human or reservation.phase != "suspended":
                 raise ProtectionFault("no_resumable_session")
-            self.supervise()
+            self.supervise(defer_proof=acquisition)
             if reservation.phase != "suspended":
                 raise ProtectionFault("+".join(self.causes))
-            failures = reservation.conditions().failures()
+            facts = reservation.conditions()
+            failures = facts.preparation_failures() if acquisition else facts.failures()
             if failures:
                 raise ProtectionFault("+".join(failures))
             state = self._p5()
@@ -272,9 +281,53 @@ class RobotController:
                     reservation.permit.mission, self._serial, reservation.permit.armament,
                     self._generation,
                 )
-                reservation.phase = "active"
+                reservation.phase = "acquiring" if acquisition else "active"
                 self.causes = ()
                 return reservation.permit
+
+    def activate_human(self, permit: MissionPermit, *, deadline: float | None = None) -> None:
+        """Complete stationary preparation; never dispatch a motor command."""
+        with self._lock:
+            self.supervise(defer_proof=True)
+            reservation = self._reservation
+            if (reservation is None or not reservation.human
+                    or reservation.permit != permit
+                    or reservation.phase not in {"acquiring", "holding"}):
+                raise ProtectionFault("invalid_acquisition_reservation")
+            now = self.time_fn()
+            if reservation.deadline is None:
+                if (isinstance(deadline, bool) or not isinstance(deadline, (float, int))
+                        or not math.isfinite(deadline) or deadline <= now):
+                    raise ProtectionFault("deadline_required")
+            elif deadline is not None:
+                raise ProtectionFault("deadline_unchangeable")
+            failures = reservation.conditions().failures()
+            if failures:
+                raise ProtectionFault("+".join(failures))
+            state = self._p5()
+            with self._emission_lock:
+                self._apply_pending_interrupt()
+                if (reservation is not self._reservation
+                        or reservation.phase not in {"acquiring", "holding"}
+                        or state.state != "armed" or state.armament != permit.armament
+                        or self._ready_armament != permit.armament
+                        or self._emergency_event.is_set()):
+                    raise ProtectionFault("activation_invalidated")
+                effective_deadline = reservation.deadline if deadline is None else deadline
+                if effective_deadline is None or self.time_fn() >= effective_deadline:
+                    raise ProtectionFault("deadline")
+                reservation.deadline = effective_deadline
+                reservation.phase = "active"
+
+    def hold_human(self, permit: MissionPermit) -> None:
+        with self._lock:
+            self.stop()
+            self.supervise(defer_proof=True)
+            reservation = self._reservation
+            if (reservation is None or not reservation.human
+                    or reservation.permit != permit or reservation.phase != "active"):
+                raise ProtectionFault("invalid_human_hold")
+            reservation.phase = "holding"
 
     def bind(self, permit: MissionPermit) -> "MissionRobot":
         return MissionRobot(self, permit)
@@ -296,6 +349,7 @@ class RobotController:
         self, permit: MissionPermit | None = None,
         command: str | None = None, value: float | None = None,
         events: tuple[str, ...] = (),
+        *, defer_proof: bool = False, evaluate: Callable[[], None] | None = None,
     ) -> None:
         with self._lock:
             self._apply_pending_interrupt()
@@ -351,7 +405,11 @@ class RobotController:
                     if ordinary:
                         self._ordinary_stop(reservation, tuple(ordinary))
                     if reservation.human:
-                        failures = reservation.conditions().failures()
+                        facts = reservation.conditions()
+                        failures = (
+                            facts.preparation_failures()
+                            if reservation.phase == "acquiring" else facts.failures()
+                        )
                         if failures:
                             self._ordinary_stop(reservation, failures)
                     if (reservation.deadline is not None
@@ -435,8 +493,11 @@ class RobotController:
                         self.suspend("journal_error")
                         journal_error = exc
                         reasons.append("journal_error")
-                self._cycle += 1
-                self._ports.proof.emit(self._cycle)
+                if evaluate is not None:
+                    evaluate()
+                if not defer_proof:
+                    self._cycle += 1
+                    self._ports.proof.emit(self._cycle)
             except Exception:
                 self.priority_one("cycle_exception")
                 raise

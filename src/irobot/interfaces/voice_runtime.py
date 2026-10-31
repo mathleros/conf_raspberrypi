@@ -31,12 +31,19 @@ from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
 from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
+from irobot.interfaces.human_follow_runtime import (
+    HumanAnnouncement, HumanFollowRequest, HumanFollowRuntime,
+)
+from irobot.interfaces.human_lifecycle import HumanFollowSnapshot
+from irobot.interfaces.human_perception import MarkerObservation
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import (
     build_formats, grounding_check, is_pure_stop, fold, contains_human_step,
     follow_request_refusal, contains_unsupported_follow_step, TARGET_COLOR_SYNONYMS,
 )
-from irobot.interfaces.protection import AdmissionRequest, MissionPermit, ProtectionFault
+from irobot.interfaces.protection import (
+    AdmissionRequest, DecisionJournal, HumanConditions, MissionPermit, ProtectionFault,
+)
 from irobot.interfaces.robot_controller import RobotController
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.skills.base_skill import Skill, SkillContext
@@ -565,6 +572,7 @@ DEFAULT_FOLLOW_DURATION_SEC = 60.0
 MIN_OBJECT_DURATION_SEC = 1.0
 MIN_SEARCH_TIMEOUT_SEC = 1.0
 MAX_SEARCH_TIMEOUT_SEC = 120.0
+HUMAN_RESUME_COMMANDS = {"reprends le suivi", "reprends suivi", "reprenez le suivi"}
 
 
 class VoiceRuntime:
@@ -602,6 +610,7 @@ class VoiceRuntime:
         self._reserved_skill: Skill | None = None
         self._reserved_context: SkillContext | None = None
         self._reserved_context_key: tuple[str, int] | None = None
+        self._human_follow: HumanFollowRuntime | None = None
         self.trace_dir = Path(trace_dir) if trace_dir else Path.cwd() / "target" / "logs"
         self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.controller = LanguageController(
@@ -1161,6 +1170,9 @@ class VoiceRuntime:
         if self._protected() and admission_request is None:
             admission_request = self.robot.capture_admission_request()
         if is_pure_stop(text):
+            if self._human_follow is not None:
+                self._request_emergency_stop()
+                return self.advance_human_follow(events=("stop",))
             if self._protected():
                 human = self.robot.reservation is not None and self.robot.reservation.human
                 self._request_emergency_stop()
@@ -1177,7 +1189,7 @@ class VoiceRuntime:
                 if human:
                     return {"status": "accepted", "source": "local_stop", "steps": []}
             return self._handle_text_as_plan(text)
-        if fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
+        if " ".join(fold(text).split()) in HUMAN_RESUME_COMMANDS:
             return self._resume_reserved_skill()
         refusal = follow_request_refusal(text)
         if refusal:
@@ -1215,6 +1227,78 @@ class VoiceRuntime:
     def _protected(self) -> bool:
         return isinstance(self.robot, RobotController) and self.robot.protection_present
 
+    @property
+    def human_follow_snapshot(self) -> HumanFollowSnapshot | None:
+        return self._human_follow.snapshot if self._human_follow is not None else None
+
+    @property
+    def pending_human_announcement(self) -> HumanAnnouncement | None:
+        return self._human_follow.pending_announcement if self._human_follow is not None else None
+
+    def prepare_human_follow(
+        self, request: HumanFollowRequest, *,
+        conditions: Callable[[], HumanConditions], journal: DecisionJournal,
+        max_age_seconds: float, announcement_timeout_seconds: float,
+    ) -> dict[str, Any]:
+        """Structured integration seam only; never selected by text, LLM or live assembly."""
+        if not self._protected():
+            return {"status": "rejected", "reason": "human_capability_unavailable"}
+        if self.threaded:
+            return {"status": "rejected", "reason": "human_preparation_requires_synchronous_runtime"}
+        if not self._admission_lock.acquire(blocking=False):
+            return {"status": "rejected", "reason": "mission_reserved"}
+        try:
+            if self.robot.reservation is not None:
+                return {"status": "rejected", "reason": "mission_reserved"}
+            self.robot.clear_emergency_stop()
+            self._human_follow = HumanFollowRuntime(
+                self.robot, self.settings, request, conditions, journal,
+                max_age_seconds=max_age_seconds,
+                announcement_timeout_seconds=announcement_timeout_seconds,
+            )
+            self._human_follow.cycle()
+            return {"status": "acquiring", "snapshot": self._human_follow.snapshot}
+        except ProtectionFault as exc:
+            return {"status": "rejected", "reason": str(exc)}
+        finally:
+            self._admission_lock.release()
+
+    def advance_human_follow(
+        self, *, events: tuple[str, ...] = (),
+        observation: MarkerObservation | None = None,
+        completed_announcement: str | None = None,
+        holding: bool | None = None,
+    ) -> dict[str, Any]:
+        if self._human_follow is None:
+            return {"status": "rejected", "reason": "no_human_session"}
+        if holding is not None and not isinstance(holding, bool):
+            raise TypeError("Human hold request must be a boolean")
+        if self._worker_owns_supervision() or not self._admission_lock.acquire(blocking=False):
+            return {"status": "rejected", "reason": "mission_reserved"}
+        try:
+            snapshot = self._human_follow.cycle(
+                events=events, observation=observation,
+                completed_announcement=completed_announcement,
+            )
+            if holding is True:
+                snapshot = self._human_follow.hold()
+            elif holding is False:
+                snapshot = self._human_follow.continue_tracking()
+            return {"status": snapshot.phase.value, "snapshot": snapshot,
+                    "causes": self.robot.causes}
+        except ProtectionFault as exc:
+            return {"status": "rejected", "reason": str(exc), "causes": self.robot.causes}
+        except Exception:
+            try:
+                self.robot.priority_one("human_runtime_exception")
+            finally:
+                self._human_follow.terminate("human_runtime_exception")
+            raise
+        finally:
+            if self._human_follow.snapshot.context is None:
+                self._human_follow = None
+            self._admission_lock.release()
+
     def _worker_owns_supervision(self) -> bool:
         return (self._worker is not None and self._worker.is_alive()
                 and self._worker is not threading.current_thread())
@@ -1224,6 +1308,11 @@ class VoiceRuntime:
         if self._protected():
             if self._worker_owns_supervision():
                 raise ProtectionFault("supervision_owned_by_worker")
+            if self._human_follow is not None:
+                result = self.advance_human_follow(events=events)
+                if result["status"] == "rejected":
+                    raise ProtectionFault(result["reason"])
+                return
             self.robot.supervise(events=events)
             reservation = self.robot.reservation
             if reservation is not None and reservation.phase in {"locked", "ended"}:
@@ -1258,6 +1347,8 @@ class VoiceRuntime:
 
     def execute_reserved_skill(self, permit: MissionPermit, skill: Skill) -> dict[str, Any]:
         """Infrastructure seam for isolated mission providers, not a language route."""
+        if self._human_follow is not None:
+            return {"status": "rejected", "reason": "human_motion_provider_unavailable"}
         if not self._protected() or not self.robot.valid_result(permit):
             return {"status": "rejected", "reason": "invalid_reservation"}
         if not self._admission_lock.acquire(blocking=False):
@@ -1307,6 +1398,24 @@ class VoiceRuntime:
     def _resume_reserved_skill(self) -> dict[str, Any]:
         if self._worker_owns_supervision():
             return {"status": "rejected", "reason": "mission_reserved"}
+        if self._human_follow is not None:
+            if not self._admission_lock.acquire(blocking=False):
+                return {"status": "rejected", "reason": "mission_reserved"}
+            try:
+                snapshot = self._human_follow.resume()
+                return {"status": snapshot.phase.value, "snapshot": snapshot}
+            except ProtectionFault as exc:
+                return {"status": "rejected", "reason": str(exc)}
+            except Exception:
+                try:
+                    self.robot.priority_one("human_resume_exception")
+                finally:
+                    self._human_follow.terminate("human_resume_exception")
+                raise
+            finally:
+                if self._human_follow.snapshot.context is None:
+                    self._human_follow = None
+                self._admission_lock.release()
         if not self._protected() or self._reserved_skill is None:
             return {"status": "rejected", "reason": "no_resumable_session"}
         try:
@@ -1567,7 +1676,7 @@ class VoiceRuntime:
         """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
         admission_request = self.robot.capture_admission_request() if self._protected() else None
         if self._protected():
-            if is_pure_stop(text) or fold(text).strip() in {"reprends le suivi", "reprends suivi"}:
+            if is_pure_stop(text) or " ".join(fold(text).split()) in HUMAN_RESUME_COMMANDS:
                 return self.handle_text_as_plan(text)
             if not self._worker_owns_supervision():
                 self.supervise_once()

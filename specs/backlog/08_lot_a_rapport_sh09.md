@@ -955,3 +955,64 @@ ni le résultat optique ne sont reproduits indépendamment par l’assistant.
 L’essai autorisé était statique, sans propulsion, personne, capture persistée
 ou mesure de distance. Il ne qualifie pas SH-03 et n’autorise pas un essai
 humain ou une propulsion.
+
+### 10.1 Suite logicielle autorisée — raccordement structuré du cycle humain (2026-10-31)
+
+Travaux réalisés localement dans le dépôt `conf_raspberrypi/`, sans commit,
+sans exécution sur Pi, sans accès réseau, sans essai matériel et sans mouvement.
+Le refus des commandes humaines de production (`follow_person`) reste en place
+sur les entrées texte/LLM/transcript ; aucun fournisseur de mouvement humain
+réel n’est raccordé.
+
+État Git constaté en reprise de ce bloc : HEAD `29ba594534452095d0ddc08b37ab93797c78d2d2`,
+modifications locales de code seulement ; PDF ArUco suivi conservé
+`config/ArUco_DICT_4x4_50_ID_1.pdf`. Le fichier
+`specs/Online ArUco markers generator.pdf` n’est pas présent à ce chemin.
+
+Réalisation logicielle :
+
+- Nouveau composant [human_follow_runtime.py](../../src/irobot/interfaces/human_follow_runtime.py)
+  : intégration déterministe et structurée d’une session humaine protégée,
+  limitée à acquisition immobile → annonce → activation ; suspension/reprise
+  explicite ; aucun mouvement autonome.
+- [RobotController](../../src/irobot/interfaces/robot_controller.py) étendu
+  pour réserver une mission humaine en phase `acquiring` (sans échéance fixée),
+  activer ensuite avec échéance explicite après annonce, maintenir `holding`,
+  et empêcher toute émission non nulle hors phase active.
+- [VoiceRuntime](../../src/irobot/interfaces/voice_runtime.py) reçoit un seam
+  structuré (`prepare_human_follow`, `advance_human_follow`) réservé au runtime
+  protégé synchrone ; stop/reprise locaux restent prioritaires ; les parcours
+  linguistiques continuent de refuser la capacité humaine non livrée.
+- [HumanConditions](../../src/irobot/interfaces/protection.py) ajoute une vue
+  `preparation_failures()` pour séparer les préconditions externes obligatoires
+  des quatre champs dérivés de l’observation dans la phase d’acquisition.
+- [HumanFollowLifecycle](../../src/irobot/interfaces/human_lifecycle.py) conserve
+  le contexte de mission immuable et permet de changer seulement la version de
+  contexte à la reprise, sans réinitialiser la mission ni l’échéance.
+
+Preuves reproduites (isolation `-I -S`, gardes inchangés) :
+
+| Campagne | Résultat |
+|---|---|
+| `tests/isolated/run_lot_a.py --stdlib` | 234 tests réussis |
+| `tests/isolated/run_lot_a.py` | 284 réussis, 7 désélectionnés |
+| `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+Chaque processus final a observé zéro accès interdit, zéro thread résiduel et
+trois sondes synthétiques rejetées. Cela ne qualifie ni SH-02, ni SH-03, ni
+SH-10/SH-11, ni un essai avec personne.
+
+Tests ajoutés : [test_human_follow_runtime.py](../../tests/unit/test_human_follow_runtime.py)
+et extension de la sélection isolée dans
+[run_lot_a.py](../../tests/isolated/run_lot_a.py). Les scénarios couvrent :
+acquisition immobile, activation post-annonce, invalidation d’annonces
+obsolètes, suspension/reprise avec nouveau contexte et même échéance,
+timeouts acquisition/annonce, refus `mission_reserved`, non-régression
+balle/humain/balle, et traces structurées sans données brutes interdites.
+
+Limites maintenues :
+
+- Aucun test caméra réelle, ArUco réel, audio réel, moteur réel, P2/P3/P4/P5/P6
+  matériels, performance Pi, ni protocole physique.
+- Aucun statut « terminé » global pour SH-05/SH-09.
+- Aucun Go mobile humain ; les portes SH-02/SH-11 restent obligatoires.

@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-30. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A corrigé sur autorisation explicite ; conforme dans le seul périmètre logiciel isolé éprouvé, dossier logiciel corrigé validé explicitement par l'utilisateur**, voir [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire). Revue initiale non conforme conservée ; E1–E6 traités. Série finale reproduite : 164 cas du lot, 214 tests ciblés et quatre contrats ; comparaison de référence 214 et quatre, sept exclusions inchangées. Corrections persistantes non commitées ; validation limitée au dossier logiciel isolé, aucun lot suivant commencé. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
+Date de création : 2026-10-29. Mise à jour : 2026-10-31. Statut : SH-01 validé ; cadres SH-02 à SH-11 et leurs décisions détaillées préservés. Conception fonctionnelle documentaire SH-02 en six sujets, sans réalisation ni qualification physique. **Lot A corrigé sur autorisation explicite ; conforme dans le seul périmètre logiciel isolé éprouvé, dossier logiciel corrigé validé explicitement par l'utilisateur**, voir [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire). Revue initiale non conforme conservée ; E1–E6 traités. Série finale reproduite : 164 cas du lot, 214 tests ciblés et quatre contrats ; comparaison de référence 214 et quatre, sept exclusions inchangées. Corrections persistantes non commitées ; validation limitée au dossier logiciel isolé, aucun lot suivant commencé. SH-05/SH-09 non terminés globalement ; choix, réalisations et qualifications hors lot restent ouverts. Aucun Go mobile humain.
 
 ## 1. Besoin et décision de cadrage
 
@@ -2437,3 +2437,51 @@ Le code source local n’a pas été inspecté après la campagne Pi et sa
 synchronisation actuelle n’est pas vérifiée depuis cet environnement. Le
 résultat rapporté n’ouvre pas d’autorisation de propulsion ni d’essai avec une
 personne ; les portes SH-02/SH-11 demeurent.
+
+### Bloc logiciel réalisé le 2026-10-31 — intégration runtime structurée (sans propulsion)
+
+Suite autorisée réalisée localement, sans commit, sans réseau, sans Pi et sans
+matériel : raccordement structuré du cycle humain au runtime protégé, tout en
+maintenant le refus global des demandes humaines de production (`follow_person`)
+sur les entrées texte/LLM/transcript.
+
+Implémentation :
+
+- nouveau seam [human_follow_runtime.py](../../src/irobot/interfaces/human_follow_runtime.py)
+  pour une session humaine déterministe : réservation immobile, acquisition,
+  annonce, activation explicite, suspension/reprise locale et invalidation des
+  annonces obsolètes ;
+- extension contrôlée de [RobotController](../../src/irobot/interfaces/robot_controller.py)
+  (`acquiring`, activation post-annonce, `holding`, admission/reprise avec
+  phase d’acquisition, et refus L2 des commandes non nulles hors phase active) ;
+- extension de [VoiceRuntime](../../src/irobot/interfaces/voice_runtime.py)
+  (`prepare_human_follow`/`advance_human_follow`) en mode protégé synchrone
+  uniquement, sans routage par commande naturelle ;
+- mise à jour de [HumanConditions](../../src/irobot/interfaces/protection.py)
+  et [HumanFollowLifecycle](../../src/irobot/interfaces/human_lifecycle.py)
+  pour séparer préconditions externes et champs dérivés d’observation, et
+  conserver mission/échéance avec changement explicite du contexte à la reprise.
+
+Preuves reproduites en isolation (`-I -S`) :
+
+| Campagne | Résultat |
+|---|---|
+| `run_lot_a.py --stdlib` | 234 tests réussis |
+| `run_lot_a.py` | 284 réussis, 7 désélectionnés |
+| `run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+Tous les processus finaux : zéro accès interdit, zéro thread résiduel, trois
+sondes synthétiques rejetées. Les tests ajoutés
+[test_human_follow_runtime.py](../../tests/unit/test_human_follow_runtime.py)
+couvrent acquisition immobile, activation post-annonce, timeouts acquisition et
+annonce, suspension/reprise avec même échéance, rejets `mission_reserved`,
+non-régression balle/humain/balle, et traces structurées sans média brut.
+
+État Git constaté à cette reprise : HEAD
+`29ba594534452095d0ddc08b37ab93797c78d2d2`; PDF ArUco conservé
+`config/ArUco_DICT_4x4_50_ID_1.pdf`; le fichier
+`specs/Online ArUco markers generator.pdf` n’est pas présent à ce chemin.
+
+Limites inchangées : aucune qualification SH-02/SH-03/SH-10/SH-11, aucune
+preuve de protection matérielle P2–P6, aucun essai avec personne, aucun Go
+mobile humain. SH-05/SH-09 restent ouverts globalement.

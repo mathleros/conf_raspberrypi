@@ -81,3 +81,20 @@ Dernière reproduction locale après raccordement structuré (2026-10-31) :
 | `tests/isolated/run_lot_a.py --stdlib` | 234 tests réussis |
 | `tests/isolated/run_lot_a.py` | 284 réussis, 7 désélectionnés |
 | `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+### Résultat communiqué depuis le Pi — 2026-10-31
+
+L’utilisateur rapporte avoir exécuté depuis le dépôt sur le Pi :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py
+```
+
+Sortie rapportée : **284 réussis, 7 désélectionnés, 61 sous-tests réussis en
+1,10 s** ; `forbidden accesses=0`, `residual threads=0` et trois sondes de
+politique synthétiques rejetées, sans opération sur une ressource.
+
+Ce résultat est rapporté par l’utilisateur, non reproduit indépendamment ici.
+Il confirme uniquement l’exécution de cette sélection isolée dans
+l’environnement utilisé ; il ne valide ni matériel réel, ni caméra/audio,
+ni protection physique, ni propulsion ou suivi d’une personne.

@@ -1016,3 +1016,11 @@ Limites maintenues :
   matériels, performance Pi, ni protocole physique.
 - Aucun statut « terminé » global pour SH-05/SH-09.
 - Aucun Go mobile humain ; les portes SH-02/SH-11 restent obligatoires.
+
+**Résultat ultérieur communiqué par l’utilisateur le 2026-10-31 :** depuis le
+Pi, la commande `tests/isolated/run_lot_a.py` avec `-I -S` rapporte 284 tests
+réussis, 7 désélectionnés, 61 sous-tests réussis en 1,10 s ; zéro accès
+interdit, zéro thread résiduel et trois sondes synthétiques rejetées. Cette
+exécution isolée est rapportée, pas reproduite indépendamment ; elle n’augmente
+pas le niveau de preuve au-delà des logiciels sélectionnés et ne qualifie
+aucune propriété matérielle ou physique.

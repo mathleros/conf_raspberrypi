@@ -251,3 +251,47 @@ obsolète, stop/échéance et nettoyage sont rejoués.
 La première ciblée a échoué sur trois attendus des nouveaux tests ; corrections
 et limites sont consignées au
 [rapport SH-09, section 17](../../specs/backlog/08_lot_a_rapport_sh09.md#17-sh-04--budgets-configurables-provisoires-et-revalidation-2026-10-31).
+
+### SH-05 — admission, émission et propagation
+
+Commencer par la sélection ciblée, puis les trois commandes complètes du
+début de ce protocole :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --sh05
+```
+
+La ciblée sélectionne uniquement `tests/unit/test_human_safety.py`.
+Elle peut utiliser `--stdlib`, mais ne se combine ni avec
+`--human-perception` ni avec `--legacy-stdlib`. Gardes, borne murale, imports
+interdits et vérification des threads inchangés. Le fichier SH-05 est ajouté
+aux deux sélections complètes ; aucun fichier matériel/LLM ajouté.
+
+Reproduction locale finale du 2026-10-31 :
+
+| Sélection | Résultat |
+|---|---|
+| ciblée `--sh05` | 35 réussis, 146 sous-tests ; 1,19 s |
+| campagne `--stdlib` | 338 réussis ; 12,871 s |
+| campagne pytest contrôlée | 388 réussis, 7 désélectionnés, 507 sous-tests ; 21,30 s |
+| contrats `--legacy-stdlib` | 4 réussis ; 0,375 s |
+
+Chaque processus final : code 0, zéro accès interdit, zéro thread résiduel et
+trois sondes synthétiques refusées. Temps locaux de harnais, non latences
+qualifiées ; les campagnes complètes ont été lancées dans des processus
+distincts en parallèle, pas dans un environnement de mesure physique isolé.
+
+Le banc SH-05 possède des doubles distincts de sortie/P5/preuve/inhibition/
+journal et des oracles indépendants des traces de décision. Préconditions
+inconnues, limites de mouvement, arrêt avant lecture, défauts simultanés,
+invalidations, échéance inchangée, reçus d'interruption et arrêts sans succès
+de substitution sont testés. Les contrats communs balle/primitives/stop,
+perception, lifecycle, entrées texte/intention/voix factice et réessais sont
+rejoués. Le stop protégé retourne désormais `stopped` et termine le plan ;
+le stop non protégé et les règles de mouvement balle sont conservés.
+
+Contre-exemples, empreintes et preuves :
+[rapport SH-09, section 18](../../specs/backlog/08_lot_a_rapport_sh09.md#18-sh-05--complément-logiciel-et-campagne-isolée-2026-10-31).
+Qualifications non exécutées :
+[blocages physiques SH-05](sh05-blocages-physiques.md).
+**Aucun moteur activé, aucun Go humain et aucune clôture globale SH-05/SH-09.**

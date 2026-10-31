@@ -57,6 +57,8 @@ class LanguageController:
         try:
             return bool(check_obstacle())
         except Exception:
+            if isinstance(self.robot, RobotController) and self.robot.protection_present:
+                raise
             return False
 
     def handle_text(self, text: str):
@@ -124,8 +126,12 @@ class LanguageController:
         if refusal:
             return {"intent": intent, "status": "rejected", "reason": refusal}
         protected = isinstance(self.robot, RobotController) and self.robot.protection_present
-        if not protected or intent.name == "stop":
+        if not protected:
             return self._handle_intent(intent, self.robot)
+        if intent.name == "stop":
+            self.robot.request_emergency_stop()
+            self.robot.supervise(events=("stop",))
+            return {"intent": intent, "status": "stopped", "causes": self.robot.causes}
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
         owned = permit is None
@@ -137,10 +143,16 @@ class LanguageController:
             if not self.robot.valid_result(permit):
                 return {"intent": intent, "status": "aborted",
                         "reason": "protection_fault", "causes": self.robot.causes}
+            if result.get("status") == "aborted":
+                self.robot.stop()
             return result
         except ProtectionFault as exc:
+            self.robot.suspend(str(exc))
             return {"intent": intent, "status": "aborted", "reason": "protection_fault",
                     "causes": (str(exc),)}
+        except Exception:
+            self.robot.priority_one("language_exception")
+            raise
         finally:
             if owned and permit is not None:
                 self.robot.finish(permit)
@@ -191,6 +203,11 @@ class LanguageController:
                 if self.robot.reservation is not None and self.robot.reservation.phase != "active":
                     return {"intent": intent, "status": "aborted", "reason": "protection_fault",
                             "causes": self.robot.causes, "results": results}
+                if results[-1].status not in {"success", "in_progress"}:
+                    return {"intent": intent, "status": "aborted",
+                            "reason": "skill_failed", "results": results}
+                if results[-1].status == "in_progress":
+                    break
         return {
             "intent": intent,
             "status": "accepted",

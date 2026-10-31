@@ -107,6 +107,9 @@ class HumanFollowRuntime:
         self.pending_announcement: HumanAnnouncement | None = None
         self._sequence = 0
         self._announcement_sequence = 0
+        self._ended_reason: str | None = None
+        self._ended_deadline: float | None = None
+        self._ended_locked = False
         self.permit = robot.admit(human=True, acquisition=True, conditions=self.conditions)
         try:
             context = HumanMarkerMissionContext.from_runtime_settings(
@@ -137,6 +140,30 @@ class HumanFollowRuntime:
     @property
     def snapshot(self) -> HumanFollowSnapshot:
         return self._lifecycle.snapshot
+
+    def result_metadata(self) -> dict[str, object]:
+        state = self.snapshot
+        required_action = (
+            "manual_rearm_then_new_request" if self._ended_locked else
+            "new_request" if self._ended_reason is not None else
+            "correct_faults_then_explicit_resume" if state.phase is HumanFollowPhase.SUSPENDED else
+            "none"
+        )
+        return {
+            "mission": f"{self.permit.generation}:{self.permit.mission}",
+            "context": str(self.permit.context), "armament": self.permit.armament,
+            "mission_deadline": (self._ended_deadline if self._ended_reason is not None
+                                 else state.mission_deadline),
+            "outcome": self._ended_reason if self._ended_reason is not None else state.phase.value,
+            "required_action": required_action,
+        }
+
+    def _remember_end(self, reason: str, previous: HumanFollowSnapshot | None = None) -> None:
+        previous = self.snapshot if previous is None else previous
+        reservation = self.robot.reservation
+        self._ended_reason = reason
+        self._ended_deadline = previous.mission_deadline
+        self._ended_locked = reservation is not None and reservation.phase == "locked"
 
     def conditions(self) -> HumanConditions:
         facts = self._facts()
@@ -177,10 +204,12 @@ class HumanFollowRuntime:
             if self.snapshot.context is not None:
                 now = self.robot.time_fn()
                 if self.snapshot.mission_deadline is None:
+                    self._remember_end("journal_error")
                     self.robot.finish(self.permit)
                     self._lifecycle.finish("journal_error")
                 elif now >= self.snapshot.mission_deadline:
                     self.robot.suspend("deadline")
+                    self._remember_end("deadline")
                     self.robot.finish(self.permit)
                     self._lifecycle.finish("deadline")
                 else:
@@ -219,6 +248,7 @@ class HumanFollowRuntime:
     def _finish(self, reason: str) -> None:
         self.robot.stop()
         ended = self.snapshot.context
+        self._remember_end(reason)
         self.robot.finish(self.permit)
         self._lifecycle.finish(reason)
         self._acquisition = None
@@ -285,26 +315,28 @@ class HumanFollowRuntime:
         provider: HumanPerceptionProvider | None = None,
         completed_announcement: str | None = None,
     ) -> HumanFollowSnapshot:
-        if self._frame_source is not None and any(
-            value is not None for value in (observation, frame, provider)
-        ):
-            raise ValueError("A bound perception session does not accept input overrides")
-        if (frame is None) != (provider is None):
-            raise ValueError("A perception frame and provider must be supplied together")
-        if frame is not None and not isinstance(frame, HumanPerceptionFrame):
-            raise TypeError("Human runtime requires a structured perception frame")
-        if provider is not None and not callable(getattr(provider, "observe", None)):
-            raise TypeError("Human runtime requires a structured perception provider")
-        if observation is not None and frame is not None:
-            raise ValueError("Supply either a marker observation or a perception frame")
         try:
+            if self._frame_source is not None and any(
+                value is not None for value in (observation, frame, provider)
+            ):
+                raise ValueError("A bound perception session does not accept input overrides")
+            if (frame is None) != (provider is None):
+                raise ValueError("A perception frame and provider must be supplied together")
+            if frame is not None and not isinstance(frame, HumanPerceptionFrame):
+                raise TypeError("Human runtime requires a structured perception frame")
+            if provider is not None and not callable(getattr(provider, "observe", None)):
+                raise TypeError("Human runtime requires a structured perception provider")
+            if observation is not None and frame is not None:
+                raise ValueError("Supply either a marker observation or a perception frame")
             self._cycle(
                 events=events, observation=observation, frame=frame, provider=provider,
                 completed_announcement=completed_announcement,
             )
             self.robot.supervise(evaluate=self._sync)
             return self.snapshot
-        except Exception:
+        except Exception as exc:
+            if not isinstance(exc, ProtectionFault):
+                self.robot.priority_one("human_cycle_exception")
             reservation = self.robot.reservation
             if reservation is None or reservation.phase in {"suspended", "locked", "ended"}:
                 self._sync()
@@ -420,8 +452,12 @@ class HumanFollowRuntime:
     def _wait_expired(self, now: float) -> bool:
         deadline = self.snapshot.acquisition_deadline
         if deadline is not None and now >= deadline:
+            previous = self.snapshot
             transition = self._lifecycle.expire(now=now)
             if transition.ended_mission_id is not None:
+                if transition.outcome is None:
+                    raise RuntimeError("A terminal acquisition transition requires an outcome")
+                self._remember_end(transition.outcome, previous)
                 self.robot.finish(self.permit)
                 self._acquisition = None
                 self._assessment = None

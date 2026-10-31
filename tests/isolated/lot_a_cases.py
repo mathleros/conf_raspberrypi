@@ -22,7 +22,7 @@ from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.plan_guards import requests_human_follow
 from irobot.interfaces.protection import (
-    HumanConditions, MissionPermit, ProtectionFault, ProtectionPorts, ProtectionState,
+    HumanConditions, HumanMotionLimits, MissionPermit, ProtectionFault, ProtectionPorts, ProtectionState,
 )
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
@@ -155,6 +155,7 @@ class Rig:
         self.robot = RobotController(
             self.motor, self.clock.time, self.clock.sleep,
             protection="present" if present else "absent", ports=ports if present else None,
+            human_motion_limits=HumanMotionLimits("FICTIONAL-lot-a", 0.8, 0.1),
         )
         self.clock.on_wait = self.p5.refresh
         if present:
@@ -611,7 +612,7 @@ def test_o10_same_runtime_ball_human_ball_and_primitives(present, tmp_path):
         result = runtime.handle_text_as_plan(phrase)
         assert result["status"] == "accepted"
         assert command in nonzero(rig.motor)[before:]
-    assert runtime.handle_text_as_plan("stop")["status"] == "accepted"
+    assert runtime.handle_text_as_plan("stop")["status"] == ("stopped" if present else "accepted")
     assert rig.robot.reservation is None
     assert rig.motor.commands[-1] == "stop"
 
@@ -1171,7 +1172,7 @@ def test_o10_listen_once_uses_only_explicit_audio_and_transcript_doubles(present
             result = runtime.listen_once()
     resolve.assert_called_once_with("auto")
     transcribe.assert_called_once_with("fictional-input")
-    assert result["status"] == "accepted"
+    assert result["status"] == ("stopped" if present else "accepted")
     assert not nonzero(rig.motor) and rig.motor.commands[-1] == "stop"
 
 

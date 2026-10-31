@@ -23,6 +23,7 @@ SELECTED = (
     "test_human_perception.py", "test_human_lifecycle.py", "test_marker_diagnostic.py",
     "test_human_follow_runtime.py",
     "test_marker_calibration.py",
+    "test_human_safety.py",
 )
 
 
@@ -135,10 +136,11 @@ def main():
     stdlib = "--stdlib" in sys.argv
     legacy = "--legacy-stdlib" in sys.argv
     human_perception = "--human-perception" in sys.argv
-    if human_perception and legacy:
-        raise ValueError("The legacy contract is not a human-perception selection")
+    human_safety = "--sh05" in sys.argv
+    if (human_perception and human_safety) or (legacy and (human_perception or human_safety)):
+        raise ValueError("Targeted selections and legacy contracts must run separately")
     arguments = [arg for arg in sys.argv[1:]
-                 if arg not in {"--stdlib", "--legacy-stdlib", "--human-perception"}]
+                 if arg not in {"--stdlib", "--legacy-stdlib", "--human-perception", "--sh05"}]
     root = Path(arguments[0]).resolve() if arguments else ROOT
     os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     for key in tuple(os.environ):
@@ -150,7 +152,8 @@ def main():
     signal.signal(signal.SIGALRM, timeout)
     signal.alarm(120)
     before_threads = set(threading.enumerate())
-    selected = (("test_human_perception.py", "test_human_follow_runtime.py")
+    selected = (("test_human_safety.py",) if human_safety else
+                ("test_human_perception.py", "test_human_follow_runtime.py")
                 if human_perception else SELECTED)
     paths = [str(root / "tests" / "unit" / name) for name in selected]
     with tempfile.TemporaryDirectory(prefix="irobot-lot-a-") as work:
@@ -165,11 +168,13 @@ def main():
                 suite = unittest.defaultTestLoader.loadTestsFromModule(module)
             else:
                 modules = (
+                    ("tests.unit.test_human_safety",) if human_safety else
                     ("tests.unit.test_human_perception", "tests.unit.test_human_follow_runtime")
                     if human_perception else (
                         "tests.isolated.lot_a_cases", "tests.unit.test_human_perception",
                         "tests.unit.test_human_lifecycle", "tests.unit.test_marker_diagnostic",
                         "tests.unit.test_marker_calibration", "tests.unit.test_human_follow_runtime",
+                        "tests.unit.test_human_safety",
                     )
                 )
                 suite = unittest.TestSuite(

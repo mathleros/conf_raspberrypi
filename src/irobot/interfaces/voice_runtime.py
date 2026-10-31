@@ -1190,7 +1190,7 @@ class VoiceRuntime:
                 self._reserved_context = None
                 self._reserved_context_key = None
                 if human:
-                    return {"status": "accepted", "source": "local_stop", "steps": []}
+                    return {"status": "stopped", "source": "local_stop", "steps": []}
             return self._handle_text_as_plan(text)
         if " ".join(fold(text).split()) in HUMAN_RESUME_COMMANDS:
             return self._resume_reserved_skill()
@@ -1266,7 +1266,8 @@ class VoiceRuntime:
             snapshot = self._human_follow.cycle()
             if snapshot.context is None:
                 raise ProtectionFault("+".join(self.robot.causes))
-            return {"status": snapshot.phase.value, "snapshot": snapshot}
+            return {"status": snapshot.phase.value, "snapshot": snapshot,
+                    **self._human_follow.result_metadata()}
         except ProtectionFault as exc:
             return {"status": "rejected", "reason": str(exc)}
         except Exception:
@@ -1305,9 +1306,10 @@ class VoiceRuntime:
             elif holding is False:
                 snapshot = self._human_follow.continue_tracking()
             return {"status": snapshot.phase.value, "snapshot": snapshot,
-                    "causes": self.robot.causes}
+                    "causes": self.robot.causes, **self._human_follow.result_metadata()}
         except ProtectionFault as exc:
-            return {"status": "rejected", "reason": str(exc), "causes": self.robot.causes}
+            return {"status": "rejected", "reason": str(exc), "causes": self.robot.causes,
+                    **self._human_follow.result_metadata()}
         except Exception:
             try:
                 self.robot.priority_one("human_runtime_exception")
@@ -1369,34 +1371,52 @@ class VoiceRuntime:
         """Infrastructure seam for isolated mission providers, not a language route."""
         if self._human_follow is not None:
             return {"status": "rejected", "reason": "human_motion_provider_unavailable"}
-        if not self._protected() or not self.robot.valid_result(permit):
+        if not self._protected():
             return {"status": "rejected", "reason": "invalid_reservation"}
         if not self._admission_lock.acquire(blocking=False):
             return {"status": "rejected", "reason": "mission_reserved"}
-        self._reserved_skill = skill
-        key = (permit.generation, permit.mission)
-        context = self._reserved_context
-        if context is None or self._reserved_context_key != key:
-            context = SkillContext()
-            self._reserved_context = context
-            self._reserved_context_key = key
-        context.robot = self.robot.bind(permit)
+        initial = self.robot.reservation
+        metadata = {
+            "mission": permit.mission, "context": permit.context, "armament": permit.armament,
+            "mission_deadline": initial.deadline if initial is not None else None,
+        }
         try:
+            self.robot.supervise()
+            if not self.robot.valid_result(permit):
+                raise ProtectionFault("+".join(self.robot.causes or ("obsolete_context",)))
+            self._reserved_skill = skill
+            key = (permit.generation, permit.mission)
+            context = self._reserved_context
+            if context is None or self._reserved_context_key != key:
+                context = SkillContext()
+                self._reserved_context = context
+                self._reserved_context_key = key
+            context.robot = self.robot.bind(permit)
             result = SkillExecutor(context).run(skill)
             self.robot.supervise()
             reservation = self.robot.reservation
             if reservation is None or reservation.permit != permit:
-                return {"status": "aborted", "reason": "obsolete_result"}
+                return {"status": "aborted", "reason": "obsolete_result",
+                        "required_action": "new_request", **metadata}
             if reservation.phase == "suspended":
-                return {"status": "suspended", "causes": self.robot.causes}
+                return {"status": "suspended", "causes": self.robot.causes,
+                        "required_action": "correct_faults_then_explicit_resume", **metadata}
             if reservation.phase != "active":
-                return {"status": "aborted", "reason": "protection_fault", "causes": self.robot.causes}
+                return {"status": "aborted", "reason": "protection_fault", "causes": self.robot.causes,
+                        "required_action": ("manual_rearm_then_new_request"
+                                            if reservation.phase == "locked" else "new_request"),
+                        **metadata}
             return {"status": result.status, "results": [result]}
         except ProtectionFault as exc:
             reservation = self.robot.reservation
             if reservation is not None and reservation.phase == "suspended":
-                return {"status": "suspended", "reason": str(exc), "causes": self.robot.causes}
-            return {"status": "aborted", "reason": "protection_fault", "causes": (str(exc),)}
+                return {"status": "suspended", "reason": str(exc), "causes": self.robot.causes,
+                        "required_action": "correct_faults_then_explicit_resume", **metadata}
+            return {"status": "aborted", "reason": "protection_fault", "causes": self.robot.causes,
+                    "reason_detail": str(exc),
+                    "required_action": ("manual_rearm_then_new_request"
+                                        if reservation is not None and reservation.phase == "locked"
+                                        else "new_request"), **metadata}
         except Exception:
             self.robot.priority_one("mission_exception")
             raise
@@ -1404,7 +1424,8 @@ class VoiceRuntime:
             try:
                 self.robot.stop()
                 reservation = self.robot.reservation
-                if reservation is not None and reservation.phase != "suspended":
+                if (reservation is not None and reservation.permit == permit
+                        and reservation.phase != "suspended"):
                     self.robot.finish(permit)
                     self._reserved_skill = None
                     self._reserved_context = None
@@ -1423,7 +1444,8 @@ class VoiceRuntime:
                 return {"status": "rejected", "reason": "mission_reserved"}
             try:
                 snapshot = self._human_follow.resume()
-                return {"status": snapshot.phase.value, "snapshot": snapshot}
+                return {"status": snapshot.phase.value, "snapshot": snapshot,
+                        "causes": self.robot.causes, **self._human_follow.result_metadata()}
             except ProtectionFault as exc:
                 return {"status": "rejected", "reason": str(exc)}
             except Exception:
@@ -1599,6 +1621,11 @@ class VoiceRuntime:
                     break
 
                 step_result = self._execute_intent_with_retry(intent, trace_path)
+                if step_result.get("status") == "stopped":
+                    global_status = "stopped"
+                    steps.append(step_result)
+                    self.mission.abort("stop")
+                    break
                 failed = step_result.get("status") in {"rejected", "failed", "incomplete", "aborted"}
                 if failed:
                     global_status = "incomplete" if step_result.get("status") != "aborted" else "aborted"

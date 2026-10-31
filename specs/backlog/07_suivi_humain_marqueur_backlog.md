@@ -791,6 +791,20 @@ Conditions du verdict :
 
 **Cadre d'exigences et de recette spécifié et validé ; conception détaillée, implémentation et qualification à faire.** Les six validations ne constituent ni une réalisation ni une clôture technique du ticket.
 
+**Avancement logiciel du 2026-10-31 :** le complément SH-05 sur le socle
+protégé est implémenté et revalidé sur doubles : admission/émission par cycle,
+préconditions inconnues refusées, bornes injectées sans profil de production,
+priorités et causes multiples, demandes/commandes/résultats obsolètes,
+exceptions, arrêts et propagation sans succès apparent. Les six décisions
+ci-dessus sont inchangées. La préparation humaine reste immobile et le
+chemin humain réel reste refusé. Les contrôles/ports logiciels et la
+non-régression isolée ne sont plus des travaux entièrement à faire ;
+leur qualification réelle, les seuils issus des mesures et les dépendances
+physiques restent ouverts. Le statut historique ci-dessus ne clôture pas le
+ticket : il est précisé par les
+[preuves logicielles](08_lot_a_rapport_sh09.md#18-sh-05--complément-logiciel-et-campagne-isolée-2026-10-31)
+et les [blocages physiques séparés](../../docs/test-campaign/sh05-blocages-physiques.md).
+
 | Travail restant | Livrable / preuve attendu |
 |---|---|
 | Qualifier les prérequis SH-02/SH-03/SH-04 | Configuration reproductible, perception exploitable, protections et accès à la coupure en solo démontrés ; aucun prérequis déduit de sa seule spécification |

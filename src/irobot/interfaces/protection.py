@@ -46,7 +46,8 @@ class ProtectionPorts:
     journal: DecisionJournal | None = None
 
     def __post_init__(self):
-        if not math.isfinite(self.max_age) or self.max_age <= 0:
+        if (isinstance(self.max_age, bool) or not isinstance(self.max_age, (int, float))
+                or not math.isfinite(self.max_age) or self.max_age <= 0):
             raise ValueError("P5 freshness budget must be explicit and positive")
         for port, method in ((self.reader, "read"), (self.proof, "emit"), (self.inhibition, "request")):
             if not callable(getattr(port, method, None)):
@@ -82,10 +83,59 @@ class HumanConditions:
 
 
 @dataclass(frozen=True)
+class HumanMotionLimits:
+    """Injected qualification envelope, not a PWM-to-ground-speed conversion."""
+
+    qualification: str
+    max_speed_setting: float
+    ground_speed_bound_m_s: float
+    rotation_rate_bound_rad_s: float | None = None
+    max_rotation_angle_rad: float | None = None
+    max_rotation_duration_s: float | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.qualification, str) or not self.qualification.strip():
+            raise ValueError("An identified motion qualification is required")
+        values = (self.max_speed_setting, self.ground_speed_bound_m_s)
+        rotation = (self.rotation_rate_bound_rad_s, self.max_rotation_angle_rad,
+                    self.max_rotation_duration_s)
+        if any(value is not None for value in rotation):
+            if any(value is None for value in rotation):
+                raise ValueError("Rotation qualification requires all three bounds")
+            values += rotation
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) or value <= 0 for value in values):
+            raise ValueError("Motion bounds must be finite and positive")
+        if self.max_speed_setting > 1 or self.ground_speed_bound_m_s > 0.15:
+            raise ValueError("Motion qualification exceeds the approved ceiling")
+
+    def refusal(self, command: str, speed: float, duration: float | None) -> str | None:
+        if (isinstance(speed, bool) or not isinstance(speed, (int, float))
+                or not math.isfinite(speed) or not 0 < speed <= self.max_speed_setting):
+            return "human_speed_outside_qualification"
+        if command == "backward":
+            return "human_backward_forbidden"
+        if command in {"left", "right"}:
+            if (self.rotation_rate_bound_rad_s is None or self.max_rotation_duration_s is None
+                    or self.max_rotation_angle_rad is None):
+                return "human_rotation_unqualified"
+            if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+                    or not math.isfinite(duration) or duration <= 0):
+                return "human_rotation_unbounded"
+            if (duration > self.max_rotation_duration_s
+                    or duration * self.rotation_rate_bound_rad_s > self.max_rotation_angle_rad):
+                return "human_rotation_outside_qualification"
+        elif command not in {"forward", "set_speed"}:
+            return "human_command_forbidden"
+        return None
+
+
+@dataclass(frozen=True)
 class AdmissionRequest:
     generation: str
     armament: str | None
     interrupt_sequence: int
+    cancellation_sequence: int = 0
 
 
 @dataclass(frozen=True)

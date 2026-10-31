@@ -1962,3 +1962,162 @@ ou commit. Les régressions balle/stop sont exclusivement sur doubles.
 **Verdict : raccordement logiciel existant revalidé et budgets provisoires
 configurables livrés. Fournisseur optique matériel non livré ; SH-04 de
 production non activé/non qualifié, mouvement humain réel toujours refusé.**
+
+## 18. SH-05 — complément logiciel et campagne isolée (2026-10-31)
+
+### Référence et périmètre
+
+Demande utilisateur : compléter le logiciel SH-05 à partir des exigences
+validées et du socle existant, sans réouvrir les décisions ni activer un
+moteur ; ciblée, campagne isolée, non-régression, preuves et blocages
+physiques séparés.
+
+Base Git `2b360573ed80a344d6e8bff351ba69489cf14492`, arbre initial propre,
+modifications non commitées. macOS, CPython 3.13.11 de la `.venv` existante.
+Aucune installation, dépendance, calibration d'exploitation ou surface
+matérielle modifiée. Aucun import caméra/OpenCV natif, audio réel, Pi/SSH,
+modèle ou serveur LLM. SH-02, A1–A6, les six sujets SH-05 et les autres
+décisions acquises sont conservés.
+
+### Complément livré et oracles
+
+| Exigence | Raccordement effectivement testé |
+|---|---|
+| Admission et émission | Chaque précondition obligatoire invalidée séparément à l'admission, à l'émission et pendant un mouvement ; inconnue n'est pas vraie. Lecture obstacle réelle du double distincte du booléen de précondition. Types P5/conditions/budgets malformés refusés explicitement |
+| Limites | `HumanMotionLimits` immuable et explicitement injectée ; absence = refus non nul humain. Plafond au sol déclaré au plus 0,15 m/s, jamais déduit du PWM. Réglage du driver contrôlé aussi sur les directions. Aucun recul ni commande inconnue. Rotation directe refusée ; rotation temporisée soumise aux trois bornes angulaires et aux préconditions existantes |
+| Cycles temporisés | Durée négative/non finie/mal typée refusée, zéro numérique sans mouvement, frontières angle/durée testées ; recontrôle sans réémission ; échéance logicielle non repoussée par une attente de port/journal et demande déjà expirée non émise |
+| Priorités | Stop/annulation/P1/P3/P6/perte de contrôle demandent le zéro avant lecture P5/conditions/journal. Permutations d'événements, échéance exacte, défauts obstacle/audio/entrée stop et P5 simultanés ; fin verrouillée > stop/annulation > échéance > suspension, sans effacer les autres causes |
+| Invalidation | Stop invalide immédiatement le résultat et les demandes d'admission capturées avant lui, même après effacement du stop. P1 conserve son réarmement postérieur obligatoire. Commandes d'ancien contexte refusées sans empoisonner la phase courante ; confirmations et annonces anciennes restent neutralisées par le raccordement existant |
+| Défauts | Journal de demande avant émission puis recontrôle des faits, obstacle, réglage, P5, échéance et verrou d'émission. Journal défaillant : suspension explicite, aucune preuve renouvelée pour un cycle incomplet. Sortie nulle/proof indisponible : exception explicite et verrouillage, pas de succès de substitution. Défaut d'entrée stop consigné, pas assimilé silencieusement à un stop normal |
+| Runtime/exécuteur | Ancien résultat effacé avant validation de skill ; résultat tardif invalidé. Exception inattendue dans entrée langage/cycle humain : stop, priorité 1, propagation, aucune étape suivante. Skill en échec : arrêt du plan. État balle `in_progress` conservé pour son contrat de réessai, sans étape suivante tant qu'il est en cours |
+| Reçus d'interruption | Mission, contexte, armement, causes, échéance initiale et action nécessaire (`correct_faults_then_explicit_resume`, `new_request`, `manual_rearm_then_new_request`) conservés, même après libération de la session humaine et retour lifecycle à `available` |
+| Arrêts | Chemin protégé : statut `stopped`, mission non réussie, un seul essai et aucun enchaînement. Le statut de stop non protégé reste historique. Ce changement explicite de résultat est limité au chemin protégé, sans changer les décisions de mouvement balle ou la commande nulle |
+
+Le banc nouveau de [tests SH-05](../../tests/unit/test_human_safety.py) ne
+remplace aucune décision métier par un double. Sortie, lecteur P5, preuve,
+inhibition et journal sont des doubles distincts. L'oracle lit le registre
+de sorties indépendant des traces de décision ; les causes/états ne sont
+pas des oracles d'absence de mouvement. Une sortie indisponible invalide
+l'observation et ne permet pas de conclure « rien n'est sorti ».
+
+Le profil `FICTIONAL-SH05` utilise notamment réglage 0,6, borne au sol 0,15,
+borne angulaire 0,5 rad/s, angle 0,1 rad et durée 0,2 s. Ce sont des entrées
+de test, **pas une qualification, conversion PWM ou configuration de
+production**. Les cas incluent la frontière exacte et juste au-delà.
+Accélération, combinaisons et seuils physiques non qualifiés restent dans
+le document de blocages ; aucune loi SH-06 ou motorisation humaine réelle
+n'est exposée.
+
+### Exécutions et contre-exemples conservés
+
+Depuis la racine du dépôt, exclusivement avec le
+[lanceur isolé](../../tests/isolated/run_lot_a.py) `-I -S`.
+La nouvelle option `--sh05` sélectionne seulement le nouveau fichier ; il
+est aussi sélectionné par stdlib/pytest complets. Gardes, borne murale,
+exclusion plugins/site/ressources et contrats historiques inchangés.
+
+| Série | Résultat effectivement observé |
+|---|---|
+| Première ciblée SH-05 | 20 réussis, 126 sous-tests ; 1,79 s |
+| Première non-régression stdlib | 323 tests exécutés, 1 échec et 2 erreurs ; 14,492 s |
+| Première non-régression pytest | 371 réussis, 2 échecs, 7 désélectionnés, 487 sous-tests ; 22,26 s |
+| Intermédiaire stdlib après les reçus/arrêts | 335 tests exécutés, 1 échec ; 13,897 s |
+| Ciblée finale `--sh05` | **35 réussis, 146 sous-tests ; 1,19 s** |
+| Finale `--stdlib` | **338 réussis ; 12,871 s** |
+| Finale pytest contrôlée | **388 réussis, 7 désélectionnés, 507 sous-tests ; 21,30 s** |
+| Finale `--legacy-stdlib` | **4 réussis ; 0,375 s** |
+
+Le premier échec de non-régression révélait un vrai défaut introduit : les
+contrôles numériques suspendaient acquisition/maintien sur une tentative
+déjà refusée par la phase. Correction : contrôler l'enveloppe uniquement
+pour la mission/contexte actifs ; tests des refus anciens/immobiles sans
+changement de phase. Les attendus lifecycle acquis n'ont pas été assouplis.
+Un dernier attendu stdlib de `listen_once` réclamait encore `accepted` pour
+un stop protégé. Il est mis à jour vers `stopped` dans ce seul chemin, avec
+contrôle indépendant du zéro ; stop absent de protection inchangé.
+Les nouveaux tests vérifient mission interrompue, un seul essai et reçu
+terminal, pas seulement la nouvelle chaîne de statut.
+
+Contre-exemple supplémentaire conservé : ajout de `False` et `0j` parmi les
+vitesses invalides, **2 sous-tests en échec, 35 tests réussis et 144 sous-tests
+réussis en 1,41 s**, sans accès interdit/thread résiduel. Les deux entrées
+traversaient encore le raccourci `value == 0` dans `supervise`, après les
+gardes des méthodes de façade. Le zéro autorisé est maintenant numérique
+réel, hors booléen, sur les trois entrées protégées (contrôleur, capacité
+mission et supervision) ; ces deux faux zéros sont des refus explicites
+sans émission. Les 35 tests et les trois campagnes ont été rejoués après
+ce correctif ; les nombres finaux ci-dessus remplacent les reproductions
+intermédiaires réussies.
+
+Les séries intermédiaires ont aussi conduit à couvrir explicitement :
+obstacle initial avant une primitive balle protégée (aucune première
+émission), recul balle préservé, résultat/runtime expiré avant exécution
+de skill, entrée stop défaillante simultanée et cycle humain direct en
+exception. Le contrat balle `in_progress` a été conservé et testé avant la
+dernière campagne, sans réessai humain ni étape suivante implicite.
+
+Les **quatre processus finaux** ont chacun code 0, `forbidden accesses=0`,
+`residual threads=0` et trois sondes synthétiques rejetées. Les wrappers
+finaux propagent explicitement le code du lanceur après lecture du log ;
+les premiers wrappers terminaient sur `tail` et leurs codes de shell ne
+servent donc pas de preuve. Les sorties négatives restent consignées.
+Les trois campagnes finales ont été lancées dans des processus séparés en
+parallèle ; ces durées locales variables ne qualifient aucun budget Pi ou
+physique. Aucune tentative interdite ni thread résiduel observé dans ces
+séries.
+
+Journaux bruts persistants dans la session de travail
+`/Users/mathieu/.copilot/session-state/e2dcbca7-7731-490b-a9e4-17e4c215b36b/files/` :
+`sh05-targeted-final.log`, `sh05-stdlib-final.log`, `sh05-pytest-final.log`,
+`sh05-legacy-final.log`, ainsi que `sh05-stdlib-initial.log`,
+`sh05-pytest-initial.log`, `sh05-stdlib-stop-assertion.log`,
+`sh05-false-zero-counterexample.log`.
+La reproduction portable reste donnée par les commandes du protocole.
+
+Diagnostics VS Code sans erreur sur les neuf fichiers Python concernés ;
+`git diff --check` sans erreur. La dernière modification du contrat
+`in_progress` et de son test a aussi été revérifiée par diagnostics, puis
+les quatre sélections ont été relancées. Pas de linter/type-checker
+supplémentaire installé ou prétendu exécuté.
+Une modification parallèle de `.github/copilot-instructions.md` est
+apparue en fin de travail ; elle n'a pas été éditée ni intégrée au
+complément SH-05. La référence de ce rapport est celle des fichiers
+logiciels effectivement testés, non une revendication sur cette édition
+indépendante.
+
+### Empreintes SHA-256 du logiciel validé
+
+Chemins relatifs à la racine du dépôt ; base Git ci-dessus + ces empreintes
+identifient l'arbre non commité réellement exécuté :
+
+| Fichier | SHA-256 |
+|---|---|
+| `src/irobot/interfaces/protection.py` | `87be64c0a147c83ddda5b45695b8d1b63757c304b13b5803879fdaad76f58544` |
+| `src/irobot/interfaces/robot_controller.py` | `e09ac037908d5f31d822466796a5f4679e46ec3af02bbeed0ff460e4eb297e47` |
+| `src/irobot/interfaces/human_follow_runtime.py` | `33cc20436e8016289f018c8929b8aa7ac527405a4432fd32273426a3a66e31b8` |
+| `src/irobot/interfaces/language_controller.py` | `e163e27845dd2208ed2b723037e4ce94e2878b9666f2135f0d563921da461515` |
+| `src/irobot/interfaces/voice_runtime.py` | `7867486bba582c820cbf2978eac24667830638be0843c7a28a70724b2a5eb264` |
+| `src/irobot/domain/orchestrator/executor.py` | `57a1bd8150d5897730ac6215ee2f430975d285be6146a4d69a90b3097820ee31` |
+| `tests/unit/test_human_safety.py` | `a2d4d3a60ae150ab83166268a68fc5c790533fe8b6cd3daee91f8df3ef58a29e` |
+| `tests/isolated/lot_a_cases.py` | `a7aae39462c60256b939c4eab42944631267c71eab42a73bc369cde90f85663c` |
+| `tests/isolated/run_lot_a.py` | `5ca5ed3a1c3af590825eb6fa00e81e8b54fe928a68f6e9a9340e5646c030db47` |
+| `config/runtime_calibration.toml` (inchangé) | `e09d3b9eaa5ec7f00899c1697e54c7e908028ac13dea3b9247afd8dff11ae199` |
+
+### Verdict logiciel et séparation des preuves
+
+**Complément logiciel SH-05 livré et revalidé sur doubles indépendants.**
+Les régressions couvrent les surfaces effectivement touchées et les
+contrats isolés existants ; ce n'est ni une campagne globale arbitraire ni
+une preuve de sûreté universelle.
+Ne pas interpréter les échéances logicielles comme une borne d'arrêt sous
+blocage : si le port, la boucle ou le Pi ne répond plus, la demande de zéro
+peut ne pas être exécutée. La preuve de cycle n'est alors pas renouvelée ;
+la couverture physique reste celle de la protection indépendante à réaliser
+et qualifier, pas celle du double logiciel.
+
+Les [blocages physiques SH-05](../../docs/test-campaign/sh05-blocages-physiques.md)
+sont consignés séparément : aucune mesure ni qualification physique ajoutée
+à ce rapport. Aucun moteur activé, aucun Go mobile humain, aucune clôture
+globale SH-05/SH-09. Réalisation/qualification des protections indépendantes,
+accès à la coupure en solo, calibration et domaine de mouvement, Pi/audio
+et recette physique restent des portes à franchir explicitement.

@@ -88,3 +88,27 @@ nettoyage sans fermeture de la source partagée. Aucun adaptateur caméra réel
 n'est installé ; aucun paramètre optique ou temporel de production qualifié
 n'est fourni par ces doubles. Voir le
 [rapport, section 16](../specs/backlog/08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31).
+
+### Garde-fous SH-05
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --sh05
+```
+
+Cette sélection ne collecte que `test_human_safety.py`, également inclus dans
+les deux campagnes complètes contrôlées. `--stdlib` est disponible ; `--sh05`
+ne se combine ni avec `--human-perception` ni avec `--legacy-stdlib`.
+Après la ciblée, exécuter les trois campagnes du protocole, pas pytest global.
+
+Le nouveau banc sépare sortie, lecteur P5, preuve, inhibition et journal.
+L'oracle lit les sorties effectivement enregistrées par le double de sortie,
+jamais une décision ou un verdict du journal. Conditions et enveloppes de
+mouvement sont explicitement fictives ; aucune valeur PWM ne devient une
+mesure au sol. Les cas couvrent préconditions isolées et en cours de mouvement,
+frontières numériques/temps, événements simultanés, stop avant lecture,
+demandes/résultats obsolètes, défauts des ports, propagation et reçus terminaux.
+L'indisponibilité d'une sortie/observation interdit de conclure à une absence
+de sortie sur la seule base du journal.
+
+Voir le [rapport SH-05](../specs/backlog/08_lot_a_rapport_sh09.md#18-sh-05--complément-logiciel-et-campagne-isolée-2026-10-31)
+et les [blocages physiques](../docs/test-campaign/sh05-blocages-physiques.md).

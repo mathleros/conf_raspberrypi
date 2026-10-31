@@ -2485,3 +2485,55 @@ non-régression balle/humain/balle, et traces structurées sans média brut.
 Limites inchangées : aucune qualification SH-02/SH-03/SH-10/SH-11, aucune
 preuve de protection matérielle P2–P6, aucun essai avec personne, aucun Go
 mobile humain. SH-05/SH-09 restent ouverts globalement.
+
+### Suite logicielle isolée du 2026-10-31 — replay de priorité et frontière perception
+
+État vérifié avant cette suite : HEAD `bc8a45f7606276f30cdc616b20bdbc7e173cc1cf`,
+aucun diff suivi ni index modifié ; le fichier non suivi
+`scripts/ssh_connect.sh` a été laissé intact. Aucun commit n’a été créé.
+Les six sujets SH-02, A1–A6 et les six décisions détaillées de chacun des
+tickets SH-05 à SH-11 ne sont pas modifiés ; les mentions historiques
+« aucun Go » ne sont pas réécrites.
+
+L’audit du raccordement structuré n’a pas trouvé de justification pour changer
+les autorisations L2 ou le traitement actuel de priorité 1. Les replays
+existants couvrent le refus de sortie non nulle en acquisition, après annonce
+et en maintien ; l’invalidation d’annonce et d’observation hors contexte ;
+l’échéance unique conservée lors d’une reprise ; ainsi que l’erreur de journal
+explicite sans jeton activable. Un replay concurrent supplémentaire vérifie
+qu’un arrêt de priorité 1 atteint la sortie factice pendant une évaluation qui
+échoue, que les verrous se libèrent et que le contexte finit verrouillé. Aucun
+résultat positif de mission ne peut être retenu après invalidation. Ces cas
+restent des preuves synthétiques, pas une qualification L2 physique.
+
+La frontière logicielle d’acquisition ajoute `HumanPerceptionFrame` pour
+transporter les pixels opaques avec source, génération de flux, numéro de
+trame et horodatages fournis par la capture, ainsi que le protocole
+`HumanPerceptionProvider.observe(frame, *, context) -> MarkerObservation`.
+Aucun fournisseur concret, adaptateur caméra ou raccordement runtime n’est
+ajouté. Cette interface n’invente ni calibration, distance, métrique/seuil de
+qualité, horloge ni budget ; l’observation typée reste soumise au contrat
+d’acquisition existant.
+
+Preuves reproduites localement après le replay et la définition de cette
+frontière, uniquement par les commandes isolées documentées dans
+`docs/test-campaign/lot-a-campagne-strictement-isolee.md` :
+
+| Campagne | Résultat reproduit |
+|---|---|
+| `run_lot_a.py --stdlib` | 235 tests réussis |
+| `run_lot_a.py` | 285 réussis, 7 désélectionnés, 61 sous-tests réussis |
+| `run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+Pour les trois processus : zéro accès interdit, zéro thread résiduel et trois
+sondes synthétiques rejetées. Le résultat Pi précédemment rapporté par
+l’utilisateur (284 réussis, 7 désélectionnés, 61 sous-tests en 1,10 s) demeure
+un résultat rapporté distinct, non reproduit indépendamment ici ; il ne valide
+ni matériel ni suivi réel. Aucun pytest global ni commande matérielle n’a été
+lancé dans cette suite.
+
+Blocages inchangés : aucune caméra/audio/moteur live raccordé, aucun fournisseur
+de mouvement humain réel, aucune calibration ou mesure qualifiée, aucune
+qualification SH-02/SH-03/SH-10/SH-11 ni preuve P2–P6. Les portes SH-02/SH-11
+restent obligatoires ; SH-05/SH-09 ne sont pas terminés globalement et aucun
+essai avec une personne ni mouvement réel n’est autorisé par ces résultats.

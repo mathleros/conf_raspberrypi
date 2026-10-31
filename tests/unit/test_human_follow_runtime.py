@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -275,6 +276,59 @@ class HumanFollowRuntimeTests(unittest.TestCase):
         self.assertEqual(set(self.rig.witness.requests[-1].split("+")), {"P6", "stop", "obstacle"})
         self.assertEqual(self.prepare()["reason"], "rearm_required")
         self.assertIsNone(self.runtime.human_follow_snapshot)
+
+    def test_priority_one_does_not_invert_controller_and_emission_locks(self):
+        self.activate()
+        evaluation_entered = threading.Event()
+        interrupt_stopped = threading.Event()
+        failures = []
+        interrupt_failures = []
+        original_stop = self.rig.motor.stop
+
+        def observed_stop():
+            original_stop()
+            if threading.current_thread().name == "isolated-priority-one":
+                interrupt_stopped.set()
+
+        def evaluate():
+            evaluation_entered.set()
+            if not interrupt_stopped.wait(timeout=2):
+                raise AssertionError("Priority-one stop did not reach the motor double")
+            raise RuntimeError("scripted evaluation failure")
+
+        def run_supervision():
+            try:
+                self.rig.robot.supervise(evaluate=evaluate)
+            except RuntimeError as exc:
+                failures.append(exc)
+
+        def run_priority_one():
+            try:
+                self.rig.robot.priority_one("P1")
+            except Exception as exc:
+                interrupt_failures.append(exc)
+
+        with patch.object(self.rig.motor, "stop", side_effect=observed_stop):
+            evaluator = threading.Thread(
+                target=run_supervision, name="isolated-evaluation", daemon=True,
+            )
+            interrupt = threading.Thread(
+                target=run_priority_one, name="isolated-priority-one", daemon=True,
+            )
+            evaluator.start()
+            self.assertTrue(evaluation_entered.wait(timeout=2))
+            interrupt.start()
+            evaluator.join(timeout=2)
+            interrupt.join(timeout=2)
+
+        self.assertFalse(evaluator.is_alive())
+        self.assertFalse(interrupt.is_alive())
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(str(failures[0]), "scripted evaluation failure")
+        self.assertEqual(interrupt_failures, [])
+        self.assertIn("P1", self.rig.robot.causes)
+        self.assertEqual(self.rig.robot.reservation.phase, "locked")
+        self.assertFalse(nonzero(self.rig.motor))
 
     def test_p5_reading_is_not_refreshed_by_preparation(self):
         self.prepare(announcement_timeout_seconds=20.0)

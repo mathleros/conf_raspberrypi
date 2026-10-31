@@ -131,6 +131,25 @@ class HumanMarkerMissionContext:
         )
 
 
+@dataclass(frozen=True)
+class HumanPerceptionFrame:
+    """Opaque pixels with capture-owned source, sequence, and monotonic timestamps."""
+
+    source_id: str
+    stream_generation: str
+    frame_number: int
+    captured_at: float
+    published_at: float
+    image: object
+
+
+class HumanPerceptionProvider(Protocol):
+    def observe(
+        self, frame: HumanPerceptionFrame, *,
+        context: HumanMarkerMissionContext,
+    ) -> MarkerObservation: ...
+
+
 class ArucoDetectorBackend(Protocol):
     def detectMarkers(self, image: object) -> tuple[object, object, object]: ...
 

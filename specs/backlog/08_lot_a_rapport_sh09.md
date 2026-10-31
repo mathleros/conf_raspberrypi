@@ -1024,3 +1024,75 @@ interdit, zéro thread résiduel et trois sondes synthétiques rejetées. Cette
 exécution isolée est rapportée, pas reproduite indépendamment ; elle n’augmente
 pas le niveau de preuve au-delà des logiciels sélectionnés et ne qualifie
 aucune propriété matérielle ou physique.
+
+## 11. Suite logicielle isolée — replay de priorité et frontière perception (2026-10-31)
+
+Cette suite ne révise pas les constats historiques des sections 1 à 10,
+n’étend pas A1–A6 et ne clôture pas globalement SH-05/SH-09.
+
+### Audit et changements
+
+À la reprise, HEAD observé : `bc8a45f7606276f30cdc616b20bdbc7e173cc1cf`.
+L’index et les fichiers suivis étaient propres ; `scripts/ssh_connect.sh`
+était le seul fichier non suivi et a été préservé. Aucun commit n’a été créé.
+Le PDF `config/ArUco_DICT_4x4_50_ID_1.pdf` est resté présent ; le fichier
+`specs/Online ArUco markers generator.pdf` est resté absent.
+
+L’audit du raccordement actuel n’a révélé aucun motif de modifier le contrôle
+L2 ou la séquence de priorité 1 : le runtime protégé refuse déjà les commandes
+non nulles en acquisition, avant annonce, en maintien et hors phase active ;
+la session humaine n’expose aucun exécuteur de mouvement. Les résultats
+d’observation et annonces sont liés à la mission/contexte courant, l’annonce
+expirée ou obsolète ne peut activer la session, et la reprise conserve
+l’échéance de mission d’origine. Les erreurs d’écriture du journal sont
+explicites et conduisent à un arrêt/suspension ou à une fin ; aucun chemin
+silencieux de succès n’a été ajouté.
+
+Un replay concurrent a été ajouté dans
+[test_human_follow_runtime.py](../../tests/unit/test_human_follow_runtime.py) :
+une priorité 1 survient pendant une évaluation protégée qui échoue. Il vérifie
+l’arrêt observé, la fin des deux threads, la propagation de l’erreur
+d’évaluation, le verrouillage de la réservation et l’absence de commande non
+nulle. Le contrôleur n’a pas nécessité de modification.
+
+À titre de préparation d’interface seulement,
+[human_perception.py](../../src/irobot/interfaces/human_perception.py) définit
+`HumanPerceptionFrame` (pixels opaques, source, génération, numéro de trame,
+horodatages capture/publication explicites) et le protocole
+`HumanPerceptionProvider.observe(frame, *, context) -> MarkerObservation`.
+Pas d’implémentation concrète, de caméra ni de raccordement au runtime. Aucun
+budget, calibration, distance, qualité ou seuil n’est inféré ou choisi ; les
+champs qui ne sont pas produits par une source qualifiée ne deviennent pas une
+preuve de détection valide.
+
+### Exécutions effectivement reproduites
+
+Depuis `conf_raspberrypi`, commandes isolées exactes documentées dans le
+protocole du lot A ; aucun pytest global :
+
+| Commande | Résultat local reproduit |
+|---|---|
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py --stdlib` | 235 tests, OK |
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py` | 285 réussis, 7 désélectionnés, 61 sous-tests réussis |
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py --legacy-stdlib` | 4 tests, OK |
+
+Pour chacun des trois processus : code de sortie 0, `forbidden accesses=0`,
+`residual threads=0` et trois sondes synthétiques refusées sans opération de
+ressource. Ces résultats sont reproduits localement dans la sélection isolée
+seulement. Ils ne mesurent ni performances Pi, ni caméra, audio, protections,
+arrêt réel ou comportement avec une personne.
+
+Le résultat Pi (284 réussis, 7 désélectionnés, 61 sous-tests en 1,10 s) reste
+rapporté par l’utilisateur et non reproduit indépendamment ; il est distinct
+des résultats locaux ci-dessus.
+
+### Non exécuté et portes restantes
+
+Aucune connexion réseau, commande Pi, découverte, caméra, audio, GPIO, moteur,
+campagne réelle ou essai avec une personne n’a été lancé. Aucun mouvement,
+essai de propulsion ou Go terrain ne découle de ce travail. Les exigences et
+qualifications SH-02/SH-03/SH-10/SH-11, protections physiques P2–P6,
+calibration et fournisseur de perception réel demeurent bloqués/non exécutés.
+Le refus de `follow_person` dans les parcours linguistiques de production
+reste actif. Les tickets SH-05 et SH-09 restent ouverts globalement ; aucun
+lot B n’est supposé.

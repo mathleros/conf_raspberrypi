@@ -1423,3 +1423,86 @@ Prochain bloc logiciel proposé : poursuivre SH-04 vers le contrat d'un
 fournisseur de perception non matériel et son raccordement au runtime, seulement
 avec les données qualifiées disponibles ; les essais optiques/Pi demeurent des
 campagnes distinctes soumises à préconditions et autorisations propres.
+
+## 15. Préparation de la prochaine étape SH-03 statique — campagne bloquée (2026-10-31)
+
+### Référence et préconditions vérifiées
+
+- Référence logicielle locale : branche `feat/human-detector`, HEAD
+  `bf313f1ff3307d9c189e1f662f2dbd1c66c68c2a`. Le fichier
+  `src/irobot/interfaces/marker_diagnostic.py` est présent dans cette
+  référence ; l'arbre de travail contient une modification documentaire
+  préexistante à `specs/backlog/07_suivi_humain_marqueur_backlog.md`, préservée.
+  La version synchronisée sur le Pi n'est pas vérifiée.
+- Montage déclaré antérieurement : Raspberry Pi 5, caméra Pi 5MP OV5647
+  frontale, fixée verticalement, objectif horizontal, centre optique à 6 cm
+  du sol ; marqueur candidat ArUco `DICT_4X4_50`, ID `1`, carré imprimé de
+  8 cm hors marge. Énumération logicielle, montage et dimensions sont des
+  déclarations/résultats antérieurs, pas une inspection physique actuelle.
+- L'utilisateur avait antérieurement déclaré les moteurs déconnectés et
+  impossibles à alimenter ; confirmation actuelle reçue le 2026-10-31 :
+  moteurs physiquement déconnectés et impossibles à alimenter. L'utilisateur
+  confirme également zone vide pendant les captures et affichage disponible.
+- Une autorisation antérieure avait couvert l'exécution de
+  `marker-detect-live` pour détection statique du couple exact sur caméra 0,
+  après synchronisation. Une exécution rapportée a détecté l'ID dans au moins
+  une trame. Une autorisation distincte a été reçue le 2026-10-31 pour la
+  caractérisation exploratoire limitée décrite ci-dessous. Elle ne vaut pas
+  qualification SH-03 ni autorisation d'actions hors de ce périmètre.
+- L'utilisateur indique que le Pi est sur « HEAD » et demande de lui faire
+  confiance ; aucun hash de révision n'est fourni. Le Pi ne peut donc pas être
+  comparé à la référence locale ci-dessus. L'environnement courant ne dispose
+  pas de session Pi/SSH établie.
+
+### Protocole préparé, non exécuté
+
+Portée envisagée pour une première caractérisation visuelle statique, sans
+personne ni propulsion : confirmer la version synchronisée et le montage ;
+vérifier le champ après rotation horaire de 90° ; placer le support rigide
+marqué de 8 cm à des distances de référence indépendantes de 1,2 m, 1,5 m et
+2 m, puis caractériser les limites à 1 m et 2,5 m sans les déclarer comme
+distances d'usage. À chaque condition autorisée, consigner orientation face,
+±15°/±30°, décalages dans le champ et éclairage ; éprouver séparément absence,
+autre ID, ambiguïté, troncature/occultation, faible lumière et contre-jour.
+Ne pas conserver d'images. Arrêt immédiat si l'isolement moteur, l'identité
+caméra, l'affichage ou la zone vide ne sont pas confirmés.
+
+Commande prévue sur le Pi, après vérification de la révision synchronisée :
+`PYTHONPATH=src .venv/bin/python -m irobot.interfaces.marker_diagnostic`.
+L'autorisation reçue couvre l'ouverture de la caméra 0 si elle est rapportée
+OV5647, le couple exact `DICT_4X4_50`/ID `1`, l'affichage tourné de 90°, sans
+enregistrement d'image, avec sortie par `q`, et seulement les observations
+exploratoires statiques ci-dessus.
+
+Le critère SH-03 est au moins 100 images nouvelles par condition nominale
+supportée, taux d'observations acceptées ≥95 %, et erreur absolue de dégagement
+≤20 cm pour ≥95 % des observations acceptées ; rapporter rejets, biais,
+maxima, débit cible ≥10 observations/s et latence capture→observation p95
+≤150 ms sur Pi. Le protocole complet requiert en outre calibration du montage
+final, référence indépendante d'écart robot–porteur et incertitude. Aucune
+personne ne sera présente : visibilité portée et marche lente sont donc hors
+périmètre et restent à qualifier séparément.
+
+### Résultats, limites et décision
+
+Résultat de la nouvelle campagne : **non exécutée**. Malgré l'autorisation
+reçue, aucun accès caméra, ouverture de l'appareil, acquisition, mesure ou
+commande Pi n'a été lancé depuis cette session, faute de session Pi/SSH
+disponible. Le statut « HEAD » rapporté ne fournit pas de hash vérifiable.
+La preuve antérieure d'une détection dans au moins une trame et les coins
+rapportés restent le seul résultat matériel ; elle ne prouve ni répétabilité,
+ni taux d'acceptation, distance, erreur de dégagement, calibration, débit ou
+latence. L'outil actuel affiche les coins en pixels et des changements d'état,
+mais ne compte pas les images nouvelles, ne mesure pas le dégagement et ne
+calcule pas ces métriques ; le protocole ne suffit donc pas à qualifier SH-03.
+Aucun réglage de production n'a été ajouté.
+
+**Décision : autorisation exploratoire reçue, mais exécution non réalisée ;
+aucun passage SH-03.** Les préconditions déclarées sont satisfaites pour la
+campagne limitée, mais l'exécution requiert une session opérateur sur le Pi et
+la version synchronisée doit être identifiée pour le compte rendu. La campagne
+exploratoire autorisée ne satisfait pas les critères quantitatifs SH-03 ;
+outillage de mesure et calibration restent à préparer avant toute
+qualification complète. Aucune qualification, décision de montage final ou
+autorisation de mouvement n'en découle. `follow_person` reste refusé en
+production.

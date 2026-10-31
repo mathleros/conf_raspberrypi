@@ -168,3 +168,56 @@ sondes synthétiques refusées. Tests exclusivement sur doubles : parcours trame
 Voir le [rapport SH-09, section 14](../../specs/backlog/08_lot_a_rapport_sh09.md#14-replay-synthétique-frontière--cycle-et-annonces-2026-10-31).
 Cette campagne logicielle ne qualifie ni fournisseur réel, perception optique,
 calibration, protection matérielle ni autorisation de mouvement.
+
+### Outillage SH-03 — calibration et relevé
+
+`test_marker_calibration.py` est inclus dans les sélections stdlib et pytest :
+confirmations avant acquisition, validation des paramètres/calibrations,
+décompte de captures distinctes, conservation des statuts négatifs,
+absence de métriques temporelles qualifiées et lecture des traces hors ligne.
+Ni OpenCV natif ni Picamera2 ne sont importés par ces tests.
+
+`test_marker_calibration_opencv.py` reste exclu du lot A ; son invocation
+distincte et exclusivement synthétique est documentée dans le
+[guide de calibration/relevé SH-03](sh03-calibration-releve.md).
+Ce guide décrit aussi les commandes live, interdites dans le harnais isolé
+et soumises à autorisation de campagne distincte. Aucun réglage de production
+ni qualification SH-03 n'est produit par l'outillage.
+
+### Raccordement SH-04 — sélection ciblée et campagne finale
+
+Avant les trois commandes de régression du début de ce protocole :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --human-perception
+```
+
+Seuls les deux fichiers humains de perception/raccordement sont collectés,
+avec les mêmes gardes, borne murale et contrôles de threads. Aucun plugin,
+matériel, modèle ou serveur additionnel. L'option `--stdlib` peut compléter
+cette sélection ciblée ; `--legacy-stdlib` ne peut pas la compléter.
+
+Dernière reproduction SH-04 locale (2026-10-31), distincte des séries
+historiques et du bloc d'outillage SH-03 ci-dessus :
+
+| Sélection | Résultat |
+|---|---|
+| ciblée `--human-perception` | 104 réussis, 290 sous-tests réussis ; 13,72 s |
+| campagne `--stdlib` | 295 tests réussis ; 19,544 s |
+| campagne pytest contrôlée | 345 réussis, 7 désélectionnés, 308 sous-tests réussis ; 27,99 s |
+| contrats `--legacy-stdlib` | 4 réussis ; 0,406 s |
+
+Les quatre processus : code 0, zéro accès interdit, zéro thread résiduel,
+trois sondes synthétiques refusées chacun. Les temps sont ceux des harnais
+locaux, pas des latences de perception qualifiées. La campagne complète
+inclut aussi les tests d'outillage SH-03 ajoutés parallèlement ; elle n'exécute
+pas sa vérification OpenCV native ni ses commandes live.
+
+Source/fournisseur uniquement injectés sur doubles : trames opaques,
+provenance et horodatages conservés, indisponibilité distincte de l'absence,
+reprise explicite avec trois confirmations nouvelles, même échéance,
+générations retirées et captures précédant le nouveau contexte rejetées.
+Arrêt/échéance préemptent les résultats en vol ; nettoyage sans fermer la
+source partagée, y compris sous panne du journal. Le parcours humain réel
+reste refusé, sans caméra réelle ni mouvement physique. Voir le
+[rapport SH-09, section 16](../../specs/backlog/08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31).

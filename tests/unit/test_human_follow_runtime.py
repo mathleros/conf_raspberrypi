@@ -12,7 +12,7 @@ from irobot.interfaces.human_follow_runtime import HumanFollowRequest
 from irobot.interfaces.human_lifecycle import HumanFollowPhase
 from irobot.interfaces.human_perception import (
     HumanPerceptionFrame, HumanPerceptionProvider, MarkerObservation,
-    MarkerQuality, ObservationDisposition,
+    HumanPerceptionStreamFault, MarkerQuality, ObservationDisposition,
 )
 from irobot.interfaces.protection import HumanConditions, ProtectionFault
 from irobot.interfaces import voice_runtime as vr
@@ -42,6 +42,25 @@ class BoundedReplayLock:
         self._lock.release()
         if self._local.depth == 0:
             self.after_release()
+
+
+class SyntheticHumanFrameSource:
+    def __init__(self, capture):
+        self.capture = capture
+        self.sample = None
+        self.fault = None
+        self.reads = 0
+        self.closes = 0
+
+    def read_frame(self):
+        self.reads += 1
+        if self.fault is not None:
+            raise HumanPerceptionStreamFault(self.fault)
+        return self.capture() if self.sample is None else self.sample
+
+    def close(self):
+        self.closes += 1
+        raise AssertionError("A human session must not close the shared source")
 
 
 class HumanFollowRuntimeTests(unittest.TestCase):
@@ -132,6 +151,445 @@ class HumanFollowRuntimeTests(unittest.TestCase):
         result = self.runtime.advance_human_follow(completed_announcement=announcement.token)
         self.assertEqual(result["status"], "active")
         return self.runtime.human_follow_snapshot
+
+    def prepare_bound(self, provider=None):
+        source = SyntheticHumanFrameSource(self.perception_frame)
+        provider = self.perception_provider() if provider is None else provider
+        self.assertEqual(
+            self.prepare(frame_source=source, provider=provider)["status"], "acquiring",
+        )
+        return source
+
+    def activate_bound(self):
+        source = self.prepare_bound()
+        for _ in range(2):
+            self.step()
+            self.runtime.advance_human_follow()
+        token = self.runtime.pending_human_announcement.token
+        self.step()
+        self.assertEqual(
+            self.runtime.advance_human_follow(completed_announcement=token)["status"], "active",
+        )
+        return source, self.runtime.human_follow_snapshot
+
+    def test_bound_source_observe_frame_provenance_and_no_motion(self):
+        source, state = self.activate_bound()
+        self.assertEqual(source.reads, 4)
+        self.assertEqual(state.context.identity, self.identity)
+        assessed = [event for event in self.rig.witness.journal
+                    if event.get("event") == "observation_assessed"]
+        self.assertEqual([event["confirmations"] for event in assessed], [1, 2, 3, 3])
+        self.assertEqual([event["frame"] for event in assessed], [1, 2, 3, 4])
+        self.assertTrue(all(event["disposition"] == "valid" for event in assessed))
+        self.assertTrue(all("published_at" in event and "detail" in event for event in assessed))
+        self.assertFalse(nonzero(self.rig.motor))
+        self.assertEqual(source.closes, 0)
+
+    def test_bound_stream_fault_clears_initial_confirmations_without_fabricated_frame(self):
+        source = self.prepare_bound()
+        source.fault = "synthetic_stream_interrupted"
+        self.step()
+        self.runtime.advance_human_follow()
+        self.assertEqual(self.runtime.human_follow_snapshot.last_acquisition_reason, "perception_fault")
+        self.assertIsNone(self.runtime._human_follow._observation)
+        self.assertEqual(self.runtime._human_follow._assessment.confirmations, 0)
+        faults = [event for event in self.rig.witness.journal
+                  if event.get("event") == "perception_fault"]
+        self.assertEqual(faults[-1]["reason"], source.fault)
+        self.assertNotIn("frame", faults[-1])
+        source.fault = None
+        for index in range(3):
+            self.step()
+            result = self.runtime.advance_human_follow()
+            self.assertEqual(result["status"], "acquired" if index == 2 else "acquiring")
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_stream_interrupted_active_requires_explicit_resume_and_three_new_frames(self):
+        source, original = self.activate_bound()
+        source.fault = "synthetic_camera_unavailable"
+        self.step()
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+        self.assertIn("perception_fault", self.rig.robot.causes)
+        self.assertIsNone(self.runtime._human_follow._assessment)
+        source.fault = None
+        reads = source.reads
+        self.step()
+        self.runtime.advance_human_follow()
+        self.assertEqual(source.reads, reads)
+        self.assertEqual(self.runtime.handle_text_as_plan("reprends le suivi")["status"], "acquiring")
+        self.assertNotEqual(
+            self.runtime.human_follow_snapshot.context.context_version,
+            original.context.context_version,
+        )
+        for index in range(3):
+            self.step()
+            result = self.runtime.advance_human_follow()
+            self.assertEqual(result["status"], "acquired" if index == 2 else "acquiring")
+        token = self.runtime.pending_human_announcement.token
+        self.step()
+        self.runtime.advance_human_follow(completed_announcement=token)
+        self.assertEqual(self.runtime.human_follow_snapshot.mission_deadline, original.mission_deadline)
+        self.assertEqual(source.closes, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_renewed_stream_suspends_and_requires_reacquisition(self):
+        source, original = self.activate_bound()
+        source.capture = lambda: replace(
+            self.perception_frame(), stream_generation="synthetic-renewed-stream",
+        )
+        self.step()
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+        self.assertIn("stream_changed", self.rig.robot.causes)
+        self.assertEqual(self.runtime.handle_text_as_plan("reprends le suivi")["status"], "acquiring")
+        for _ in range(3):
+            self.step()
+            self.runtime.advance_human_follow()
+        self.assertEqual(self.runtime.human_follow_snapshot.phase, HumanFollowPhase.ACQUIRED)
+        self.assertEqual(self.runtime.human_follow_snapshot.mission_deadline, original.mission_deadline)
+        self.assertEqual(self.runtime._human_follow._observation.stream_generation, "synthetic-renewed-stream")
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_renewed_stream_before_activation_ends_attempt(self):
+        source = self.prepare_bound()
+        source.capture = lambda: replace(
+            self.perception_frame(), stream_generation="synthetic-renewed-stream",
+        )
+        self.step()
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "available")
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertEqual(source.closes, 0)
+
+    def test_bound_stream_fault_does_not_erase_generation_retirement(self):
+        for phase in ("initial", "resume"):
+            with self.subTest(phase=phase):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                source = self.prepare_bound() if phase == "initial" else self.activate_bound()[0]
+                source.fault = "synthetic_stream_interrupted"
+                self.step()
+                self.runtime.advance_human_follow()
+                source.fault = None
+                source.capture = lambda: replace(
+                    self.perception_frame(), stream_generation="synthetic-renewed-stream",
+                )
+                if phase == "resume":
+                    self.runtime.handle_text_as_plan("reprends le suivi")
+                self.step()
+                result = self.runtime.advance_human_follow()
+                if phase == "initial":
+                    self.assertEqual(result["status"], "available")
+                    event = next(event for event in reversed(self.rig.witness.journal)
+                                 if event.get("event") == "observation_assessed")
+                    self.assertEqual(event["detail"], "stream_changed_after_fault")
+                else:
+                    self.assertEqual(result["status"], "acquiring")
+                    source.capture = self.perception_frame
+                    self.step()
+                    self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+                    event = next(event for event in reversed(self.rig.witness.journal)
+                                 if event.get("event") == "observation_assessed")
+                    self.assertEqual(event["detail"], "obsolete_stream")
+                self.assertEqual(source.closes, 0)
+                self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_retired_generation_is_rejected_after_resume_even_when_fresh(self):
+        source, _ = self.activate_bound()
+        source.capture = lambda: replace(
+            self.perception_frame(), stream_generation="synthetic-renewed-stream",
+        )
+        self.step()
+        self.runtime.advance_human_follow()
+        self.runtime.handle_text_as_plan("reprends le suivi")
+        source.capture = self.perception_frame
+        self.step()
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+        event = next(event for event in reversed(self.rig.witness.journal)
+                     if event.get("event") == "observation_assessed")
+        self.assertEqual(event["detail"], "obsolete_stream")
+        self.assertEqual(event["confirmations"], 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_capture_before_resumed_context_does_not_confirm_with_restamped_result(self):
+        source, _ = self.activate_bound()
+        old_frame = self.perception_frame()
+        self.runtime.advance_human_follow(events=("obstacle",))
+        self.step()
+        self.runtime.handle_text_as_plan("reprends le suivi")
+        source.sample = old_frame
+        self.runtime.advance_human_follow()
+        self.assertEqual(self.runtime.human_follow_snapshot.last_acquisition_reason, "context_mismatch")
+        self.assertEqual(self.runtime._human_follow._assessment.detail, "capture_precedes_context")
+        self.assertEqual(self.runtime._human_follow._assessment.confirmations, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_stale_and_duplicate_frames_do_not_confirm_or_refresh_capture(self):
+        source = self.prepare_bound()
+        sample = self.runtime._human_follow._observation
+        source.sample = HumanPerceptionFrame(
+            sample.source_id, sample.stream_generation, sample.frame_number,
+            sample.captured_at, sample.published_at, object(),
+        )
+        self.step()
+        self.runtime.advance_human_follow()
+        self.assertEqual(self.runtime.human_follow_snapshot.last_acquisition_reason, "duplicate_frame")
+        self.step(0.2)
+        self.runtime.advance_human_follow()
+        self.assertEqual(self.runtime.human_follow_snapshot.last_acquisition_reason, "stale")
+        self.assertEqual(self.runtime._human_follow._observation.captured_at, sample.captured_at)
+        self.assertEqual(self.runtime._human_follow._assessment.confirmations, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_frozen_active_stream_is_suspended_by_age_even_without_new_input(self):
+        source, _ = self.activate_bound()
+        sample = self.runtime._human_follow._observation
+        source.sample = HumanPerceptionFrame(
+            sample.source_id, sample.stream_generation, sample.frame_number,
+            sample.captured_at, sample.published_at, object(),
+        )
+        reads = source.reads
+        self.step(0.200001)
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+        self.assertEqual(source.reads, reads)
+        self.assertIn("observations_fresh", self.rig.robot.causes)
+        self.assertIsNone(self.runtime._human_follow._observation)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_negative_dispositions_never_reuse_old_valid_observation(self):
+        for disposition, reason in (
+            (ObservationDisposition.ABSENT, "observation_absent"),
+            (ObservationDisposition.AMBIGUOUS, "observation_ambiguous"),
+            (ObservationDisposition.REJECTED, "observation_rejected"),
+            (ObservationDisposition.STALE, "stale"),
+            (ObservationDisposition.FAULT, "perception_fault"),
+        ):
+            with self.subTest(disposition=disposition):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                source, _ = self.activate_bound()
+                provider = self.runtime._human_follow._provider
+                self.runtime._human_follow._provider = SimpleNamespace(
+                    observe=lambda frame, *, context: replace(
+                        provider.observe(frame, context=context),
+                        disposition=disposition, reason="synthetic_negative",
+                    ),
+                )
+                self.step()
+                self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+                self.assertIn(reason, self.rig.robot.causes)
+                event = next(event for event in reversed(self.rig.witness.journal)
+                             if event.get("event") == "observation_assessed")
+                self.assertEqual(event["detail"], "synthetic_negative")
+                self.assertEqual(event["disposition"], disposition.value)
+                self.assertIsNone(self.runtime._human_follow._observation)
+                self.assertEqual(source.closes, 0)
+                self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_obsolete_provider_context_is_explicit_and_cleans_session(self):
+        provider = self.perception_provider()
+        stale = SimpleNamespace(observe=lambda frame, *, context: replace(
+            provider.observe(frame, context=context), context_version="synthetic-obsolete",
+        ))
+        source = SyntheticHumanFrameSource(self.perception_frame)
+        with self.assertRaisesRegex(ValueError, "context_version"):
+            self.prepare(frame_source=source, provider=stale)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertEqual(source.closes, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_invalid_source_and_unexpected_provider_error_cleanup_before_return(self):
+        for invalid in ("source", "provider", "protection_fault"):
+            with self.subTest(invalid=invalid):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                source = SyntheticHumanFrameSource(self.perception_frame)
+                provider = self.perception_provider()
+                if invalid == "source":
+                    source.capture = lambda: None
+                else:
+                    def fail(*_, **__):
+                        if invalid == "protection_fault":
+                            raise ProtectionFault("synthetic_provider_protection_fault")
+                        raise RuntimeError("synthetic_provider_failure")
+                    provider = SimpleNamespace(observe=fail)
+                if invalid == "protection_fault":
+                    self.assertEqual(
+                        self.prepare(frame_source=source, provider=provider)["reason"],
+                        "synthetic_provider_protection_fault",
+                    )
+                else:
+                    with self.assertRaises((TypeError, RuntimeError)):
+                        self.prepare(frame_source=source, provider=provider)
+                self.assertIsNone(self.rig.robot.reservation)
+                self.assertIsNone(self.runtime.human_follow_snapshot)
+                self.assertEqual(source.closes, 0)
+                self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_pair_is_validated_before_reserving_and_overrides_are_refused(self):
+        for changes in (
+            {"frame_source": SyntheticHumanFrameSource(self.perception_frame)},
+            {"provider": self.perception_provider()},
+            {"frame_source": object(), "provider": self.perception_provider()},
+        ):
+            with self.subTest(changes=changes):
+                with self.assertRaises((ValueError, TypeError)):
+                    self.prepare(**changes)
+                self.assertIsNone(self.rig.robot.reservation)
+        source = self.prepare_bound()
+        with self.assertRaisesRegex(ValueError, "overrides"):
+            self.runtime.advance_human_follow(observation=self.observation())
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertEqual(source.closes, 0)
+
+    def test_bound_stop_cleans_binding_without_closing_source_and_next_mission_is_independent(self):
+        source, _ = self.activate_bound()
+        session = self.runtime._human_follow
+        reads = source.reads
+        self.assertEqual(self.runtime.advance_human_follow(events=("stop",))["status"], "available")
+        self.assertEqual(source.reads, reads)
+        self.assertIsNone(session._frame_source)
+        self.assertIsNone(session._provider)
+        self.assertIsNone(session._acquisition)
+        self.assertIsNone(session._observation)
+        self.assertIsNone(session.pending_announcement)
+        self.assertEqual(source.closes, 0)
+        self.runtime.settings = RuntimeSettings(human_marker_identity=MarkerIdentity(
+            "new-synthetic-family", "new-synthetic-dictionary", "new-synthetic-id",
+        ))
+        self.assertEqual(self.prepare()["status"], "acquiring")
+        self.assertNotEqual(self.runtime.human_follow_snapshot.context.identity, self.identity)
+        self.assertEqual(source.reads, reads)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_source_stop_preempts_provider_before_result_and_cleans_binding(self):
+        provider_calls = []
+        provider = SimpleNamespace(observe=lambda *a, **k: provider_calls.append((a, k)))
+        source = SyntheticHumanFrameSource(self.perception_frame)
+        def stop_during_read():
+            frame = self.perception_frame()
+            self.rig.robot.supervise(events=("stop",), defer_proof=True)
+            return frame
+        source.capture = stop_during_read
+        result = self.prepare(frame_source=source, provider=provider)
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(provider_calls, [])
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertEqual(source.closes, 0)
+
+    def test_bound_in_flight_source_is_invalidated_by_stop_suspension_and_deadline(self):
+        for interruption in ("stop", "suspend", "deadline"):
+            with self.subTest(interruption=interruption):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                source, state = self.activate_bound()
+                session = self.runtime._human_follow
+                entered, release = threading.Event(), threading.Event()
+                frame = self.perception_frame()
+                def blocked_read():
+                    entered.set()
+                    if not release.wait(2):
+                        raise AssertionError("Synthetic source release timed out")
+                    return frame
+                source.capture = blocked_read
+                count = sum(event.get("event") == "observation_assessed"
+                            for event in self.rig.witness.journal)
+                errors = []
+                def replay():
+                    try:
+                        self.runtime.advance_human_follow()
+                    except Exception as exc:
+                        errors.append(exc)
+                thread = threading.Thread(target=replay)
+                thread.start()
+                try:
+                    self.assertTrue(entered.wait(2), "Synthetic source did not start")
+                    if interruption == "stop":
+                        self.runtime.handle_text_as_plan("stop")
+                    elif interruption == "suspend":
+                        self.rig.robot.supervise(events=("obstacle",), defer_proof=True)
+                    else:
+                        self.rig.clock.now = state.mission_deadline
+                        self.rig.p5.refresh()
+                    release.set()
+                    thread.join(2)
+                    self.assertFalse(thread.is_alive(), "Synthetic source did not finish")
+                finally:
+                    release.set()
+                    thread.join(2)
+                self.assertEqual(errors, [])
+                self.assertEqual(
+                    sum(event.get("event") == "observation_assessed"
+                        for event in self.rig.witness.journal), count,
+                )
+                discarded = [event for event in self.rig.witness.journal
+                             if event.get("event") == "perception_input_discarded"]
+                self.assertEqual(discarded[-1]["reason"], "obsolete_context")
+                self.assertEqual(
+                    discarded[-1]["requested_context"], state.context.context_version,
+                )
+                if interruption == "suspend":
+                    self.assertEqual(self.runtime.human_follow_snapshot.phase, HumanFollowPhase.SUSPENDED)
+                else:
+                    self.assertIsNone(self.runtime.human_follow_snapshot)
+                    self.assertIsNone(session._provider)
+                    self.assertIsNone(session._frame_source)
+                self.assertEqual(source.closes, 0)
+                self.assertFalse(nonzero(self.rig.motor))
+
+    def test_bound_cleanup_on_journal_failure_never_closes_shared_source(self):
+        source = self.prepare_bound()
+        session = self.runtime._human_follow
+        class BrokenJournal:
+            def write(self, event):
+                raise OSError("synthetic_journal_failure")
+        session._journal = BrokenJournal()
+        result = self.runtime.advance_human_follow(events=("stop",))
+        self.assertEqual(result["reason"], "journal_error")
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertIsNone(session._frame_source)
+        self.assertIsNone(session._provider)
+        self.assertIsNone(session._acquisition)
+        self.assertEqual(source.closes, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_provider_processing_cannot_cross_acquisition_or_announcement_deadline(self):
+        for wait in ("acquisition", "announcement"):
+            with self.subTest(wait=wait):
+                self.rig = Rig()
+                self.runtime = self.rig.runtime(self.directory.name)
+                self.runtime.settings = RuntimeSettings(human_marker_identity=self.identity)
+                self.prepare(announcement_timeout_seconds=20.0)
+                if wait == "announcement":
+                    self.acquire()
+                provider = self.perception_provider()
+                def delayed(frame, *, context):
+                    observation = provider.observe(frame, context=context)
+                    deadline = (
+                        self.runtime.human_follow_snapshot.acquisition_deadline
+                        if wait == "acquisition" else
+                        self.runtime.pending_human_announcement.deadline
+                    )
+                    self.rig.clock.now = deadline
+                    self.rig.p5.refresh()
+                    return replace(observation, published_at=deadline)
+                count = sum(event.get("event") == "observation_assessed"
+                            for event in self.rig.witness.journal)
+                self.runtime.advance_human_follow(
+                    frame=self.perception_frame(), provider=SimpleNamespace(observe=delayed),
+                )
+                self.assertIsNone(self.runtime.human_follow_snapshot)
+                self.assertEqual(
+                    sum(event.get("event") == "observation_assessed"
+                        for event in self.rig.witness.journal), count,
+                )
+                self.assertFalse(nonzero(self.rig.motor))
 
     def test_frame_provider_replay_reaches_acquisition_and_announcement_without_motion(self):
         self.prepare()

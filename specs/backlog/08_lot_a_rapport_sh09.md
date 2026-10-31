@@ -1424,7 +1424,7 @@ fournisseur de perception non matériel et son raccordement au runtime, seulemen
 avec les données qualifiées disponibles ; les essais optiques/Pi demeurent des
 campagnes distinctes soumises à préconditions et autorisations propres.
 
-## 15. Préparation de la prochaine étape SH-03 statique — campagne bloquée (2026-10-31)
+## 15. Étape SH-03 statique — diagnostic Pi rapporté, qualification bloquée (2026-10-31)
 
 ### Référence et préconditions vérifiées
 
@@ -1454,7 +1454,7 @@ campagnes distinctes soumises à préconditions et autorisations propres.
   comparé à la référence locale ci-dessus. L'environnement courant ne dispose
   pas de session Pi/SSH établie.
 
-### Protocole préparé, non exécuté
+### Protocole préparé — couverture complète non démontrée
 
 Portée envisagée pour une première caractérisation visuelle statique, sans
 personne ni propulsion : confirmer la version synchronisée et le montage ;
@@ -1485,24 +1485,272 @@ périmètre et restent à qualifier séparément.
 
 ### Résultats, limites et décision
 
-Résultat de la nouvelle campagne : **non exécutée**. Malgré l'autorisation
-reçue, aucun accès caméra, ouverture de l'appareil, acquisition, mesure ou
-commande Pi n'a été lancé depuis cette session, faute de session Pi/SSH
-disponible. Le statut « HEAD » rapporté ne fournit pas de hash vérifiable.
-La preuve antérieure d'une détection dans au moins une trame et les coins
-rapportés restent le seul résultat matériel ; elle ne prouve ni répétabilité,
-ni taux d'acceptation, distance, erreur de dégagement, calibration, débit ou
-latence. L'outil actuel affiche les coins en pixels et des changements d'état,
-mais ne compte pas les images nouvelles, ne mesure pas le dégagement et ne
-calcule pas ces métriques ; le protocole ne suffit donc pas à qualifier SH-03.
-Aucun réglage de production n'a été ajouté.
+État initial conservé : à la préparation, aucune exécution n'avait été
+réalisée, faute de session Pi/SSH disponible pour l'assistant. L'utilisateur
+a ensuite communiqué le 2026-10-31 la sortie d'une exécution sur le Pi de
+`PYTHONPATH=src .venv/bin/python -m irobot.interfaces.marker_diagnostic`.
+Il s'agit d'une exécution **rapportée**, non reproduite indépendamment.
 
-**Décision : autorisation exploratoire reçue, mais exécution non réalisée ;
-aucun passage SH-03.** Les préconditions déclarées sont satisfaites pour la
-campagne limitée, mais l'exécution requiert une session opérateur sur le Pi et
-la version synchronisée doit être identifiée pour le compte rendu. La campagne
-exploratoire autorisée ne satisfait pas les critères quantitatifs SH-03 ;
-outillage de mesure et calibration restent à préparer avant toute
-qualification complète. Aucune qualification, décision de montage final ou
-autorisation de mouvement n'en découle. `follow_person` reste refusé en
-production.
+| Élément | Résultat rapporté / limite |
+|---|---|
+| Bibliothèques et caméra | `libcamera v0.7.2+rpt20260817`, `libpisp v1.7.0 07-08-2026 (09:22:13)` ; caméra OV5647, tuning `ov5647.json`, pipeline PiSP, variante `BCM2712_D0` |
+| Acquisition configurée | Flux principal `640x480-XBGR8888/sRGB`, flux RAW `640x480-GBRG_PISP_COMP1/RAW` ; format capteur `640x480-SGBRG10_1X10/RAW`, CFE `640x480-PC1g/RAW` |
+| Statuts dans l'extrait | `ID 1: absent` → `ID 1: detected` → `ID 1: absent` |
+| Coins lors de la détection | `((389.0, 242.0), (231.0, 252.0), (215.0, 90.0), (369.0, 73.0))`, pixels après rotation horaire de 90° selon le code inspecté ; aucune distance déduite |
+| Avertissements V4L2 | Formats `Nc30` et `Nc12` non pris en charge ; conservés comme avertissements, sans correction ni cause inférée. L'extrait montre ensuite configuration et détection ; il ne démontre pas leur innocuité générale |
+| Avertissements Qt | Répertoire de polices `cv2/qt/fonts` absent, avertissement répété cinq fois ; lisibilité de l'affichage non vérifiée par cet extrait |
+| Fin d'exécution | Pas de retour au prompt, de code de sortie ou de confirmation de fermeture dans l'extrait ; état final non établi |
+
+Le diagnostic local ne journalise que les changements de disposition/motif :
+ces trois lignes ne correspondent donc pas à trois images et ne permettent
+aucun calcul de taux d'acceptation ou de durée. L'absence finale signifie que
+la cible n'a plus été détectée à ce changement d'état. Précision utilisateur
+reçue le 2026-10-31 : le code imprimé a été volontairement retiré du champ de
+vision. Le retour à `absent` est donc cohérent avec ce retrait rapporté,
+et n'est pas présenté comme une panne caméra ou une perte inexpliquée.
+Ce cas exploratoire reste sans mesure de délai ni répétitions documentées ;
+il ne qualifie pas à lui seul la détection de perte ou sa fraîcheur.
+
+La détection de l'ID demandé est rapportée dans au moins une trame. Distance
+de référence, hauteur/inclinaison du support, décalage, éclairage, durée,
+nombre d'images nouvelles et couverture des conditions du protocole ne sont
+pas renseignés. Le hash Pi, les versions OpenCV/Picamera2 et l'incertitude de
+mesure restent inconnus. Aucune répétabilité, calibration, distance, erreur de
+dégagement, fraîcheur, débit ou latence n'est qualifiée ; le diagnostic ne
+produit pas ces mesures. Aucun réglage de production n'a été ajouté ; aucun
+accès matériel ou commande Pi n'a été lancé par l'assistant.
+
+**Décision : diagnostic exploratoire exécuté et rapporté ; qualification
+SH-03 BLOQUÉE, aucun passage.** L'autorisation et les préconditions déclarées
+restent distinctes des preuves de recette. Prochaine étape : préparer
+l'instrumentation sans images pour compter les captures nouvelles, conserver
+les statuts négatifs et mesurer les temps, puis documenter le montage final,
+la calibration et la référence indépendante avec son incertitude avant la
+recette quantitative. Toute nouvelle ouverture caméra/campagne doit être
+couverte par son périmètre d'autorisation ; aucun Go de mouvement ni de
+suivi humain n'en découle. `follow_person` reste refusé en production.
+
+### Tests supplémentaires déclarés et demande de clôture — 2026-10-31
+
+L'utilisateur rapporte plusieurs tests réussis, sans relevé, considère SH-03
+qualifié et demande de le marquer traité pour poursuivre. Cette appréciation
+est consignée comme déclaration utilisateur, distincte d'une qualification
+selon les critères SH-03. Conditions, effectifs, mesures de précision,
+calibration, fraîcheur et performances ne sont pas fournis ; aucun résultat
+quantitatif n'est reconstruit à partir de cette déclaration.
+
+**Statut maintenu : essais exploratoires rapportés ; SH-03 non qualifié,
+clôture non établie.** La demande de passage ne remplace pas les preuves
+requises et ne lève aucune porte matérielle. Les blocs logiciels indépendants
+peuvent poursuivre sur doubles, sans paramètres optiques réputés qualifiés,
+sans fournisseur caméra de production et sans lever le refus `follow_person`.
+
+### Outillage de calibration et relevé automatique — 2026-10-31
+
+Livré dans
+[marker_calibration.py](../../src/irobot/interfaces/marker_calibration.py),
+avec [protocole et commandes](../../docs/test-campaign/sh03-calibration-releve.md).
+Trois opérations distinctes :
+
+- `calibrate` : capture des coins d'un damier mesuré, sans images ; collecte
+  de vues distinctes et calcul d'intrinsèques candidates avec erreurs de
+  reprojection sur entraînement et vues réservées.
+- `solve` : combine les traces compatibles hors ligne, sans import Picamera2,
+  sans DISPLAY ni ouverture caméra. Permet de prépositionner le damier entre
+  sessions caméra fermée, sans personne dans la zone lors des captures.
+- `record` : captures ArUco horodatées, statuts négatifs, coins et candidats
+  de pose IPPE ; conservation explicite de l'ambiguïté, sans choix automatique
+  d'une distance. Référence optique indépendante et incertitude facultatives,
+  fournies ensemble ; aucune assimilation au dégagement robot–porteur.
+
+Pipeline fixé explicitement à 640×480 `BGR888` (octets RGB), image traitée
+480×640 après quart de tour horaire ; transformation matérielle inattendue
+refusée. Calibration incompatible avec montage/pipeline refusée avant
+ouverture. Les captures sont comptées par `SensorTimestamp` distinct croissant,
+pas par lecture ni changement d'état. Répétitions/ordre invalide/timestamp
+absent restent tracés, hors décompte. Sorties exclusivement numériques,
+fichiers nouveaux sans écrasement, traces partielles conservées, arrêt et
+fermeture caméra en sortie. Options d'autorisation/préconditions déclaratives
+requises pour les deux commandes live ; elles ne remplacent pas l'accord
+explicite de campagne ou une vérification physique.
+
+Référence locale de départ : HEAD
+`3b6d96971deb0068311c9ba24b0c46a0e03f66bb`. Modification documentaire
+préexistante au rapport préservée ; changements concurrents au runtime,
+contrat de perception, tests humains et sélection du lanceur préservés et
+non attribués à ce bloc. L'ajout au lanceur concerne seulement les tests
+stdlib/pytest de l'outillage. Les totaux ci-dessous décrivent l'arbre chargé
+lors de chaque exécution, y compris ces travaux concurrents, pas une mesure
+du seul nouveau module.
+
+| Vérification finale locale reproduite | Résultat |
+|---|---|
+| `tests/isolated/run_lot_a.py --stdlib` | 290 tests réussis |
+| `tests/isolated/run_lot_a.py` | 340 réussis, 7 désélectionnés, 302 sous-tests réussis |
+| `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+| OpenCV natif ciblé `test_marker_calibration_opencv.py` | 5 réussis, points synthétiques et caméra factice uniquement |
+
+Les trois processus isolés : code 0, zéro accès interdit, zéro thread
+résiduel, trois sondes synthétiques refusées chacun. Tests nouveaux :
+validation des confirmations/paramètres, compatible/incompatible, répétition,
+ordre, timestamps absents, percentiles, statuts négatifs, JSON strict et
+traces copiées ; numériquement, récupération d'intrinsèques connues, vues
+réservées, deux poses du carré conservées, agrégation hors ligne et fermeture
+des ressources sous caméra factice, avec arrêt incomplet explicitement non
+réussi. Les séries intermédiaires ont également réussi ; aucun échec
+observé dans ces exécutions.
+
+**Limites :** aucune exécution Pi, caméra réelle, calibration optique réelle
+ou personne ; aucun nouveau réglage de production, installation ou commit.
+La mesure p95 disponible est retour de capture→résultat, pas la latence
+capteur complète ; la correspondance d'horloges reste non qualifiée.
+`robot_clearance_cm` et latence complète restent absents, les observations
+du détecteur ne deviennent pas des observations humaines acceptées.
+Diversité du damier, précision, ambiguïté de pose, seuils de qualité,
+transformation robot–porteur et recette SH-03 restent à qualifier.
+Prochaine étape : protocole de collecte damier avec dimension/montage relevés,
+et autorisation distincte avant ouverture avec cet outil. **SH-03 reste
+ouvert ; aucun Go physique ni levée du refus `follow_person`.**
+
+## 16. Raccordement SH-04 source/fournisseur → cycle sur doubles (2026-10-31)
+
+### Porte de production et référence
+
+Demande exécutée : raccorder le fournisseur au cycle humain/runtime en
+réutilisant la trame, l'acquisition et le contexte existants, sans caméra
+réelle et sans mouvement physique. Référence locale de départ :
+`3b6d96971deb0068311c9ba24b0c46a0e03f66bb`, avec modifications non commitées.
+Le rapport était déjà modifié ; l'outillage de calibration/relevé SH-03,
+ses tests et ses ajouts documentaires sont des travaux parallèles préservés,
+non attribués à ce raccordement. La sélection commune du lanceur conserve
+leurs tests sur doubles et exclut leur test OpenCV natif.
+
+**Raccordement de production REFUSÉ explicitement.** Les preuves consignées
+en section 15 sont des observations exploratoires rapportées et une
+déclaration de réussite sans relevés quantitatifs. L'outillage ajouté ensuite
+ne constitue pas une calibration exécutée ni une recette optique réussie.
+
+| Paramètre/prérequis requis | État exact des preuves disponibles |
+|---|---|
+| Calibration et géométrie du montage final | Non qualifiées ; aucun jeu de coefficients/version qualifié à injecter |
+| Distance optique et dégagement robot–porteur | Transformation et référence indépendante non qualifiées ; aucune assimilation, estimation de balle ou mesure inventée |
+| Seuils de qualité, ambiguïté de pose et domaine accepté | Non qualifiés ; API/détection exploratoire ne suffisent pas |
+| Âge maximal et horloges capture/runtime | 200 ms est une cible SH-04, pas une mesure qualifiée ; correspondance d'horloges non qualifiée |
+| Débit et latence complète sur Pi | Pas de recette qualifiée ; temps du diagnostic/harnais non substituables |
+| Protections et actionnement humains réels | Portes SH-02/SH-10/SH-11 maintenues ; aucun Go matériel |
+
+Aucun de ces paramètres n'est choisi, ajouté à la configuration de
+production ou inféré des déclarations. Le travail logiciel indépendant
+continue exclusivement avec des doubles. Les nombres des tests
+(fraîcheur 0,2 s, annonce 2 s, dimensions, distances et versions synthétiques)
+restent des données de test explicites ; les bornes d'acquisition/durée
+existantes ne qualifient aucun délai physique.
+
+### Raccordement livré
+
+- [Contrat de perception](../../src/irobot/interfaces/human_perception.py) :
+  ajout du seul port `HumanPerceptionFrameSource.read_frame()` et de
+  `HumanPerceptionStreamFault(reason)`. Lecture du dernier instantané atomique
+  sans attente de nouvelle capture ; horodatages/génération/numéro appartiennent
+  à la source. Flux indisponible = défaut explicite, jamais `None`/absence
+  de cible ou trame fabriquée. Aucun producteur matériel concret ajouté.
+- [Cycle humain](../../src/irobot/interfaces/human_follow_runtime.py) et
+  [runtime commun](../../src/irobot/interfaces/voice_runtime.py) :
+  `prepare_human_follow(..., frame_source=..., provider=...)` lie les deux ports
+  pour la session. Paire et méthodes validées avant réservation. Le premier
+  cycle de préparation lit une trame ; les cycles suivants sans paramètres,
+  y compris la supervision commune, consultent la même source. Injection
+  directe d'une observation ou d'une paire trame/fournisseur conservée pour
+  les replays non liés ; pas de remplacement d'entrée dans une session liée.
+- Les résultats traversent `provider.observe(frame, context=context)`, puis
+  `HumanMarkerAcquisition.observe_frame`, avant les règles d'acquisition
+  existantes et l'annonce. Aucun pixel inspecté ici, calcul de distance,
+  calibration par défaut, lissage nouveau ou sortie de mouvement.
+  L'identité reste l'instantané de mission existant, suspension comprise.
+- Défaut typé : confirmations et observation effacées, motif journalisé
+  sans trame inventée. Avant activation, aucune confirmation antérieure ne
+  survit ; pendant suivi, suspension et reprise explicite. Les autres erreurs
+  du fournisseur/source sont propagées après invalidation/fin protégée,
+  y compris une `ProtectionFault` issue du port. Une erreur initiale ne laisse
+  plus de réservation orpheline au runtime commun.
+- Trame périmée, répétée ou négative : règles et motifs d'acquisition
+  conservés, aucun rajeunissement de capture/cache. Une trame négative nouvelle
+  invalide l'ancienne observation valide. En suspension, la source n'est plus
+  consultée ; reprise explicite = nouveau contexte, trois confirmations,
+  même identité et échéance initiale.
+- Renouvellement du flux : suspension ; avant activation, tentative terminée
+  et nouvelle demande nécessaire. Les générations remplacées sont retirées
+  pour le reste de cette mission, y compris après reprise. Un défaut
+  intermédiaire n'efface pas cette mémoire : avant activation, un flux
+  renouvelé après défaut termine aussi la tentative ; après reprise explicite,
+  le premier nouveau flux retire l'ancien sans confirmation héritée. Une capture
+  antérieure au début du contexte courant ne peut confirmer, même si le
+  fournisseur lui attribue un résultat au nouveau contexte. Un résultat dont
+  les champs ne correspondent pas au contexte demandé reste une erreur
+  explicite de frontière, pas un résultat accepté.
+- Supervision avant/après source et fournisseur : stop, suspension, fin et
+  changement de contexte priment sur les résultats en vol. Rejets corrélés
+  par contexte demandé. Échéances d'acquisition et d'annonce recontrôlées après
+  traitement, pas seulement avant. Aucun résultat tardif n'active la session.
+- Nettoyage : acquisition, observation, annonces, ports empruntés et mémoire
+  des générations retirées sont invalidés à la fin. Aucune fermeture/reprise
+  de la caméra/source partagée ; une nouvelle mission n'hérite pas du
+  fournisseur. Les traces conservent disposition, motif détaillé, publication
+  et capture ; aucune image/audio conservé.
+
+### Vérification effectivement exécutée
+
+[Tests de raccordement](../../tests/unit/test_human_follow_runtime.py) :
+19 tests supplémentaires avec doubles et sous-cas (45 avant, 64 après) ;
+aucun matériel.
+Rendez-vous concurrents sur lecture de source, attentes bornées à 2 s,
+libération en `finally`, threads non daemon joints. Oracles indépendants :
+nombre exact de confirmations/lectures, motifs, contexte, échéance,
+absence de commande non nulle sur le moteur humain factice, absence de
+fermeture de source et absence de réservation/liaison résiduelle.
+Les tests historiques balle/stop conservent leurs sorties motrices
+**simulées**, sans mouvement physique.
+
+Toutes les commandes utilisent `.venv/bin/python -I -S`, depuis le dépôt,
+avec [le lanceur isolé](../../tests/isolated/run_lot_a.py). `--human-perception`
+restreint la collecte aux deux fichiers humains perception/raccordement,
+sans changer les gardes ni importer le test OpenCV natif.
+
+| Exécution | Résultat effectif |
+|---|---|
+| Ciblée intermédiaire `--human-perception` | 99 réussis, 284 sous-tests ; 20,86 s |
+| Ciblée enrichie `--human-perception` | 102 réussis, 288 sous-tests ; 23,44 s |
+| Première campagne `--stdlib` | 293 réussis ; 17,036 s |
+| Première campagne pytest contrôlée | 343 réussis, 7 désélectionnés, 306 sous-tests ; 25,06 s |
+| Premiers contrats `--legacy-stdlib` | 4 réussis ; 0,306 s |
+| Ciblée avant complément de génération `--human-perception` | 103 réussis, 288 sous-tests ; 21,77 s |
+| Campagne avant complément `--stdlib` | 294 réussis ; 31,026 s |
+| Campagne pytest avant complément | 344 réussis, 7 désélectionnés, 306 sous-tests ; 43,32 s |
+| Contrats avant complément `--legacy-stdlib` | 4 réussis ; 0,355 s |
+| Ciblée finale `--human-perception` | 104 réussis, 290 sous-tests ; 13,72 s |
+| Campagne finale `--stdlib` | 295 réussis ; 19,544 s |
+| Campagne finale pytest contrôlée | 345 réussis, 7 désélectionnés, 308 sous-tests ; 27,99 s |
+| Contrats finaux `--legacy-stdlib` | 4 réussis ; 0,406 s |
+
+Chaque processus : code 0, zéro accès interdit, zéro thread résiduel et trois
+sondes synthétiques refusées. Aucun échec de test observé dans ces séries.
+Temps locaux de harnais, non mesures qualifiées de perception/arrêt.
+Les totaux complets incluent les tests d'outillage SH-03 ajoutés parallèlement,
+pas seulement les changements SH-04. Contrôle de diff sans erreur d'espaces
+et diagnostics VS Code sans erreur sur les cinq fichiers Python modifiés.
+Aucune installation, caméra réelle, commande Pi/SSH, audio réel, action
+motrice physique, image enregistrée ou commit effectué par ce raccordement.
+
+### Verdict et limites restantes
+
+**Raccordement logiciel indépendant réalisé, vérifié et conservé sur
+doubles ; SH-04 de production et sa qualification restent ouverts.**
+Le contrat de lecture sans attente et les rendez-vous synthétiques ne
+prouvent pas le comportement d'un pilote réel bloqué ni une borne d'arrêt
+physique. Conversion d'horloges capteur, géométrie/calibration et qualité
+demeurent hors de ce bloc : aucun fournisseur de production n'est construit.
+`follow_person` reste refusé dans les entrées linguistiques et l'assemblage
+live ; aucun raccordement caméra et aucune autorisation de mouvement.
+Suite possible : obtenir et consigner les preuves/paramètres manquants,
+puis autoriser séparément l'intégration matérielle dans son périmètre ;
+aucun passage automatique déduit de ces tests.

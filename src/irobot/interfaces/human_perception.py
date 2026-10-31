@@ -153,6 +153,26 @@ class HumanPerceptionProvider(Protocol):
     ) -> MarkerObservation: ...
 
 
+class HumanPerceptionStreamFault(RuntimeError):
+    """Explicit stream unavailability, distinct from an image without a marker."""
+
+    def __init__(self, reason: str) -> None:
+        if not isinstance(reason, str) or not reason:
+            raise ValueError("Perception stream fault requires an explicit reason")
+        super().__init__(reason)
+
+
+class HumanPerceptionFrameSource(Protocol):
+    """Borrow the latest atomic frame; never close or restart the shared source.
+
+    Reads must not wait for a new capture. An unavailable stream raises
+    HumanPerceptionStreamFault; a frozen stream retains its original timestamps.
+    No concrete camera adapter is supplied.
+    """
+
+    def read_frame(self) -> HumanPerceptionFrame: ...
+
+
 def validate_marker_observation(
     frame: HumanPerceptionFrame,
     observation: MarkerObservation,

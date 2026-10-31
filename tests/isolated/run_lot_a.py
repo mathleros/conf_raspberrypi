@@ -22,6 +22,7 @@ SELECTED = (
     "test_language_controller.py", "test_plan_guards.py", "test_voice_runtime.py",
     "test_human_perception.py", "test_human_lifecycle.py", "test_marker_diagnostic.py",
     "test_human_follow_runtime.py",
+    "test_marker_calibration.py",
 )
 
 
@@ -133,7 +134,11 @@ def main():
         raise RuntimeError("Use python -I -S to exclude site initialization and user paths")
     stdlib = "--stdlib" in sys.argv
     legacy = "--legacy-stdlib" in sys.argv
-    arguments = [arg for arg in sys.argv[1:] if arg not in {"--stdlib", "--legacy-stdlib"}]
+    human_perception = "--human-perception" in sys.argv
+    if human_perception and legacy:
+        raise ValueError("The legacy contract is not a human-perception selection")
+    arguments = [arg for arg in sys.argv[1:]
+                 if arg not in {"--stdlib", "--legacy-stdlib", "--human-perception"}]
     root = Path(arguments[0]).resolve() if arguments else ROOT
     os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     for key in tuple(os.environ):
@@ -145,7 +150,9 @@ def main():
     signal.signal(signal.SIGALRM, timeout)
     signal.alarm(120)
     before_threads = set(threading.enumerate())
-    paths = [str(root / "tests" / "unit" / name) for name in SELECTED]
+    selected = (("test_human_perception.py", "test_human_follow_runtime.py")
+                if human_perception else SELECTED)
+    paths = [str(root / "tests" / "unit" / name) for name in selected]
     with tempfile.TemporaryDirectory(prefix="irobot-lot-a-") as work:
         os.chdir(work)
         if stdlib or legacy:
@@ -157,13 +164,17 @@ def main():
                 spec.loader.exec_module(module)
                 suite = unittest.defaultTestLoader.loadTestsFromModule(module)
             else:
-                suite = unittest.TestSuite((
-                    unittest.defaultTestLoader.loadTestsFromName("tests.isolated.lot_a_cases"),
-                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_human_perception"),
-                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_human_lifecycle"),
-                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_marker_diagnostic"),
-                    unittest.defaultTestLoader.loadTestsFromName("tests.unit.test_human_follow_runtime"),
-                ))
+                modules = (
+                    ("tests.unit.test_human_perception", "tests.unit.test_human_follow_runtime")
+                    if human_perception else (
+                        "tests.isolated.lot_a_cases", "tests.unit.test_human_perception",
+                        "tests.unit.test_human_lifecycle", "tests.unit.test_marker_diagnostic",
+                        "tests.unit.test_marker_calibration", "tests.unit.test_human_follow_runtime",
+                    )
+                )
+                suite = unittest.TestSuite(
+                    unittest.defaultTestLoader.loadTestsFromName(name) for name in modules
+                )
             outcome = unittest.TextTestRunner(verbosity=2).run(suite)
             result = 0 if outcome.wasSuccessful() else 1
         else:

@@ -36,7 +36,8 @@ from irobot.interfaces.human_follow_runtime import (
 )
 from irobot.interfaces.human_lifecycle import HumanFollowSnapshot
 from irobot.interfaces.human_perception import (
-    HumanPerceptionFrame, HumanPerceptionProvider, MarkerObservation,
+    HumanPerceptionFrame, HumanPerceptionFrameSource, HumanPerceptionProvider,
+    MarkerObservation,
 )
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import (
@@ -1241,6 +1242,8 @@ class VoiceRuntime:
         self, request: HumanFollowRequest, *,
         conditions: Callable[[], HumanConditions], journal: DecisionJournal,
         max_age_seconds: float, announcement_timeout_seconds: float,
+        frame_source: HumanPerceptionFrameSource | None = None,
+        provider: HumanPerceptionProvider | None = None,
     ) -> dict[str, Any]:
         """Structured integration seam only; never selected by text, LLM or live assembly."""
         if not self._protected():
@@ -1257,6 +1260,7 @@ class VoiceRuntime:
                 self.robot, self.settings, request, conditions, journal,
                 max_age_seconds=max_age_seconds,
                 announcement_timeout_seconds=announcement_timeout_seconds,
+                frame_source=frame_source, provider=provider,
             )
             snapshot = self._human_follow.cycle()
             if snapshot.context is None:
@@ -1264,6 +1268,13 @@ class VoiceRuntime:
             return {"status": snapshot.phase.value, "snapshot": snapshot}
         except ProtectionFault as exc:
             return {"status": "rejected", "reason": str(exc)}
+        except Exception:
+            if self._human_follow is not None:
+                try:
+                    self.robot.priority_one("human_runtime_exception")
+                finally:
+                    self._human_follow.terminate("human_runtime_exception")
+            raise
         finally:
             if self._human_follow is not None and self._human_follow.snapshot.context is None:
                 self._human_follow = None

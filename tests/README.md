@@ -32,8 +32,8 @@ Pour les scripts hardware, lancer directement les fichiers Python depuis `tests/
 
 ## Suivi humain : sélection strictement isolée
 
-Pour le socle protégé et les replays humains, utiliser uniquement les trois
-commandes du [protocole du lot A](../docs/test-campaign/lot-a-campagne-strictement-isolee.md),
+Pour le socle protégé et les replays humains, utiliser uniquement les commandes
+isolées du [protocole du lot A](../docs/test-campaign/lot-a-campagne-strictement-isolee.md),
 jamais pytest globalement. Les tests de raccordement forcent les rendez-vous
 concurrents avec événements et verrous réentrants bornés, libèrent les attentes
 dans `finally` et joignent les threads sans les abandonner en daemon.
@@ -41,6 +41,12 @@ Les sorties du moteur factice sont observées indépendamment du journal inject�
 en panne. Les résultats et contre-exemples sont consignés dans le
 [rapport SH-09](../specs/backlog/08_lot_a_rapport_sh09.md#12-audit-des-cas-limites-du-raccordement-protégé-2026-10-31).
 Ces tests ne raccordent aucun fournisseur humain réel.
+
+L'outillage SH-03 possède des tests de logique sur doubles inclus dans cette
+sélection et une vérification OpenCV native distincte sur points synthétiques.
+Voir le [guide de calibration et relevé](../docs/test-campaign/sh03-calibration-releve.md)
+pour les commandes bornées ; les campagnes live n'appartiennent pas aux tests
+logiciels et exigent leur propre autorisation.
 
 ### Frontière trame → observation — replay synthétique
 
@@ -55,6 +61,30 @@ négatives typées traversent les règles d'acquisition existantes avec leur mot
 Le chemin historique `observe` reste disponible, mais ne prouve pas la
 provenance d'une trame ; un statut non typé y est maintenant refusé explicitement.
 Producteurs, pixels, géométrie et calibration restent exclusivement fictifs.
-Les trois commandes isolées ci-dessus sont les seules commandes de validation ;
+Le harnais isolé ci-dessus est la seule voie de validation de cette frontière ;
 voir les résultats, contre-exemples et limites du
 [rapport, section 13](../specs/backlog/08_lot_a_rapport_sh09.md#13-frontière-logicielle-trame--observation-2026-10-31).
+
+### Raccordement SH-04 source/fournisseur → cycle
+
+Sélection ciblée, sous les mêmes gardes avant imports et collecte :
+
+```bash
+.venv/bin/python -I -S tests/isolated/run_lot_a.py --human-perception
+```
+
+Cette sélection ne collecte que `test_human_perception.py` et
+`test_human_follow_runtime.py`. Elle peut aussi utiliser `--stdlib` ;
+elle ne se combine pas avec `--legacy-stdlib`. La campagne de régression
+reste constituée des trois commandes du protocole, sans pytest global.
+
+Le raccordement lie à la session un `HumanPerceptionFrameSource` et un
+`HumanPerceptionProvider` injectés. La source fournit un instantané atomique,
+sans attendre une capture nouvelle ; indisponibilité = exception typée avec
+motif, jamais `None` assimilé à une absence de marqueur. Les tests couvrent
+les statuts négatifs, flux figé/interrompu/renouvelé, génération retirée,
+contexte obsolète, échéances et préemption concurrente, panne du journal,
+nettoyage sans fermeture de la source partagée. Aucun adaptateur caméra réel
+n'est installé ; aucun paramètre optique ou temporel de production qualifié
+n'est fourni par ces doubles. Voir le
+[rapport, section 16](../specs/backlog/08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31).

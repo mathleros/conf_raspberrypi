@@ -629,7 +629,15 @@ Cadre d'exigences et recette validés avec l'utilisateur le 2026-10-30, sans cod
 - Les noms de champs, types concrets, conventions d'angle, repères géométriques, métriques/seuils de qualité et mécanismes de synchronisation restent à détailler lors de la conception, avec les mesures SH-03 ; ils ne sont pas déclarés implémentés.
 - Les 200 ms sont une cible à qualifier avec le budget d'arrêt SH-02 ; les 10 s bornent une attente immobile et ne permettent jamais de prolonger une mission expirée ni de retarder un stop.
 
-**Statut SH-04 : cadre du contrat, cycle et recette spécifiés et validés ; conception détaillée, implémentation et vérification à faire.** Aucun résultat de test ou Go matériel n'est déduit de cette validation documentaire.
+**Statut SH-04 au 2026-10-31 : contrat typé, acquisition, cycle et raccordement d'une source/fournisseur injectés réalisés et vérifiés uniquement sur doubles. Raccordement de production explicitement refusé ; qualification SH-04 toujours ouverte.**
+Le raccordement réutilise `HumanPerceptionFrame`, `observe_frame` et le contexte
+de mission existant ; interruption/renouvellement du flux, péremption, ambiguïté,
+captures antérieures au contexte de reprise, résultats en vol et nettoyage sont
+éprouvés sans caméra réelle ni mouvement physique. Calibration, références de
+dégagement, seuils de qualité et fraîcheur ne sont pas qualifiés par les relevés
+consignés ; aucun paramètre de production n'en est déduit. Voir le
+[rapport SH-09, section 16](08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31)
+pour le périmètre, les résultats effectifs et les limites. Aucun Go matériel.
 
 ### SH-05 — Spécification progressive des garde-fous
 

@@ -50,6 +50,14 @@ activation après annonce, refus L2 des commandes non nulles hors phase active,
 suspension/reprise locale avec nouveau contexte et même échéance, invalidation
 des annonces obsolètes et non-régression du runtime commun balle/humain/balle
 sur doubles uniquement. Aucun fournisseur de mouvement humain réel n'est exposé.
+Le replay concurrent force maintenant une tentative de reprise du verrou
+d'émission par l'évaluateur pendant que P1 le détient, puis vérifie sa
+libération avant l'attente du verrou d'évaluation. Les attentes sont bornées,
+libérées dans `finally` et les threads joints. Les cas complémentaires couvrent
+les sept phases contre stop/P1/P3/P6, les frontières exactes de l'échéance,
+les résultats obsolètes et les pannes de journal pendant préparation,
+activation/reprise et franchissement d'échéance. Un journal bloqué ne retarde
+pas la remise du zéro par le stop local.
 
 `tests/unit/test_marker_diagnostic.py` vérifie le contrat de présentation du
 diagnostic ArUco sans caméra. La commande `marker-detect-live` ouvre la caméra
@@ -74,13 +82,22 @@ Voir le [rapport SH-09 du lot A](../../specs/backlog/08_lot_a_rapport_sh09.md)
 pour la référence, les oracles, résultats, exclusions et limites. Le suivi
 humain moteur réel demeure refusé ; aucune qualification Pi/audio/physique.
 
-Dernière reproduction locale après raccordement structuré (2026-10-31) :
+Dernière reproduction locale après audit des cas limites (2026-10-31) :
 
 | Campagne | Résultat |
 |---|---|
-| `tests/isolated/run_lot_a.py --stdlib` | 234 tests réussis |
-| `tests/isolated/run_lot_a.py` | 284 réussis, 7 désélectionnés |
+| `tests/isolated/run_lot_a.py --stdlib` | 246 tests réussis |
+| `tests/isolated/run_lot_a.py` | 296 réussis, 7 désélectionnés, 112 sous-tests réussis |
 | `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats réussis |
+
+Trois processus : zéro accès interdit, zéro thread résiduel et trois sondes
+synthétiques refusées chacun. Les séries intermédiaires en échec et les cinq
+défauts corrigés sont conservés au
+[rapport, section 12](../../specs/backlog/08_lot_a_rapport_sh09.md#12-audit-des-cas-limites-du-raccordement-protégé-2026-10-31).
+Les confirmations de l'acquisition sont toutes fraîches à sa décision ; leur
+historique est borné à trois captures. Une acquisition déjà établie conserve
+sa continuité sur les nouvelles trames valides ; une invalidation remet les
+confirmations à zéro. Aucun budget ni réglage de production ajouté.
 
 ### Résultat communiqué depuis le Pi — 2026-10-31
 

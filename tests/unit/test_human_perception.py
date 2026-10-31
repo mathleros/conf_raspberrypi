@@ -110,6 +110,44 @@ class HumanMarkerAcquisitionTests(unittest.TestCase):
         self.assertEqual(duplicate.reason, AcquisitionReason.DUPLICATE_FRAME)
         self.assertEqual(duplicate.confirmations, 0)
 
+    def test_all_confirmation_captures_must_still_be_fresh_at_acquisition(self):
+        for final_capture, expected in (
+            (0.2, AcquisitionStatus.ACQUIRED),
+            (0.200001, AcquisitionStatus.CONFIRMING),
+        ):
+            with self.subTest(final_capture=final_capture):
+                self.acquisition.reset()
+                for number, captured in enumerate((0.0, 0.1, final_capture), start=1):
+                    result = self.acquisition.observe(
+                        self.observation(number, captured_at=captured, published_at=captured),
+                        now=captured,
+                    )
+                self.assertEqual(result.status, expected)
+                self.assertEqual(result.confirmations, 3 if expected is AcquisitionStatus.ACQUIRED else 2)
+                if expected is AcquisitionStatus.CONFIRMING:
+                    result = self.acquisition.observe(
+                        self.observation(4, captured_at=0.21, published_at=0.21), now=0.21,
+                    )
+                    self.assertEqual(result.status, AcquisitionStatus.ACQUIRED)
+
+    def test_acquired_continuity_uses_new_valid_frames_without_reacquiring_each_time(self):
+        for number in range(1, 4):
+            self.acquisition.observe(self.observation(number), now=number * 0.01 + 0.005)
+        for number, captured in ((4, 0.15), (5, 0.3), (6, 0.45)):
+            result = self.acquisition.observe(
+                self.observation(number, captured_at=captured, published_at=captured), now=captured,
+            )
+            self.assertEqual((result.status, result.confirmations), (AcquisitionStatus.ACQUIRED, 3))
+        rejected = self.acquisition.observe(
+            self.observation(7, captured_at=0.5, published_at=0.5,
+                             disposition=ObservationDisposition.ABSENT), now=0.5,
+        )
+        self.assertEqual(rejected.status, AcquisitionStatus.REJECTED)
+        fresh = self.acquisition.observe(
+            self.observation(8, captured_at=0.6, published_at=0.6), now=0.6,
+        )
+        self.assertEqual((fresh.status, fresh.confirmations), (AcquisitionStatus.CONFIRMING, 1))
+
     def test_frame_gap_restarts_confirmations(self):
         self.acquisition.observe(self.observation(1), now=0.02)
         gap = self.acquisition.observe(self.observation(3), now=0.04)

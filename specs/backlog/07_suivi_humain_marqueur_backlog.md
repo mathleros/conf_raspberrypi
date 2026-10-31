@@ -2537,3 +2537,39 @@ de mouvement humain réel, aucune calibration ou mesure qualifiée, aucune
 qualification SH-02/SH-03/SH-10/SH-11 ni preuve P2–P6. Les portes SH-02/SH-11
 restent obligatoires ; SH-05/SH-09 ne sont pas terminés globalement et aucun
 essai avec une personne ni mouvement réel n’est autorisé par ces résultats.
+
+### Audit logiciel des cas limites du raccordement protégé — 2026-10-31
+
+Reprise vérifiée à `89ee1b8c0a3efffb883a8ff6a4b0c05de9071581`, diff initial
+vide ; changement externe de HEAD vers `3dc646476f2032053409be8513a3fea6696d33b4`
+et indexation externe constatés pendant le travail. Aucun commit de
+l'assistant, aucun changement externe révoqué. Détails, contre-exemples et
+provenances dans le
+[rapport, section 12](08_lot_a_rapport_sh09.md#12-audit-des-cas-limites-du-raccordement-protégé-2026-10-31).
+
+L'ordre des verrous a été vérifié : P1 libère l'émission avant d'attendre
+l'évaluation. Le replay renforcé force le chevauchement déterminant avec
+événements et verrous réentrants bornés, vérifie l'ordre des libérations,
+l'erreur propagée et le nettoyage des threads. Aucun deadlock établi sur ce
+chemin ; aucun changement de `RobotController`.
+
+Cinq défauts reproduits et corrigés : faux état de préparation après fin,
+priorité 1 artificielle sur panne du journal initial, réservation orpheline
+sur journal en erreur à l'échéance, candidat d'activation expiré laissant
+un contexte sans jeton, confirmations déjà périmées à la décision
+d'acquisition. Historique limité à trois captures ; continuité acquise sur
+trames valides préservée, invalidation remettant les confirmations à zéro.
+Aucune nouvelle réalisation de fournisseur trame → observation.
+
+Série finale locale strictement isolée : `--stdlib` **246 tests réussis** ;
+sélection ciblée **296 réussis, 7 désélectionnés, 112 sous-tests réussis** ;
+legacy **4 contrats réussis**. Zéro accès interdit et zéro thread résiduel,
+trois sondes synthétiques rejetées chacun. Séries négatives 240/4 échecs,
+243/1 échec et 245/2 échecs conservées au rapport, avant corrections finales.
+Le résultat Pi 284/7/61 en 1,10 s reste rapporté, non reproduit indépendamment.
+
+Refus linguistique `follow_person` inchangé, aucun fournisseur de mouvement
+humain réel ; pas de Pi, réseau, caméra, audio, GPIO, moteur réel ou personne.
+Acquis SH-02/A1–A6/SH-05 à SH-11 et mentions historiques préservés. Aucun
+réglage réel inventé, aucune qualification physique ni clôture globale
+SH-05/SH-09 ; portes SH-02/SH-11 obligatoires, aucun Go terrain.

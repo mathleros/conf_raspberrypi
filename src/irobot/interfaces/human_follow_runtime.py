@@ -105,6 +105,9 @@ class HumanFollowRuntime:
                 }, stand_off_cm=request.stand_off_cm, duration_s=request.duration_s,
             )
             self._announce("acquiring", "Je cherche votre marqueur.")
+        except ProtectionFault:
+            robot.finish(self.permit)
+            raise
         except Exception:
             robot.priority_one("human_preparation_exception")
             robot.finish(self.permit)
@@ -151,14 +154,20 @@ class HumanFollowRuntime:
             self.robot.suspend("journal_error")
             self.pending_announcement = None
             if self.snapshot.context is not None:
+                now = self.robot.time_fn()
                 if self.snapshot.mission_deadline is None:
                     self.robot.finish(self.permit)
                     self._lifecycle.finish("journal_error")
+                elif now >= self.snapshot.mission_deadline:
+                    self.robot.suspend("deadline")
+                    self.robot.finish(self.permit)
+                    self._lifecycle.finish("deadline")
+                else:
+                    self._lifecycle.suspend("journal_error", now=now)
+                if self.snapshot.context is None:
                     self._acquisition = None
                     self._assessment = None
                     self._observation = None
-                else:
-                    self._lifecycle.suspend("journal_error", now=self.robot.time_fn())
             raise ProtectionFault("journal_error") from exc
 
     def _invalidate_announcement(self) -> None:
@@ -341,7 +350,12 @@ class HumanFollowRuntime:
             if pending.template in {"activate", "resume"}:
                 deadline = (self.robot.time_fn() + self.request.duration_s
                             if self.snapshot.mission_deadline is None else None)
-                self.robot.activate_human(self.permit, deadline=deadline)
+                try:
+                    self.robot.activate_human(self.permit, deadline=deadline)
+                except ProtectionFault as exc:
+                    self.robot.suspend(str(exc))
+                    self._sync()
+                    raise
                 self._lifecycle.activate_after_announcement(
                     now=self.robot.time_fn(), mission_deadline=deadline,
                     conditions=self.conditions(),

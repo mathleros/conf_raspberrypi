@@ -29,3 +29,15 @@ uv run pytest -q tests/unit
 ```
 
 Pour les scripts hardware, lancer directement les fichiers Python depuis `tests/hardware/` sur le Raspberry Pi concerné.
+
+## Suivi humain : sélection strictement isolée
+
+Pour le socle protégé et les replays humains, utiliser uniquement les trois
+commandes du [protocole du lot A](../docs/test-campaign/lot-a-campagne-strictement-isolee.md),
+jamais pytest globalement. Les tests de raccordement forcent les rendez-vous
+concurrents avec événements et verrous réentrants bornés, libèrent les attentes
+dans `finally` et joignent les threads sans les abandonner en daemon.
+Les sorties du moteur factice sont observées indépendamment du journal injecté
+en panne. Les résultats et contre-exemples sont consignés dans le
+[rapport SH-09](../specs/backlog/08_lot_a_rapport_sh09.md#12-audit-des-cas-limites-du-raccordement-protégé-2026-10-31).
+Ces tests ne raccordent aucun fournisseur humain réel.

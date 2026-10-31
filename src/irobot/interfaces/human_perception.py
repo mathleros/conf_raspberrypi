@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 import math
@@ -306,7 +307,7 @@ class HumanMarkerAcquisition:
         self._last_frame_number: int | None = None
         self._last_captured_at: float | None = None
         self._last_published_at: float | None = None
-        self._confirmations = 0
+        self._confirmation_captures: deque[float] = deque(maxlen=self.REQUIRED_CONFIRMATIONS)
 
     def reset(self) -> None:
         self._source_id = None
@@ -314,7 +315,7 @@ class HumanMarkerAcquisition:
         self._last_frame_number = None
         self._last_captured_at = None
         self._last_published_at = None
-        self._confirmations = 0
+        self._confirmation_captures.clear()
 
     def observe(self, observation: MarkerObservation, *, now: float) -> AcquisitionAssessment:
         if not isinstance(observation, MarkerObservation):
@@ -353,15 +354,20 @@ class HumanMarkerAcquisition:
         if not self._geometry_is_valid(observation):
             return self._reject(AcquisitionReason.GEOMETRY_INVALID)
 
-        self._confirmations += 1
-        if self._confirmations >= self.REQUIRED_CONFIRMATIONS:
+        if len(self._confirmation_captures) < self.REQUIRED_CONFIRMATIONS:
+            while (self._confirmation_captures
+                   and now - self._confirmation_captures[0] > self.max_age_seconds):
+                self._confirmation_captures.popleft()
+        self._confirmation_captures.append(observation.captured_at)
+        confirmations = len(self._confirmation_captures)
+        if confirmations >= self.REQUIRED_CONFIRMATIONS:
             return AcquisitionAssessment(
-                AcquisitionStatus.ACQUIRED, AcquisitionReason.ACQUIRED, self._confirmations,
+                AcquisitionStatus.ACQUIRED, AcquisitionReason.ACQUIRED, confirmations,
             )
         return AcquisitionAssessment(
             AcquisitionStatus.CONFIRMING,
             AcquisitionReason.WAITING_FOR_CONFIRMATIONS,
-            self._confirmations,
+            confirmations,
         )
 
     def _check_sequence(self, observation: MarkerObservation) -> AcquisitionReason | None:
@@ -384,7 +390,7 @@ class HumanMarkerAcquisition:
             self._last_frame_number = frame_number
             self._last_captured_at = observation.captured_at
             self._last_published_at = observation.published_at
-            self._confirmations = 0
+            self._confirmation_captures.clear()
             return AcquisitionReason.STREAM_CHANGED
 
         previous = self._last_frame_number
@@ -393,23 +399,23 @@ class HumanMarkerAcquisition:
                 self.reset()
                 return AcquisitionReason.TIMESTAMP_INCOHERENT
             if frame_number == previous:
-                self._confirmations = 0
+                self._confirmation_captures.clear()
                 return AcquisitionReason.DUPLICATE_FRAME
             if frame_number < previous:
-                self._confirmations = 0
+                self._confirmation_captures.clear()
                 return AcquisitionReason.FRAME_OUT_OF_ORDER
             if frame_number != previous + 1:
                 self._last_frame_number = frame_number
                 self._last_captured_at = observation.captured_at
                 self._last_published_at = observation.published_at
-                self._confirmations = 0
+                self._confirmation_captures.clear()
                 return AcquisitionReason.FRAME_GAP
             if (observation.captured_at < self._last_captured_at
                     or observation.published_at < self._last_published_at):
                 self._last_frame_number = frame_number
                 self._last_captured_at = observation.captured_at
                 self._last_published_at = observation.published_at
-                self._confirmations = 0
+                self._confirmation_captures.clear()
                 return AcquisitionReason.TIMESTAMP_INCOHERENT
 
         self._last_frame_number = frame_number
@@ -423,9 +429,9 @@ class HumanMarkerAcquisition:
         *,
         detail: str | None = None,
     ) -> AcquisitionAssessment:
-        self._confirmations = 0
+        self._confirmation_captures.clear()
         return AcquisitionAssessment(
-            AcquisitionStatus.REJECTED, reason, self._confirmations, detail,
+            AcquisitionStatus.REJECTED, reason, 0, detail,
         )
 
     @classmethod

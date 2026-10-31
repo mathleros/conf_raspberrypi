@@ -1096,3 +1096,128 @@ calibration et fournisseur de perception réel demeurent bloqués/non exécutés
 Le refus de `follow_person` dans les parcours linguistiques de production
 reste actif. Les tickets SH-05 et SH-09 restent ouverts globalement ; aucun
 lot B n’est supposé.
+
+## 12. Audit des cas limites du raccordement protégé (2026-10-31)
+
+### Référence et ordre réel des verrous
+
+Reprise dans `conf_raspberrypi/` : HEAD initial
+`89ee1b8c0a3efffb883a8ff6a4b0c05de9071581`, index et arbre propres, diff local
+complet vide. Consignes, documents de reprise, lanceur, composants et tests
+concernés relus avant modification. Le PDF reste
+`config/ArUco_DICT_4x4_50_ID_1.pdf`, sans nouveau déplacement.
+
+Pendant le travail, un changement externe a déplacé HEAD à
+`3dc646476f2032053409be8513a3fea6696d33b4` et indexé les changements de code/tests.
+Ce commit modifie les consignes du dépôt ; elles ont été relues, sans conflit
+avec le périmètre demandé. Aucun commit ni opération d'indexation effectué
+par l'assistant ; aucun changement externe révoqué.
+
+L'hypothèse de deadlock de la reprise n'est pas confirmée :
+[priority_one](../../src/irobot/interfaces/robot_controller.py) sort du bloc
+`_emission_lock` avant d'entrer dans `_lock`, y compris dans son `finally`.
+L'évaluateur peut tenir `_lock` et demander `_emission_lock` sans cycle
+d'attente inverse sur ce chemin. Le précédent replay attendait seulement
+l'arrivée du zéro : l'évaluateur pouvait échouer après la libération du
+verrou d'émission, sans forcer le chevauchement déterminant.
+
+Le replay renforcé dans
+[test_human_follow_runtime.py](../../tests/unit/test_human_follow_runtime.py)
+emploie de vrais verrous réentrants instrumentés avec acquisitions bornées :
+P1 reste dans le port d'inhibition avec le verrou d'émission détenu ;
+l'évaluation échoue avec le verrou d'évaluation détenu et annonce sa tentative
+d'acquisition du verrou d'émission. Le test observe ce chevauchement avant
+libération, puis exige la libération de l'émission avant l'attente de
+l'évaluation par P1. Il vérifie zéro reçu et inhibition demandée avant
+libération, erreur originale propagée, causes P1 et `cycle_exception`,
+réservation verrouillée et absence de preuve de ce cycle partiel.
+Les synchronisations/acquisitions sont bornées à deux secondes ; le nettoyage
+libère les événements dans `finally` et joint les threads non daemon avec
+une borne de huit secondes, distincte d'un délai robot. Aucun thread résiduel.
+**RobotController n'a pas été modifié.** Ce résultat porte sur cet
+entrelacement, pas sur toutes les concurrences possibles ou les ports réels.
+
+### Défauts reproduits puis corrigés
+
+| Cas / obligation | Contre-exemple observé | Correction persistante |
+|---|---|---|
+| Préparation, SH-05/SH-07 | Perte audio au premier cycle après réservation : réponse `acquiring` alors que la session est finie | [VoiceRuntime](../../src/irobot/interfaces/voice_runtime.py) retourne un refus avec causes et supprime le seam terminé, sans réservation survivante |
+| Journal initial, A-O5/A-O11 | Erreur aux événements `reserved` ou `announcement_prepared` : inhibition `human_preparation_exception` artificielle | [HumanFollowRuntime](../../src/irobot/interfaces/human_follow_runtime.py) propage le défaut connu et nettoie, sans le reclasser en priorité 1 ; erreurs inattendues restent distinctes |
+| Journal et échéance, SH-05/SH-08 | L'écriture échoue après franchissement de l'échéance : cycle humain fini mais réservation encore suspendue | Fin et nettoyage cohérents, causes `journal_error` et `deadline` conservées, nouvelle demande possible sans reprise implicite |
+| Activation après annonce, SH-07 | Le candidat d'échéance expire pendant les préconditions : contexte `acquired` sans jeton ni attente bornée restante | Refus d'activation synchronisé vers suspension/fin ; aucune réservation initiale orpheline, aucun report de l'échéance |
+| Confirmations fraîches, SH-04 | Captures synthétiques 0 / 0,1 / 0,200001 avec budget explicitement fictif 0,2 : acquisition acceptée malgré première capture périmée | [HumanMarkerAcquisition](../../src/irobot/interfaces/human_perception.py) retire les confirmations périmées avant établissement de l'acquisition ; 0,2 inclus reste accepté |
+
+L'historique de confirmation est borné à trois captures, sans pixels ni
+mesures inventées. Après acquisition, la continuité repose sur de nouvelles
+trames valides ; elle n'impose pas une nouvelle acquisition à chaque trame.
+Tout rejet réinitialise les confirmations. La fraîcheur depuis capture et
+les refus de contexte, flux, identité et géométrie restent applicables.
+[HumanPerceptionFrame / HumanPerceptionProvider](../../src/irobot/interfaces/human_perception.py)
+restent des interfaces seulement : aucun fournisseur concret, adaptateur
+caméra, loi de mouvement ou raccordement de perception réelle ajouté.
+
+### Oracles complémentaires
+
+- Stop, P1, P3 et P6 dans sept phases : acquisition initiale, annonce initiale,
+  actif, maintien, suspension, réacquisition et annonce de reprise ;
+  terminaison, invalidation de résultat et aucune activation par jeton tardif.
+- Avant, à et après l'échéance dans les cinq phases post-activation, avec
+  phase exacte vérifiée et observations synthétiques fraîches entretenues
+  jusqu'au point de test ; aucune prolongation ni remise à zéro.
+- Ancien permis, résultat d'observation et jeton d'annonce inutilisables après
+  reprise ; même mission/identité/échéance et contexte renouvelé.
+- Pannes du journal avant et après activation, pendant reprise, et à
+  l'échéance : refus explicite, zéro indépendant du journal, aucun faux succès
+  ni preuve de cycle incomplet. Stop local pendant journal bloqué atteint le
+  double avant libération ; la session est ensuite terminée, sans inhibition
+  physique inventée ni demande P1 artificielle.
+- Sélections existantes maintenues : refus humain linguistique, préconditions
+  fixes, priorité 1 simultanée aux autres causes, réservation, balle et
+  primitives absentes/présentes, contrats historiques exacts. Aucun attendu
+  historique changé pour masquer une régression.
+
+### Exécutions locales, y compris résultats négatifs
+
+Commandes exactes du protocole uniquement, avec `-I -S`, sans installation :
+
+| Série standard-library intermédiaire | Résultat réellement exécuté |
+|---|---|
+| Premiers contre-exemples, avant corrections | 240 tests, 4 échecs (dont deux sous-cas de journal initial) |
+| Trois premières causes corrigées, nouveaux cas temporels | 243 tests, 1 échec : journal à échéance |
+| Reproduction explicite des réservations orphelines | 245 tests, 2 échecs : journal à échéance et candidat d'activation expiré |
+| Cinq causes corrigées | 245 tests, OK |
+
+Chaque processus intermédiaire : zéro accès interdit et zéro thread résiduel,
+trois sondes synthétiques rejetées. Ces échecs sont des contre-exemples
+logiciels, conservés, et non une campagne matérielle.
+
+| Commande finale depuis le dépôt | Résultat local |
+|---|---|
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py --stdlib` | 246 tests, OK ; 20,556 s |
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py` | 296 réussis, 7 désélectionnés, 112 sous-tests réussis ; 36,89 s |
+| `.venv/bin/python -I -S tests/isolated/run_lot_a.py --legacy-stdlib` | 4 contrats, OK ; 0,372 s |
+
+Trois processus finaux : code 0, `forbidden accesses=0`, `residual threads=0`,
+trois sondes synthétiques refusées chacun. Exécutions lancées en parallèle,
+temps du harnais local uniquement ; aucune mesure de performance Pi. Les
+sept exclusions restent inchangées. Aucun pytest global, export de référence
+historique ou test matériel. `git diff HEAD --check` contrôle index et arbre.
+
+**Résultat rapporté distinct :** Pi, 284 réussis, 7 désélectionnés,
+61 sous-tests en 1,10 s, communiqué antérieurement par l'utilisateur et
+non reproduit indépendamment pendant cet audit.
+
+### Limites et blocages
+
+Aucune commande Pi, réseau/découverte, caméra, audio, GPIO, moteur réel,
+campagne physique ou personne. Aucun budget, calibration, distance, qualité,
+seuil ou valeur de configuration de production créé. Le refus linguistique
+de `follow_person` reste actif ; aucun fournisseur de mouvement humain réel.
+SH-02, A1–A6 et les six décisions de chaque ticket SH-05 à SH-11 préservés ;
+les mentions historiques « aucun Go » restent intactes.
+
+P2–P6, accès sûr solo, calibration/perception, audio, mesures Pi et recette
+physique restent à réaliser/qualifier selon leurs portes. SH-05/SH-09 non
+terminés globalement, aucun lot B supposé, aucun Go terrain. La suite utile
+reste une validation du contrat trame → observation par replays synthétiques,
+sans fournisseur concret ni activation de matériel.

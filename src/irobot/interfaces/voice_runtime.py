@@ -1256,11 +1256,15 @@ class VoiceRuntime:
                 max_age_seconds=max_age_seconds,
                 announcement_timeout_seconds=announcement_timeout_seconds,
             )
-            self._human_follow.cycle()
-            return {"status": "acquiring", "snapshot": self._human_follow.snapshot}
+            snapshot = self._human_follow.cycle()
+            if snapshot.context is None:
+                raise ProtectionFault("+".join(self.robot.causes))
+            return {"status": snapshot.phase.value, "snapshot": snapshot}
         except ProtectionFault as exc:
             return {"status": "rejected", "reason": str(exc)}
         finally:
+            if self._human_follow is not None and self._human_follow.snapshot.context is None:
+                self._human_follow = None
             self._admission_lock.release()
 
     def advance_human_follow(

@@ -24,3 +24,8 @@ ball_diameter_cm = 6.0
 focal_px = 680.0
 # Fusion avec le HC-SR04 (lue depuis detect(), jamais depuis le thread caméra)
 ultrasonic_fusion = false
+
+[human_follow]
+# Budgets provisoires autorises, NON qualifies ; ne debloquent pas le suivi moteur.
+max_age_seconds = 0.2
+announcement_timeout_seconds = 2.0

@@ -59,8 +59,8 @@ class HumanFollowRuntime:
     def __init__(
         self, robot: RobotController, settings: RuntimeSettings,
         request: HumanFollowRequest, conditions: Callable[[], HumanConditions],
-        journal: DecisionJournal, *, max_age_seconds: float,
-        announcement_timeout_seconds: float,
+        journal: DecisionJournal, *, max_age_seconds: float | None = None,
+        announcement_timeout_seconds: float | None = None,
         frame_source: HumanPerceptionFrameSource | None = None,
         provider: HumanPerceptionProvider | None = None,
     ) -> None:
@@ -70,12 +70,16 @@ class HumanFollowRuntime:
             raise ProtectionFault("human_marker_not_configured")
         if not isinstance(request, HumanFollowRequest):
             raise TypeError("Human-follow request must be validated")
+        if max_age_seconds is None:
+            max_age_seconds = settings.human_max_age_seconds
+        if announcement_timeout_seconds is None:
+            announcement_timeout_seconds = settings.human_announcement_timeout_seconds
         if (isinstance(announcement_timeout_seconds, bool)
                 or not isinstance(announcement_timeout_seconds, (int, float))
                 or not math.isfinite(announcement_timeout_seconds)
                 or announcement_timeout_seconds <= 0):
             raise ValueError("Announcement budget must be explicit and positive")
-        # Validate before reserving; no default identity or freshness budget.
+        # Validate resolved budgets before reserving; no default identity.
         HumanMarkerMissionContext.from_runtime_settings(
             settings, mission_id="validation", context_version="validation",
         ).new_acquisition(max_age_seconds=max_age_seconds)
@@ -118,6 +122,8 @@ class HumanFollowRuntime:
                     "dictionary": context.identity.dictionary,
                     "identifier": context.identity.identifier,
                 }, stand_off_cm=request.stand_off_cm, duration_s=request.duration_s,
+                max_age_seconds=self._max_age,
+                announcement_timeout_seconds=self._announcement_timeout,
             )
             self._announce("acquiring", "Je cherche votre marqueur.")
         except ProtectionFault:

@@ -221,3 +221,33 @@ Arrêt/échéance préemptent les résultats en vol ; nettoyage sans fermer la
 source partagée, y compris sous panne du journal. Le parcours humain réel
 reste refusé, sans caméra réelle ni mouvement physique. Voir le
 [rapport SH-09, section 16](../../specs/backlog/08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31).
+
+### SH-04 — budgets configurables provisoires et revalidation
+
+Après autorisation explicite des défauts non qualifiés, puis confirmation du
+périmètre `safe-config`, le raccordement existant lit les budgets de
+`[human_follow]` dans
+[runtime_calibration.toml](../../config/runtime_calibration.toml) :
+`max_age_seconds = 0.2`, `announcement_timeout_seconds = 2.0`.
+Ils ne qualifient pas la fraîcheur/latence physique et ne lèvent aucun refus
+humain réel. Les ports restent injectés, sans producteur optique matériel.
+
+Nouvelle reproduction locale du 2026-10-31 :
+
+| Sélection | Résultat |
+|---|---|
+| ciblée `--human-perception` | 112 réussis, 343 sous-tests ; 15,28 s |
+| campagne `--stdlib` | 303 réussis ; 17,250 s |
+| campagne pytest contrôlée | 353 réussis, 7 désélectionnés, 361 sous-tests ; 24,73 s |
+| contrats `--legacy-stdlib` | 4 réussis ; 0,249 s |
+
+Les quatre processus finaux : code 0, zéro accès interdit, zéro thread résiduel,
+trois sondes synthétiques refusées chacun. Mêmes sélections et gardes, aucune
+installation. Les tests supplémentaires contrôlent le chargement/validation,
+la priorité des surcharges, la trace des budgets réellement employés,
+l'expiration exacte de l'annonce et le maintien des budgets à la reprise.
+Les cas existants de flux interrompu/renouvelé, péremption, ambiguïté, contexte
+obsolète, stop/échéance et nettoyage sont rejoués.
+La première ciblée a échoué sur trois attendus des nouveaux tests ; corrections
+et limites sont consignées au
+[rapport SH-09, section 17](../../specs/backlog/08_lot_a_rapport_sh09.md#17-sh-04--budgets-configurables-provisoires-et-revalidation-2026-10-31).

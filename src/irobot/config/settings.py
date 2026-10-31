@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import math
 import os
 from pathlib import Path
 import tomllib
@@ -65,6 +66,20 @@ class RuntimeSettings:
     backward_cm_per_second: float | None = None
     protection_presence: str = "absent"
     human_marker_identity: MarkerIdentity | None = None
+    human_max_age_seconds: float = 0.2
+    human_announcement_timeout_seconds: float = 2.0
+
+    def __post_init__(self) -> None:
+        for name in ("human_max_age_seconds", "human_announcement_timeout_seconds"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a finite positive number")
+            try:
+                finite = math.isfinite(value)
+            except OverflowError as exc:
+                raise ValueError(f"{name} must be a finite positive number") from exc
+            if not finite or value <= 0:
+                raise ValueError(f"{name} must be a finite positive number")
 
 
 @dataclass(frozen=True)
@@ -113,6 +128,15 @@ def load_runtime_settings() -> RuntimeSettings:
     runtime = raw.get("runtime", {})
     limits = raw.get("limits", {})
     camera = raw.get("camera", {})
+    human_follow = raw.get("human_follow", {})
+    if not isinstance(human_follow, Mapping) or set(human_follow) - {
+        "max_age_seconds", "announcement_timeout_seconds",
+    }:
+        raise ValueError(
+            "human_follow must be a table containing only "
+            "max_age_seconds and announcement_timeout_seconds"
+        )
+    defaults = RuntimeSettings()
     marker_identity = MarkerIdentity.from_mapping(raw.get("human_marker"))
     presence = raw.get("protection", {}).get("presence", "absent")
     if presence not in {"absent", "present"}:
@@ -142,4 +166,10 @@ def load_runtime_settings() -> RuntimeSettings:
         camera_focal_px=float(camera.get("focal_px", 600.0)),
         camera_ultrasonic_fusion=bool(camera.get("ultrasonic_fusion", False)),
         human_marker_identity=marker_identity,
+        human_max_age_seconds=human_follow.get(
+            "max_age_seconds", defaults.human_max_age_seconds,
+        ),
+        human_announcement_timeout_seconds=human_follow.get(
+            "announcement_timeout_seconds", defaults.human_announcement_timeout_seconds,
+        ),
     )

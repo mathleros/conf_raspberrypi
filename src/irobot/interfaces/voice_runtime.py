@@ -1241,7 +1241,8 @@ class VoiceRuntime:
     def prepare_human_follow(
         self, request: HumanFollowRequest, *,
         conditions: Callable[[], HumanConditions], journal: DecisionJournal,
-        max_age_seconds: float, announcement_timeout_seconds: float,
+        max_age_seconds: float | None = None,
+        announcement_timeout_seconds: float | None = None,
         frame_source: HumanPerceptionFrameSource | None = None,
         provider: HumanPerceptionProvider | None = None,
     ) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 # Étude et backlog — Suivre un humain comme un chien
 
-Date de création : 2026-10-29. Mise à jour : 2026-10-31. **État courant :** SH-01 validé ; cadres SH-02 à SH-11 et décisions préservés. Revue documentaire SH-02 et plan de qualification consignés en section 4 ; aucune qualification matérielle effectuée. Le lot A reste conforme uniquement dans son périmètre logiciel isolé (détails et historique en [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire)). Blocs logiciels isolés ajoutés depuis : cycle/runtime protégé, frontière trame→observation et replay synthétique jusqu'au cycle/annonces (rapport, sections 10–14). Dernière campagne : 265 tests `--stdlib`, 315 réussis/7 désélectionnés/272 sous-tests et 4 contrats legacy ; aucun accès interdit ni thread résiduel. Ces résultats ne qualifient ni caméra, protections, Pi ou mouvement réel. SH-02/03/05/06/07/08/09/10/11 et leurs qualifications restent ouverts selon leurs critères ; aucun Go terrain ou suivi humain mobile.
+Date de création : 2026-10-29. Mise à jour : 2026-10-31. **État courant :** SH-01 validé ; cadres SH-02 à SH-11 et décisions préservés. Revue documentaire SH-02 et plan de qualification consignés en section 4 ; aucune qualification matérielle effectuée. Le lot A reste conforme uniquement dans son périmètre logiciel isolé (détails et historique en [rapport SH-09, section 9](08_lot_a_rapport_sh09.md#9-corrections-autorisées-et-vérification-contradictoire)). Blocs logiciels isolés ajoutés depuis : cycle/runtime protégé, frontière trame→observation, replay synthétique jusqu'au cycle/annonces et raccordement source/fournisseur avec budgets provisoires configurables (rapport, sections 10–17). Dernière campagne : 303 tests `--stdlib`, 353 réussis/7 désélectionnés/361 sous-tests et 4 contrats legacy ; ciblée SH-04 : 112 réussis/343 sous-tests. Aucun accès interdit ni thread résiduel. Ces résultats et les défauts autorisés ne qualifient ni caméra, protections, Pi ou mouvement réel. SH-02/03/04/05/06/07/08/09/10/11 et leurs qualifications restent ouverts selon leurs critères ; aucun Go terrain ou suivi humain mobile.
 
 ## 1. Besoin et décision de cadrage
 
@@ -638,6 +638,16 @@ dégagement, seuils de qualité et fraîcheur ne sont pas qualifiés par les rel
 consignés ; aucun paramètre de production n'en est déduit. Voir le
 [rapport SH-09, section 16](08_lot_a_rapport_sh09.md#16-raccordement-sh-04-sourcefournisseur--cycle-sur-doubles-2026-10-31)
 pour le périmètre, les résultats effectifs et les limites. Aucun Go matériel.
+
+Complément autorisé `safe-config` : budgets provisoires modifiables dans
+`[human_follow]` du
+[fichier de configuration](../../config/runtime_calibration.toml),
+âge maximal 0,2 s et annonce 2 s. Ils sont lus par le raccordement structuré
+en l'absence de surcharge explicite, validés avant réservation et figés pendant
+la mission/reprise. Ce sont des défauts autorisés non qualifiés, pas des valeurs
+déduites de SH-03 ; aucun fournisseur matériel ni déverrouillage du mouvement.
+Voir les résultats et la décision exacte au
+[rapport SH-09, section 17](08_lot_a_rapport_sh09.md#17-sh-04--budgets-configurables-provisoires-et-revalidation-2026-10-31).
 
 ### SH-05 — Spécification progressive des garde-fous
 

@@ -1547,6 +1547,119 @@ sans fournisseur caméra de production et sans lever le refus `follow_person`.
 
 ### Outillage de calibration et relevé automatique — 2026-10-31
 
+**Premier essai damier Pi rapporté le 2026-10-31 :** la commande effectivement
+copiée utilise `--columns 10 --rows 7`, alors que le damier fourni contient
+10×7 cases, donc **9×6 coins intérieurs** attendus par le détecteur.
+Cette incompatibilité explique pourquoi cette commande ne peut pas détecter
+le motif complet attendu ; le cadrage et la netteté physiques ne sont pas
+qualifiés pour autant. Interruption Ctrl+C rapportée : 70 résultats `absent`,
+fraction détectée 0, aucune calibration produite. Le résumé indique 71
+captures nouvelles pour 70 résultats comptabilisés : une capture identifiée
+sans résultat final au moment de l'interruption ne constitue pas une mesure
+complète. La p95 retour de capture→résultat rapportée est 96,25 ms, sans
+qualification de la latence complète. Révision/montage restent des valeurs
+d'exemple dans cette commande. Échec conservé, aucune clôture SH-03.
+Vérification locale indépendante sans caméra : motif synthétique 10×7 cases,
+détecteur configuré à 9×6, 54 coins détectés.
+
+**Nouvel essai damier Pi rapporté le 2026-10-31 :** résumé final
+`termination: view_limit`, 542 captures nouvelles et résultats comptabilisés,
+538 détections de damier et 4 absences, soit 99,26 % de détection ; débit
+rapporté 13,70 captures nouvelles/s, série maximale de 4 absences, p95 retour
+de capture→résultat 42,37 ms. Les absences sont conservées, sans cause fournie.
+Selon le chemin logiciel inspecté, `view_limit` final indique que le nombre
+de vues demandé a été atteint et que l'écriture des intrinsèques candidates
+a réussi. Le contenu du fichier, les erreurs de reprojection, la diversité
+des vues, la commande exacte et les références de cette nouvelle exécution
+ne sont pas encore fournis : calibration candidate à examiner, pas qualifiée.
+Ce taux concerne le damier, non l'acceptation ArUco/humaine ; ce débit concerne
+les captures, non des observations de suivi qualifiées. La latence complète
+reste `null` et `sh03_qualified` reste `false`. Aucune clôture SH-03 ;
+prochaine vérification hors ligne : examiner le fichier d'intrinsèques produit,
+puis préparer la recette ArUco sur références indépendantes.
+
+**Intrinsèques candidates communiquées ensuite :** document
+`sh03-optics-v1`, OpenCV `5.0.0`, damier 9×6 coins de 2 cm, pipeline
+OV5647 640×480 `BGR888` tourné en 480×640. Matrice rapportée :
+`fx=573.4102943242434`, `fy=575.2448362116459`,
+`cx=266.61549647645586`, `cy=289.8520752341411`.
+Distorsion OpenCV `k1/k2/p1/p2/k3` :
+`[-0.4273981089230763, 0.032289805991795775,
+0.0014379376643079672, -0.004279039556845621,
+0.46356123039747854]`. RMS d'entraînement 0,18927 px ;
+44 erreurs de vues d'entraînement (maximum 0,30729 px) et 10 erreurs de
+vues réservées (0,17528 à 0,28517 px). Ces erreurs de reprojection sont
+faibles en pixels, mais ne mesurent ni précision de dégagement en cm, ni
+couverture du champ, ni incertitude des intrinsèques.
+
+Le document contient des empreintes pour `damier-01.jsonl`,
+`damier-02.jsonl` et `damier-03.jsonl` : il correspond à une agrégation
+hors ligne de 54 vues, pas nécessairement à la seule session dont le résumé
+`view_limit` a été fourni. Les traces sources ne sont pas disponibles ici ;
+aucune assimilation au premier essai échoué de même nom n'est faite.
+`revision: HASH_EXACT_PI` et `mounting: MONTAGE_MESURE_A` restent des
+valeurs d'exemple, donc la traçabilité réelle est à compléter sans
+réétiqueter une acquisition dont la version ou le montage seraient inconnus.
+Contenu rapporté conservé comme calibration candidate, non comme réglage
+de production. `sh03_qualified: false` maintenu ; prochaine preuve requise :
+recette ArUco sur ce montage inchangé et références indépendantes.
+
+**Campagne ArUco déclarée réussie le 2026-10-31 :** extrait du relevé
+`aruco-condition-01.jsonl`, mode `record`, UTC
+`2026-10-31T19:58:25.382341+00:00`, OpenCV `5.0.0`,
+Picamera2 `0.3.37`, cible de 8 cm, même pipeline optique déclaré.
+Empreinte de calibration rapportée :
+`c48a1cd6ea1768c5a0072c285393f11f2475c6c953d1bbaee1c8b35f7e1c6fe6`.
+L'extrait fourni contient l'en-tête, la configuration et sept résultats de
+captures nouvelles, tous avec détection `valid` mais pose `ambiguous`.
+Les deux candidats donnent environ 154,12 et 154,14 cm de distance optique,
+avec erreurs de reprojection de 0,55 et 0,57 px ; aucune solution n'est
+adoptée comme mesure de dégagement. Coins identiques dans les sept résultats,
+timestamps distincts : ni répétition de capture ni qualification de
+stabilité/flux ne sont déduites de la seule égalité des coins.
+
+Le résumé final n'est pas présent : le nombre demandé de 100 captures n'est
+pas démontré par les sept résultats fournis. Référence optique, incertitude
+et dégagement robot–porteur sont `null` ; condition, révision et montage
+restent des textes d'exemple. Succès d'exécution rapporté, détections
+documentées dans cet extrait, mais taux global, débit, latence complète,
+erreur de distance et couverture des conditions SH-03 non établis.
+**SH-03 reste ouvert**, sans réglage de production ni Go physique.
+
+**Références et chronologie précisées le 2026-10-31 :** l'utilisateur a
+d'abord indiqué 97 cm, avec convention centre optique de la caméra → centre
+du marqueur. La comparaison initiale aux candidats de l'extrait
+(154,13564 et 154,12288 cm) avait donné +57,14 et +57,12 cm.
+Il précise ensuite que l'essai a commencé à **155 cm à gauche du capteur**,
+puis que le marqueur est revenu à **97 cm, centré**. La comparaison
+initiale utilisait donc une référence finale sans correspondance temporelle
+établie avec les premières trames : **le constat de surestimation de 57 cm
+est retiré comme conclusion de précision**, et son origine est conservée.
+
+Les candidats de l'extrait, avec translation horizontale d'environ -44,8 cm,
+sont cohérents qualitativement avec la position initiale à gauche. Comparés
+à la référence initiale déclarée de 155 cm, ils diffèrent d'environ -0,86
+et -0,88 cm ; cette comparaison reste indicative faute d'appariement
+horodaté de chaque capture à la référence indépendante et d'incertitude
+documentée. Aucune trame fournie n'établit la précision à 97 cm centré.
+La séquence mobile ne remplace pas des séries par condition mesurée ;
+les références doivent être associées aux trames concernées, et non
+appliquées comme une constante à toute la séquence. Le critère de 20 cm
+concerne toujours le dégagement robot–porteur, non ces distances optiques.
+La précision globale reste non établie ; aucune correction multiplicative,
+qualification ou valeur de production n'est ajoutée.
+
+**Validation du jalon exploratoire demandée par l'utilisateur le
+2026-10-31 :** étape de préparation/outillage, calibration candidate et
+détection ArUco rapportée acceptée dans ce périmètre limité. Ce jalon est
+traité ; il ne clôture pas la qualification complète SH-03. Les limites
+ci-dessus restent applicables : références synchronisées/incertitude,
+précision du dégagement, conditions nominales et négatives, ambiguïté de
+pose et latence complète encore à qualifier. La suite logicielle indépendante
+peut poursuivre sur doubles ; aucune utilisation de paramètres réputés
+qualifiés en production, ouverture caméra supplémentaire ou autorisation de
+mouvement ne découle de cette validation. Refus `follow_person` maintenu.
+
 Livré dans
 [marker_calibration.py](../../src/irobot/interfaces/marker_calibration.py),
 avec [protocole et commandes](../../docs/test-campaign/sh03-calibration-releve.md).
@@ -1754,3 +1867,98 @@ live ; aucun raccordement caméra et aucune autorisation de mouvement.
 Suite possible : obtenir et consigner les preuves/paramètres manquants,
 puis autoriser séparément l'intégration matérielle dans son périmètre ;
 aucun passage automatique déduit de ces tests.
+
+## 17. SH-04 — budgets configurables provisoires et revalidation (2026-10-31)
+
+### Autorisation et état des preuves
+
+Référence de départ : `249e8c055bd6b8489e1daa59cec19ab53b22ea80`.
+Le présent rapport comportait déjà 113 lignes ajoutées à la section 15 :
+essais Pi rapportés, intrinsèques candidates, ambiguïté et validation du
+jalon exploratoire. Ces changements préexistants sont préservés, non attribués
+au présent travail. Le raccordement source/fournisseur décrit en section 16
+était déjà dans le code ; il est réutilisé, pas réimplémenté.
+
+L'utilisateur a explicitement autorisé la poursuite de la préparation de
+production, puis demandé des valeurs par défaut modifiables, tout en déclarant
+qu'aucun paramètre supplémentaire n'était qualifié. Les défauts proposés
+(âge 0,2 s et annonce 2 s) ont été autorisés. Une levée du verrou de production
+a ensuite été demandée ; le contournement du refus de mouvement réel sans
+qualification a été refusé. **Décision finale explicite : `safe-config`**,
+défauts configurables et vérification isolée, sans déverrouillage du mouvement.
+Aucune autorisation matérielle ni qualification ne découle de cette décision.
+
+| Élément | Statut retenu |
+|---|---|
+| Âge maximal 0,2 s | Cible SH-04 consignée, maintenant défaut provisoire autorisé ; non qualifié |
+| Budget d'annonce 2 s | Ancienne valeur de test, maintenant défaut provisoire autorisé ; non qualifié |
+| Intrinsèques/poses SH-03 rapportées | Candidates/exploratoires ; aucune injection dans un fournisseur réel |
+| Transformation optique → dégagement, qualité et résolution d'ambiguïté | Toujours manquantes/non qualifiées ; aucune règle ou mesure fabriquée |
+| Horloges, latence complète Pi et protections | Toujours non qualifiées ; portes matérielles et refus `follow_person` inchangés |
+
+### Changements persistants
+
+- [Configuration](../../config/runtime_calibration.toml) : section
+  `[human_follow]`, `max_age_seconds = 0.2`,
+  `announcement_timeout_seconds = 2.0`, explicitement provisoires.
+- [Réglages](../../src/irobot/config/settings.py) : mêmes défauts pour les
+  configurations historiques ou absentes. Validation des deux nombres dès
+  construction/chargement : nombres finis strictement positifs, booléens et
+  chaînes refusés. Table malformée ou clé inconnue : `ValueError`, pas de repli
+  silencieux ni de clé de qualification/déverrouillage.
+- [Raccordement humain](../../src/irobot/interfaces/human_follow_runtime.py)
+  et [runtime commun](../../src/irobot/interfaces/voice_runtime.py) :
+  budgets omis/`None` résolus depuis les réglages avant réservation ;
+  surcharges explicites de replay prioritaires et toujours validées.
+  Budgets réellement utilisés consignés dans l'événement `reserved`.
+  Ils restent figés pendant toute la mission, y compris réacquisition et
+  annonces de reprise. Modification applicable à une nouvelle mission après
+  rechargement des réglages, jamais rétroactive.
+- `HumanPerceptionFrame`, `provider.observe`, `observe_frame`, acquisition,
+  identité et contexte existants inchangés. Aucun nouvel adaptateur matériel,
+  calcul de distance, identité par défaut, thread ou changement des protections.
+
+### Vérification et historique exact
+
+Huit tests supplémentaires, inclus dans les deux fichiers déjà sélectionnés :
+[perception/configuration](../../tests/unit/test_human_perception.py) et
+[raccordement](../../tests/unit/test_human_follow_runtime.py).
+Chargement historique/absent, surcharges indépendantes, types/nombres invalides,
+table malformée, clé inconnue, invalidation explicite avant réservation,
+trace des budgets, péremption selon le budget configuré, reprise avec mêmes
+budgets/échéance, expiration exacte d'annonce et nettoyage sont contrôlés.
+Les tests existants rejouent interruption/renouvellement du flux, données
+périmées, ambiguïté, contexte obsolète, stop/échéance en vol et nettoyage de
+liaison sans fermer la source partagée, y compris panne du journal.
+
+Première ciblée : **3 échecs, 108 réussis, 331 sous-tests réussis, 18,27 s**.
+Deux nouveaux tests supposaient à tort une horloge initiale à zéro alors que
+le double est déjà à 1 s après préparation du banc ; ils vérifient maintenant
+le budget relatif. Le troisième attendait un état `ended` : le cycle existant
+revient à `available` après fin avant activation ; l'attendu a été corrigé
+avec contrôle de cause, libération de réservation et absence de mouvement.
+Aucun comportement métier n'a été modifié pour faire passer ces attendus.
+Un test de budgets explicites invalides a ensuite complété la sélection.
+
+Depuis la racine du dépôt, sans installation, avec les mêmes gardes `-I -S` :
+
+| Commande via `.venv/bin/python -I -S` | Résultat effectivement reproduit |
+|---|---|
+| `tests/isolated/run_lot_a.py --human-perception` | 112 réussis, 343 sous-tests ; 15,28 s |
+| `tests/isolated/run_lot_a.py --stdlib` | 303 réussis ; 17,250 s |
+| `tests/isolated/run_lot_a.py` | 353 réussis, 7 désélectionnés, 361 sous-tests ; 24,73 s |
+| `tests/isolated/run_lot_a.py --legacy-stdlib` | 4 réussis ; 0,249 s |
+
+Quatre processus finaux : code 0, zéro accès interdit, zéro thread résiduel et
+trois sondes synthétiques refusées chacun. La première série en échec avait
+aussi zéro accès interdit et zéro thread résiduel. Temps locaux de harnais,
+pas des mesures physiques ou des latences qualifiées.
+
+Diagnostics VS Code sans erreur sur les cinq fichiers Python modifiés ;
+`git diff --check` sans erreur. Aucun import caméra/OpenCV natif, Pi/SSH,
+audio réel, modèle/serveur, moteur physique, image enregistrée, installation
+ou commit. Les régressions balle/stop sont exclusivement sur doubles.
+
+**Verdict : raccordement logiciel existant revalidé et budgets provisoires
+configurables livrés. Fournisseur optique matériel non livré ; SH-04 de
+production non activé/non qualifié, mouvement humain réel toujours refusé.**

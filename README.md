@@ -209,6 +209,19 @@ Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son ov
 
 Les paramètres du robot et de la perception sont dans [config/runtime_calibration.toml](config/runtime_calibration.toml). Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier. Garder `ultrasonic_fusion = false` tant que le capteur ultrason n'est pas installé et validé.
 
+Le raccordement logiciel SH-04 utilise la section `[human_follow]` du même
+fichier : `max_age_seconds = 0.2` et `announcement_timeout_seconds = 2.0`.
+Ces défauts provisoires sont autorisés, **pas qualifiés**. Les appels structurés
+sans surcharge prennent ces budgets depuis les réglages du runtime ; une
+surcharge explicite de replay reste prioritaire. Les budgets sont figés pendant
+la mission, reprise comprise ; une modification exige une nouvelle mission
+avec des réglages rechargés. Valeur non numérique, non finie ou non positive,
+table malformée ou clé inconnue : erreur explicite, aucun repli silencieux.
+Ni identité, calibration ni dégagement humain ne sont fabriqués ; le fournisseur
+matériel et le suivi moteur réel restent indisponibles. Voir le
+[protocole isolé SH-04](docs/test-campaign/lot-a-campagne-strictement-isolee.md)
+et le [rapport exact](specs/backlog/08_lot_a_rapport_sh09.md#17-sh-04--budgets-configurables-provisoires-et-revalidation-2026-10-31).
+
 **Sécurité matériel :** avant tout essai susceptible de commander les moteurs, placer le robot sur un support stable avec les roues dégagées, puis vérifier l'arrêt d'urgence et le câblage.
 
 ### Installation et tests sur macOS

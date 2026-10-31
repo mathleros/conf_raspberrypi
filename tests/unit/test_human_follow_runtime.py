@@ -185,6 +185,101 @@ class HumanFollowRuntimeTests(unittest.TestCase):
         self.assertFalse(nonzero(self.rig.motor))
         self.assertEqual(source.closes, 0)
 
+    def test_configured_budgets_feed_bound_runtime_and_are_snapshotted_until_resume(self):
+        self.runtime.settings = replace(
+            self.runtime.settings, human_max_age_seconds=0.04,
+            human_announcement_timeout_seconds=0.5,
+        )
+        source = SyntheticHumanFrameSource(self.perception_frame)
+        result = self.runtime.prepare_human_follow(
+            HumanFollowRequest(), conditions=self.rig.conditions, journal=self.rig.witness,
+            frame_source=source, provider=self.perception_provider(),
+        )
+        self.assertEqual(result["status"], "acquiring")
+        self.assertEqual(
+            self.runtime.pending_human_announcement.deadline - self.rig.clock.now, 0.5,
+        )
+        event = next(event for event in self.rig.witness.journal
+                     if event.get("event") == "reserved")
+        self.assertEqual(event["max_age_seconds"], 0.04)
+        self.assertEqual(event["announcement_timeout_seconds"], 0.5)
+        for _ in range(2):
+            self.step()
+            self.runtime.advance_human_follow()
+        token = self.runtime.pending_human_announcement.token
+        self.step()
+        self.assertEqual(
+            self.runtime.advance_human_follow(completed_announcement=token)["status"], "active",
+        )
+        deadline = self.runtime.human_follow_snapshot.mission_deadline
+        self.runtime.settings = replace(
+            self.runtime.settings, human_max_age_seconds=1.0,
+            human_announcement_timeout_seconds=5.0,
+        )
+        reads = source.reads
+        self.step(0.040001)
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "suspended")
+        self.assertEqual(source.reads, reads)
+        self.assertIn("observations_fresh", self.rig.robot.causes)
+        self.assertEqual(self.runtime.handle_text_as_plan("reprends le suivi")["status"], "acquiring")
+        human = self.runtime._human_follow
+        self.assertEqual(human._acquisition.max_age_seconds, 0.04)
+        self.assertAlmostEqual(
+            self.runtime.pending_human_announcement.deadline - self.rig.clock.now, 0.5,
+        )
+        self.assertEqual(human.snapshot.mission_deadline, deadline)
+        self.runtime.advance_human_follow(events=("stop",))
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertIsNone(human._frame_source)
+        self.assertIsNone(human._provider)
+        self.assertEqual(source.closes, 0)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_explicit_replay_budgets_override_configured_defaults(self):
+        self.runtime.settings = replace(
+            self.runtime.settings, human_max_age_seconds=0.04,
+            human_announcement_timeout_seconds=0.5,
+        )
+        self.assertEqual(self.prepare()["status"], "acquiring")
+        self.assertEqual(self.runtime._human_follow._acquisition.max_age_seconds, 0.2)
+        self.assertEqual(
+            self.runtime.pending_human_announcement.deadline - self.rig.clock.now, 2.0,
+        )
+        event = next(event for event in self.rig.witness.journal
+                     if event.get("event") == "reserved")
+        self.assertEqual(event["max_age_seconds"], 0.2)
+        self.assertEqual(event["announcement_timeout_seconds"], 2.0)
+        self.runtime.advance_human_follow(events=("stop",))
+
+    def test_configured_announcement_budget_expires_at_exact_boundary(self):
+        self.runtime.settings = replace(
+            self.runtime.settings, human_announcement_timeout_seconds=0.125,
+        )
+        result = self.runtime.prepare_human_follow(
+            HumanFollowRequest(), conditions=self.rig.conditions, journal=self.rig.witness,
+        )
+        self.assertEqual(result["status"], "acquiring")
+        self.step(0.125)
+        self.assertEqual(self.runtime.advance_human_follow()["status"], "available")
+        self.assertIn("announcement_timeout", self.rig.robot.causes)
+        self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertIsNone(self.rig.robot.reservation)
+        self.assertFalse(nonzero(self.rig.motor))
+
+    def test_invalid_explicit_budget_never_falls_back_or_reserves(self):
+        for key in ("max_age_seconds", "announcement_timeout_seconds"):
+            for value in (False, 0, -1, "0.2", float("nan"), float("inf")):
+                with self.subTest(key=key, value=value):
+                    with self.assertRaises(ValueError):
+                        self.runtime.prepare_human_follow(
+                            HumanFollowRequest(), conditions=self.rig.conditions,
+                            journal=self.rig.witness, **{key: value},
+                        )
+                    self.assertIsNone(self.rig.robot.reservation)
+                    self.assertIsNone(self.runtime.human_follow_snapshot)
+        self.assertFalse(nonzero(self.rig.motor))
+
     def test_bound_stream_fault_clears_initial_confirmations_without_fabricated_frame(self):
         source = self.prepare_bound()
         source.fault = "synthetic_stream_interrupted"

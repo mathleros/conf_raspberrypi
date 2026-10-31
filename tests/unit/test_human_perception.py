@@ -773,5 +773,60 @@ class HumanMarkerAcquisitionTests(unittest.TestCase):
                             settings.load_runtime_settings()
 
 
+class HumanFollowConfigurationTests(unittest.TestCase):
+    def load(self, contents):
+        with tempfile.TemporaryDirectory(prefix="human-follow-config-") as directory:
+            path = Path(directory) / "runtime_calibration.toml"
+            path.write_text(contents, encoding="utf-8")
+            with patch("irobot.config.settings._config_file", return_value=path):
+                return settings.load_runtime_settings()
+
+    def test_authorized_provisional_defaults_preserve_legacy_configuration(self):
+        for contents in ("", "[human_follow]\n", "[runtime]\ncm_per_second = 25.0\n"):
+            with self.subTest(contents=contents):
+                loaded = self.load(contents)
+                self.assertEqual(loaded.human_max_age_seconds, 0.2)
+                self.assertEqual(loaded.human_announcement_timeout_seconds, 2.0)
+                self.assertIsNone(loaded.human_marker_identity)
+                self.assertEqual(loaded.protection_presence, "absent")
+        with tempfile.TemporaryDirectory(prefix="human-follow-config-") as directory:
+            with patch("irobot.config.settings._config_file",
+                       return_value=Path(directory) / "missing.toml"):
+                self.assertEqual(settings.load_runtime_settings(), settings.RuntimeSettings())
+
+    def test_toml_budgets_override_defaults_independently(self):
+        loaded = self.load(
+            "[human_follow]\nmax_age_seconds = 0.04\nannouncement_timeout_seconds = 1\n"
+        )
+        self.assertEqual(loaded.human_max_age_seconds, 0.04)
+        self.assertEqual(loaded.human_announcement_timeout_seconds, 1)
+        loaded = self.load("[human_follow]\nmax_age_seconds = 0.04\n")
+        self.assertEqual(loaded.human_announcement_timeout_seconds, 2.0)
+        loaded = self.load("[human_follow]\nannouncement_timeout_seconds = 1\n")
+        self.assertEqual(loaded.human_max_age_seconds, 0.2)
+
+    def test_invalid_budgets_are_errors_not_silent_defaults(self):
+        for key in ("max_age_seconds", "announcement_timeout_seconds"):
+            for value in ("0", "-1", "nan", "inf", "-inf", "true", '"0.2"', "[]", "{}"):
+                with self.subTest(key=key, value=value):
+                    with self.assertRaisesRegex(ValueError, "finite positive"):
+                        self.load(f"[human_follow]\n{key} = {value}\n")
+        for name in ("human_max_age_seconds", "human_announcement_timeout_seconds"):
+            for value in (None, True, "0.2", 0, -1, float("nan"), float("inf"), 10**1000):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaisesRegex(ValueError, name):
+                        settings.RuntimeSettings(**{name: value})
+
+    def test_malformed_table_and_unknown_keys_cannot_hide_configuration_errors(self):
+        for contents in (
+            'human_follow = "invalid"\n', "human_follow = []\n",
+            "[human_follow]\nmax_age_second = 0.2\n",
+            "[human_follow]\nqualified = true\n",
+        ):
+            with self.subTest(contents=contents):
+                with self.assertRaisesRegex(ValueError, "human_follow"):
+                    self.load(contents)
+
+
 if __name__ == "__main__":
     unittest.main()

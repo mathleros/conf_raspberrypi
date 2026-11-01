@@ -11,6 +11,7 @@ from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
 
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
+from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
@@ -228,11 +229,29 @@ def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
 
 
 @pytest.mark.parametrize("phrase", ["suis-moi", "approche toi de moi"])
-def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, phrase):
+def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, monkeypatch, phrase):
     pipeline, frames, second_capture, wait_started = live_pipeline
     robot = FakeRobot()
+    close_seen = threading.Event()
+    holding = threading.Event()
+    original_detect = pipeline.detect
+    original_stop = robot.stop
+
+    def detect(*, target=None):
+        detection = original_detect(target=target)
+        if detection is not None and detection.distance_cm <= 30:
+            close_seen.set()
+        return detection
+
+    def stop():
+        original_stop()
+        if close_seen.is_set():
+            holding.set()
+
+    monkeypatch.setattr(pipeline, "detect", detect)
+    monkeypatch.setattr(robot, "stop", stop)
     runtime = VoiceRuntime(
-        robot=robot, perception=pipeline, use_llm=False, trace_dir=str(tmp_path),
+        robot=RobotController(robot), perception=pipeline, use_llm=False, trace_dir=str(tmp_path),
     )
     results = []
     reader = threading.Thread(target=lambda: results.append(runtime.handle_text_as_plan(phrase)))
@@ -245,12 +264,29 @@ def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, p
         assert reader.is_alive()
         # Un marqueur plus grand est dans le seuil d'approche commun, sans exception ArUco.
         frames.put(_frame(width=200))
+        assert holding.wait(2)
+        assert set(robot.commands) == {"stop"}
+        if phrase == "suis-moi":
+            assert reader.is_alive()
+            assert results == []
+            runtime.handle_transcript("stop")
         reader.join(2)
         assert not reader.is_alive()
-        assert results[0]["status"] == "accepted"
-        assert results[0]["steps"][0]["attempt"] == 1
-        assert results[0]["steps"][0]["results"][0].data["close_enough"] is True
-        assert results[0]["steps"][0]["results"][0].data["distance_cm"] == pytest.approx(
+        step = results[0]["steps"][0]
+        assert step["attempt"] == 1
+        if phrase == "suis-moi":
+            assert results[0]["status"] == "aborted"
+            assert step["reason"] == "emergency stop"
+            assert step["plan"] == ["follow_object"]
+            skill_result = step["results"][0]
+            assert skill_result.data["emergency_stop"] is True
+            distance_cm = skill_result.data["final_distance_cm"]
+        else:
+            assert results[0]["status"] == "accepted"
+            skill_result = step["results"][step["plan"].index("approach_target")]
+            assert skill_result.data["close_enough"] is True
+            distance_cm = skill_result.data["distance_cm"]
+        assert distance_cm == pytest.approx(
             8 / 199 * math.sqrt(600**2 + 0.5**2 + 59.5**2),
         )
         assert set(robot.commands) == {"stop"}

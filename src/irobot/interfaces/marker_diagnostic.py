@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from math import dist
+
 from irobot.config.settings import MarkerIdentity
+from irobot.hardware.camera.distance_estimator import estimate_distance_cm
 from irobot.interfaces.aruco_marker_decoder import (
     ArucoFrameDetection,
     ObservationDisposition,
@@ -12,12 +15,28 @@ from irobot.interfaces.aruco_marker_decoder import (
 
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
+# Mêmes paramètres que CameraLivePerceptionPipeline._detect_marker (côté 8 cm, focale 600 px).
+MARKER_SIDE_CM = 8.0
+MARKER_FOCAL_PX = 600.0
+
+
+def compute_marker_distance_cm(detection: ArucoFrameDetection) -> float | None:
+    """Distance sténopé à partir de la largeur apparente moyenne du marqueur."""
+    if not _is_selected_detection(detection):
+        return None
+    corners = detection.corners_px
+    width_px = (dist(corners[0], corners[1]) + dist(corners[3], corners[2])) / 2
+    return estimate_distance_cm(width_px, MARKER_SIDE_CM, MARKER_FOCAL_PX)
 
 
 def format_detection_status(detection: ArucoFrameDetection) -> str:
     if _is_selected_detection(detection):
         corners = detection.corners_px
-        return f"ID 1: detected; corners_px={corners}"
+        distance_cm = compute_marker_distance_cm(detection)
+        distance_text = (
+            f"{distance_cm:.1f} cm" if distance_cm is not None else "indisponible"
+        )
+        return f"ID 1: detected; distance={distance_text}; corners_px={corners}"
     if detection.disposition is ObservationDisposition.VALID:
         return "ID 1: invalid detector result (identity or corners unavailable)"
     if detection.disposition is ObservationDisposition.ABSENT:
@@ -49,7 +68,12 @@ def _draw_detection(frame: object, detection: ArucoFrameDetection, cv2_api: obje
             cv2_api.circle(frame, point, 4, (0, 0, 255), -1)
 
     if selected:
-        text = "ID 1 DETECTED"
+        distance_cm = compute_marker_distance_cm(detection)
+        text = (
+            f"ID 1 DETECTED {distance_cm:.1f} cm"
+            if distance_cm is not None
+            else "ID 1 DETECTED"
+        )
     elif detection.disposition is ObservationDisposition.VALID:
         text = "ID 1 INVALID RESULT"
     else:

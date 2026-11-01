@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from irobot.config.settings import MarkerIdentity
-from irobot.interfaces.human_perception import (
+from irobot.interfaces.aruco_marker_decoder import (
     ArucoFrameDetection,
     ObservationDisposition,
     OpenCVArucoMarkerDecoder,

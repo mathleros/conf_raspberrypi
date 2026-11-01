@@ -14,6 +14,7 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
 
     Ce behavior est un exemple de logique de niveau supérieur : il combine
     perception et primitives de déplacement.
+    Pour un marqueur ArUco, arrêt à 120 cm ou à la perte de cible, sans balayage.
     """
 
     name = "follow_target"
@@ -26,6 +27,7 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
     DEFAULT_MAX_TARGET_LOSS_S = 1.0
     DEFAULT_APPROACH_THRESHOLD_CM = 20.0
     DEFAULT_STAND_OFF_TOLERANCE_CM = 10.0
+    MARKER_COMFORT_DISTANCE_CM = 120.0
     MIN_FORWARD_SCALE = 0.25
     PHASE_SEARCH = "search"
     PHASE_TRACK = "track"
@@ -67,6 +69,23 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
 
+    def _stop_marker_tracking(
+        self, context: SkillContext, target_position: str | None, iterations: int
+    ) -> SkillResult:
+        self._stop_robot(context)
+        context.state["motion"] = "stop"
+        context.state["follow_target_state"] = {
+            "phase": "lost_target" if target_position is None else "distance_unknown",
+            "iterations": iterations,
+        }
+        return SkillResult(
+            status="failed",
+            message="Suivi du marqueur impossible : cible absente ou distance indisponible, arrêt.",
+            data={"target_position": target_position, "target_lost": target_position is None},
+            confidence=0.1,
+            next_action="stop_motion",
+        )
+
     def execute(self, context: SkillContext) -> SkillResult:
         try:
             if not hasattr(context.robot, "forward"):
@@ -79,6 +98,7 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
                 )
 
             params = dict(context.state.get("active_intent_parameters") or {})
+            is_marker_target = (params.get("target_object") or context.state.get("target_object")) == "marker"
             max_tracking_s = self._to_float(params.get("tracking_timeout_s"), self.DEFAULT_MAX_TRACKING_S)
             max_target_loss_s = self._to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S)
             align_step_s = self._to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
@@ -93,6 +113,9 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
                 self._to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_STAND_OFF_TOLERANCE_CM),
             )
             reached_threshold_cm = max(1.0, stand_off_cm + tolerance_cm)
+            if is_marker_target:
+                stand_off_cm = self.MARKER_COMFORT_DISTANCE_CM
+                reached_threshold_cm = self.MARKER_COMFORT_DISTANCE_CM
             has_live_perception = callable(getattr(context.perception, "detect", None))
 
             if not has_live_perception:
@@ -109,6 +132,10 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
                     )
 
                 target_position, distance_cm = self._detect_target(context)
+                if is_marker_target and (
+                    target_position is None or (target_position == "center" and distance_cm is None)
+                ):
+                    return self._stop_marker_tracking(context, target_position, 1)
                 if distance_cm is not None and distance_cm <= reached_threshold_cm:
                     self._stop_robot(context)
                     context.state["motion"] = "stop"
@@ -235,6 +262,10 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
 
                 target_position, distance_cm = self._detect_target(context)
                 current = now()
+                if is_marker_target and (
+                    target_position is None or (target_position == "center" and distance_cm is None)
+                ):
+                    return self._stop_marker_tracking(context, target_position, iterations)
 
                 if target_position is not None:
                     if phase == self.PHASE_SEARCH:

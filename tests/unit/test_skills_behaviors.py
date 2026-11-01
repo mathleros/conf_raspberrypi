@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from irobot.config.settings import RuntimeSettings
 from irobot.interfaces import RobotController
 from irobot.domain.skills import SkillContext
@@ -179,6 +181,53 @@ def test_follow_target_search_time_does_not_consume_tracking_budget():
     result, _, _, _ = live_run(script, search_timeout_s=60.0, tracking_timeout_s=1.0, stand_off_cm=100)
 
     assert result.status == "success"
+
+
+@pytest.mark.parametrize("live", [False, True])
+@pytest.mark.parametrize(
+    "position,distance,expected",
+    [
+        ("center", 120.01, "forward"),
+        ("left", 150.0, "left"),
+        ("right", 150.0, "right"),
+        ("left", None, "left"),
+        ("right", None, "right"),
+        ("center", None, "stop"),
+        (None, None, "stop"),
+        *[(side, distance, "stop") for side in ("center", "left", "right") for distance in (120.0, 50.0)],
+    ],
+)
+def test_follow_marker_motion_policy(live, position, distance, expected):
+    params = {
+        "target_object": "marker",
+        "stand_off_cm": 300,
+        "stand_off_tolerance_cm": 100,
+        "alignment_step_s": 0.0,
+        "forward_step_s": 0.0,
+    }
+    if live:
+        detection = None if position is None else (position, distance)
+        result, fake, context, _ = live_run([detection, None], **params)
+    else:
+        fake = FakeRobot()
+        context = build_context(
+            fake,
+            target_object="marker",
+            active_intent_parameters=params,
+            last_object_position=position,
+            last_object_distance_cm=distance,
+        )
+        result = FollowTargetSkill(settings=RuntimeSettings(), sleep_fn=lambda _: None).execute(context)
+
+    assert fake.commands[0] == expected
+    assert "backward" not in fake.commands
+    if expected == "stop":
+        assert fake.commands == ["stop"]
+        assert context.state["motion"] == "stop"
+        assert result.next_action == "stop_motion"
+    elif live:
+        assert fake.commands == [expected, "stop"]
+        assert result.data["target_lost"] is True
 
 
 def test_move_circle_skill_executes_compound_motion():

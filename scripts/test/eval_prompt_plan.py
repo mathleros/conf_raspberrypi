@@ -191,7 +191,7 @@ PLAN_SCHEMA = {
                 "properties": {
                     "intent": {"type": "string", "enum": [
                         "move_forward", "move_backward", "turn_left", "turn_right", "stop",
-                        "search_and_approach_object", "follow_object", "follow_red_ball",
+                        "search_and_approach_object", "follow_object", "follow_red_ball", "follow_person",
                         "avoid_obstacle", "spin_360", "move_square", "return_to_start"]},
                     "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "parameters": {
@@ -244,6 +244,7 @@ INTENT_LEXICON = {
     "spin_360": (("tour", "pivot", "rotat", "360", "spin"), set(), ()),
     "follow_object": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
     "follow_red_ball": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
+    "follow_person": (("suis", "suiv", "follow", "track"), set(), ()),
     "search_and_approach_object": (("cherch", "trouv", "approch", "rejoin", "search", "find",
                                     "repere", "localis"), set(), ()),
     "stop": (("stop", "arret", "halte", "pause", "attend"), set(), ()),
@@ -259,6 +260,7 @@ ALLOWED_PARAMS = {
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
     "search_and_approach_object": {"stand_off_cm", "target_object"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
+    "follow_person": set(),
     "move_square": {"side", "unit"},
 }
 

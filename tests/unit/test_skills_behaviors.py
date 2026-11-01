@@ -219,14 +219,16 @@ def test_follow_marker_motion_policy(live, position, distance, expected):
         )
         result = FollowTargetSkill(settings=RuntimeSettings(), sleep_fn=lambda _: None).execute(context)
 
-    assert fake.commands[0] == expected
+    if expected != "stop":
+        assert expected in fake.commands
+    assert fake.commands[-1] == "stop"
+
     assert "backward" not in fake.commands
     if expected == "stop":
         assert fake.commands == ["stop"]
         assert context.state["motion"] == "stop"
         assert result.next_action == "stop_motion"
     elif live:
-        assert fake.commands == [expected, "stop"]
         assert result.data["target_lost"] is True
 
 

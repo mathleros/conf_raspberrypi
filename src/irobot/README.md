@@ -58,6 +58,13 @@ Les deux mixins de planification et d'exécution utilisent un unique état parta
 Les anciens modules de protection, d'admission et de suivi humain ne sont plus
 requis. Les adaptateurs matériels sont importés uniquement lors de leur utilisation :
 charger le runtime ou traiter du texte n'initialise ni ALSA, ni Vosk, ni GPIO, ni caméra.
+
+La perception caméra attend une image traitée pour la cible demandée au démarrage
+et lors d'un changement de cible (par exemple balle rouge vers marqueur avec
+« suis-moi »). Une image encore en traitement pour l'ancienne cible ne satisfait
+pas cette attente, limitée à une seconde et interrompue à la fermeture ou en cas
+d'échec caméra. Un dépassement est journalisé et ne fournit aucune détection.
+Le suivi ArUco conserve l'arrêt sur absence ou perte du marqueur, sans balayage.
 Une protection déclarée `present` reste refusée, faute d'adaptateur qualifié.
 
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou

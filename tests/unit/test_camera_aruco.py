@@ -1,3 +1,7 @@
+import queue
+import threading
+import time
+
 import cv2
 import numpy as np
 import pytest
@@ -6,6 +10,8 @@ from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
 
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
+from irobot.interfaces.voice_runtime import VoiceRuntime
+from tests.unit.fake_robot import FakeRobot
 
 def _frame(center_x=240, width=80, image_width=480, marker_id=1):
     dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -131,3 +137,172 @@ def test_marker_distance_is_not_fused_with_ultrasound(pipeline):
     pipeline.distance_reader = unexpected_read
     pipeline._last_detection = pipeline._process_frame(_frame())
     assert pipeline.detect(target="marker").distance_cm == pytest.approx(8 * 600 / 79)
+
+
+@pytest.fixture
+def live_pipeline(monkeypatch):
+    frames = queue.Queue()
+    first_capture = threading.Event()
+    second_capture = threading.Event()
+    wait_started = threading.Event()
+
+    class Camera:
+        captures = 0
+
+        def __init__(self, index):
+            pass
+
+        def create_preview_configuration(self, **kwargs):
+            return kwargs
+
+        def configure(self, config):
+            pass
+
+        def start(self):
+            pass
+
+        def capture_array(self):
+            self.captures += 1
+            (first_capture if self.captures == 1 else second_capture).set()
+            frame = frames.get(timeout=3)
+            if isinstance(frame, Exception):
+                raise frame
+            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+        def stop(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(camera_live_pipeline, "Picamera2", Camera)
+    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(poll_interval_s=0)
+    original_wait = pipeline._frame_condition.wait_for
+
+    def wait_for(predicate, timeout=None):
+        wait_started.set()
+        return original_wait(predicate, timeout)
+
+    monkeypatch.setattr(pipeline._frame_condition, "wait_for", wait_for)
+    try:
+        assert first_capture.wait(2)
+        yield pipeline, frames, second_capture, wait_started
+    finally:
+        pipeline._stop_event.set()
+        frames.put(_frame())
+        pipeline.close()
+
+
+@pytest.mark.parametrize("target", ["marker", "me"])
+def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
+    pipeline, frames, second_capture, wait_started = live_pipeline
+    results = []
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=target)))
+    reader.start()
+    try:
+        assert wait_started.wait(2)
+        frames.put(_frame())
+        assert second_capture.wait(2)
+        assert reader.is_alive()
+        assert results == []
+        frames.put(_frame())
+        reader.join(2)
+        assert not reader.is_alive()
+        assert results[0].label == "marker_1"
+        assert results[0].distance_cm == pytest.approx(8 * 600 / 79)
+    finally:
+        with pipeline._frame_condition:
+            pipeline._stop_event.set()
+            pipeline._frame_condition.notify_all()
+        reader.join(2)
+
+
+def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path):
+    pipeline, frames, second_capture, wait_started = live_pipeline
+    robot = FakeRobot()
+    runtime = VoiceRuntime(
+        robot=robot, perception=pipeline, use_llm=False, trace_dir=str(tmp_path),
+    )
+    results = []
+    reader = threading.Thread(target=lambda: results.append(runtime.handle_text_as_plan("suis-moi")))
+    reader.start()
+    try:
+        assert wait_started.wait(2)
+        assert robot.commands == []
+        frames.put(_frame())
+        assert second_capture.wait(2)
+        assert reader.is_alive()
+        frames.put(_frame())
+        reader.join(2)
+        assert not reader.is_alive()
+        assert results[0]["status"] == "accepted"
+        assert results[0]["steps"][0]["attempt"] == 1
+        assert results[0]["steps"][0]["results"][0].data["close_enough"] is True
+        assert set(robot.commands) == {"stop"}
+    finally:
+        runtime._request_emergency_stop()
+        with pipeline._frame_condition:
+            pipeline._stop_event.set()
+            pipeline._frame_condition.notify_all()
+        reader.join(2)
+
+
+def test_target_frame_wait_is_bounded_and_logged(live_pipeline, caplog, monkeypatch):
+    pipeline, _, _, _ = live_pipeline
+    monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0.03)
+    started = time.monotonic()
+    assert pipeline.detect(target="marker") is None
+    elapsed = time.monotonic() - started
+    assert 0.025 <= elapsed < 0.5
+    assert "Délai dépassé" in caplog.text
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_matching_frame_is_cached_including_absence(live_pipeline, present, monkeypatch):
+    pipeline, frames, second_capture, wait_started = live_pipeline
+    results = []
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target="marker")))
+    reader.start()
+    try:
+        assert wait_started.wait(2)
+        frames.put(_frame())
+        assert second_capture.wait(2)
+        frames.put(_frame() if present else np.full((640, 480, 3), 255, np.uint8))
+        reader.join(2)
+        assert not reader.is_alive()
+        monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0)
+        cached = pipeline.detect(target="me")
+        assert (cached is not None) == present
+        assert (results[0] is not None) == present
+        assert pipeline._frame_revision == pipeline._target_revision
+    finally:
+        with pipeline._frame_condition:
+            pipeline._stop_event.set()
+            pipeline._frame_condition.notify_all()
+        reader.join(2)
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_target_frame_wait_is_released_on_close_or_failure(live_pipeline, failure, caplog):
+    pipeline, frames, _, wait_started = live_pipeline
+    results = []
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target="marker")))
+    reader.start()
+    try:
+        assert wait_started.wait(2)
+        if failure:
+            frames.put(RuntimeError("capture interrompue"))
+        else:
+            with pytest.raises(TimeoutError):
+                pipeline.close(timeout_s=0)
+        reader.join(0.5)
+        assert not reader.is_alive()
+        assert results == [None]
+        if failure:
+            assert "capture interrompue" in caplog.text
+    finally:
+        with pipeline._frame_condition:
+            pipeline._stop_event.set()
+            pipeline._frame_condition.notify_all()
+        reader.join(2)

@@ -34,6 +34,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
     focale de 600 px et seuils horizontaux rapportés à une largeur de 480 px.
     """
 
+    TARGET_FRAME_TIMEOUT_S = 1.0
+
     def __init__(
         self,
         *,
@@ -66,6 +68,10 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._last_detection: ObjectDetection | None = None
         self._requested_target: str | None = None
         self._lock = threading.Lock()
+        self._frame_condition = threading.Condition(self._lock)
+        self._target_revision = 0
+        self._frame_revision = -1
+        self._capture_finished = False
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._capture_loop, name="camera-live-perception", daemon=False)
         if autostart:
@@ -143,10 +149,11 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             distance_visual_cm=distance, confidence=1.0,
         )
 
-    def _process_frame(self, frame_rgb) -> ObjectDetection | None:
+    def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
         """Détecte la meilleure cible dans une frame déjà orientée (RGB) et renseigne la distance."""
-        with self._lock:
-            target = self._requested_target or self.default_target
+        if target is None:
+            with self._lock:
+                target = self._requested_target or self.default_target
         marker_only = target in {"marker", "me"}
         ball_filter = target == "both" or any(value in target for value in ("red", "yellow", "ball"))
         if marker_only or not ball_filter:
@@ -196,6 +203,10 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def _capture_loop(self) -> None:
         if Picamera2 is None:
+            logger.error("Perception caméra indisponible : Picamera2 absent.")
+            with self._frame_condition:
+                self._capture_finished = True
+                self._frame_condition.notify_all()
             return
 
         camera = None
@@ -209,19 +220,30 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             camera.start()
 
             while not self._stop_event.is_set():
+                with self._lock:
+                    target = self._requested_target or self.default_target
+                    revision = self._target_revision
                 frame_rgb = camera.capture_array()
                 rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
-                detection = self._process_frame(rotated_frame_rgb)
-                with self._lock:
-                    self._last_detection = detection
+                detection = self._process_frame(rotated_frame_rgb, target=target)
+                with self._frame_condition:
+                    # Une image en vol ne doit pas satisfaire une nouvelle demande de cible.
+                    if revision == self._target_revision:
+                        self._last_detection = detection
+                        self._frame_revision = revision
+                    self._frame_condition.notify_all()
 
                 if self.poll_interval_s > 0.0:
                     self._stop_event.wait(self.poll_interval_s)
         except Exception:
             logger.exception("Échec de la capture caméra.")
-            with self._lock:
+            with self._frame_condition:
                 self._last_detection = None
+                self._frame_revision = -1
         finally:
+            with self._frame_condition:
+                self._capture_finished = True
+                self._frame_condition.notify_all()
             if camera is not None:
                 try:
                     camera.stop()
@@ -234,8 +256,29 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def detect(self, *, target: str | None = None) -> ObjectDetection | None:
         expected = (target or "").strip().lower()
-        with self._lock:
-            self._requested_target = expected or None
+        requested = "marker" if expected == "me" else expected
+        with self._frame_condition:
+            previous = self._requested_target or self.default_target
+            previous = "marker" if previous == "me" else previous
+            desired = requested or self.default_target
+            desired = "marker" if desired == "me" else desired
+            if desired != previous:
+                self._target_revision += 1
+                self._last_detection = None
+            self._requested_target = requested or None
+            revision = self._target_revision
+            if self._thread.is_alive():
+                ready = self._frame_condition.wait_for(
+                    lambda: self._frame_revision == revision
+                    or self._stop_event.is_set()
+                    or self._capture_finished,
+                    timeout=self.TARGET_FRAME_TIMEOUT_S,
+                )
+                if not ready:
+                    logger.error("Délai dépassé en attendant une image caméra pour la cible %r.", target)
+                    return None
+                if self._frame_revision != revision:
+                    return None
             detection = self._last_detection
 
         if detection is None:
@@ -250,7 +293,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         return dataclasses.replace(detection, distance_cm=self._fuse_distance_cm(detection))
 
     def close(self, timeout_s: float | None = None) -> None:
-        self._stop_event.set()
+        with self._frame_condition:
+            self._stop_event.set()
+            self._frame_condition.notify_all()
         if self._thread.is_alive():
             self._thread.join(timeout=None if timeout_s is None else max(0.0, float(timeout_s)))
             if self._thread.is_alive():

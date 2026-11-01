@@ -78,6 +78,19 @@ OV5647, détecte le seul couple configuré dans le diagnostic
 Elle exige une campagne réelle autorisée séparément ; `camera-live` déjà
 autorisé ne couvre pas cette détection.
 
+Le diagnostic estime la **distance directe entre l'objectif et le centre du
+marqueur** via `solvePnP` sur les quatre coins du carré de 8 cm : son inclinaison
+est prise en compte, contrairement à une estimation par largeur apparente.
+La capture est fixée à 640×480 avant rotation (480×640 après rotation).
+La focale provisoire reste 600 px, le centre optique est supposé au centre de
+l'image et la distorsion est supposée nulle : ce n'est pas une calibration
+de l'objectif et la précision aux bords n'est pas garantie. L'affichage vidéo
+est actualisé à chaque trame (`~` indique une estimation) ; la console reste
+limitée aux changements de statut. Une pose inexploitable affiche une distance
+indisponible, sans repli sur la largeur. Le pipeline runtime n'est pas modifié.
+Les tests de pose utilisent uniquement des projections synthétiques ; ils ne
+valident pas les erreurs physiques rapportées sur le Pi.
+
 Voir le [rapport SH-09 du lot A](../../specs/backlog/08_lot_a_rapport_sh09.md)
 pour la référence, les oracles, résultats, exclusions et limites. Le suivi
 humain moteur réel demeure refusé ; aucune qualification Pi/audio/physique.

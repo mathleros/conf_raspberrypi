@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from math import dist
-
 from irobot.config.settings import MarkerIdentity
-from irobot.hardware.camera.distance_estimator import estimate_distance_cm
 from irobot.interfaces.aruco_marker_decoder import (
     ArucoFrameDetection,
     ObservationDisposition,
@@ -15,24 +12,66 @@ from irobot.interfaces.aruco_marker_decoder import (
 
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
-# Mêmes paramètres que CameraLivePerceptionPipeline._detect_marker (côté 8 cm, focale 600 px).
 MARKER_SIDE_CM = 8.0
 MARKER_FOCAL_PX = 600.0
+PREVIEW_SIZE_PX = (640, 480)
+ORIENTED_SIZE_PX = (480, 640)
 
 
-def compute_marker_distance_cm(detection: ArucoFrameDetection) -> float | None:
-    """Distance sténopé à partir de la largeur apparente moyenne du marqueur."""
+def compute_marker_distance_cm(
+    detection: ArucoFrameDetection,
+    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
+) -> float | None:
+    """Estimate direct range from pose, assuming centred optics without distortion."""
     if not _is_selected_detection(detection):
         return None
-    corners = detection.corners_px
-    width_px = (dist(corners[0], corners[1]) + dist(corners[3], corners[2])) / 2
-    return estimate_distance_cm(width_px, MARKER_SIDE_CM, MARKER_FOCAL_PX)
+    import cv2
+    import numpy as np
+
+    width, height = frame_size_px
+    if width <= 0 or height <= 0:
+        raise ValueError("Frame dimensions must be positive")
+    corners = np.asarray(detection.corners_px, dtype=np.float64)
+    if corners.shape != (4, 2) or not np.isfinite(corners).all():
+        return None
+    contour = corners.astype(np.float32)
+    if not cv2.isContourConvex(contour) or cv2.contourArea(contour) <= 0:
+        return None
+    half_side = MARKER_SIDE_CM / 2
+    object_points = np.array(
+        [
+            (-half_side, -half_side, 0),
+            (half_side, -half_side, 0),
+            (half_side, half_side, 0),
+            (-half_side, half_side, 0),
+        ],
+        dtype=np.float64,
+    )
+    # The focal length is provisional at 480x640; this is not lens calibration.
+    camera_matrix = np.array(
+        [
+            (MARKER_FOCAL_PX * width / ORIENTED_SIZE_PX[0], 0, width / 2),
+            (0, MARKER_FOCAL_PX * height / ORIENTED_SIZE_PX[1], height / 2),
+            (0, 0, 1),
+        ],
+        dtype=np.float64,
+    )
+    success, _, translation = cv2.solvePnP(
+        object_points, corners, camera_matrix, np.zeros(5),
+        flags=cv2.SOLVEPNP_ITERATIVE,
+    )
+    if not success or not np.isfinite(translation).all() or translation[2, 0] <= 0:
+        return None
+    return float(np.linalg.norm(translation))
 
 
-def format_detection_status(detection: ArucoFrameDetection) -> str:
+def format_detection_status(
+    detection: ArucoFrameDetection,
+    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
+) -> str:
     if _is_selected_detection(detection):
         corners = detection.corners_px
-        distance_cm = compute_marker_distance_cm(detection)
+        distance_cm = compute_marker_distance_cm(detection, frame_size_px)
         distance_text = (
             f"{distance_cm:.1f} cm" if distance_cm is not None else "indisponible"
         )
@@ -57,7 +96,12 @@ def _is_selected_detection(detection: ArucoFrameDetection) -> bool:
     )
 
 
-def _draw_detection(frame: object, detection: ArucoFrameDetection, cv2_api: object) -> None:
+def _draw_detection(
+    frame: object,
+    detection: ArucoFrameDetection,
+    cv2_api: object,
+    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
+) -> None:
     corners = detection.corners_px
     selected = _is_selected_detection(detection)
     if selected:
@@ -68,11 +112,11 @@ def _draw_detection(frame: object, detection: ArucoFrameDetection, cv2_api: obje
             cv2_api.circle(frame, point, 4, (0, 0, 255), -1)
 
     if selected:
-        distance_cm = compute_marker_distance_cm(detection)
+        distance_cm = compute_marker_distance_cm(detection, frame_size_px)
         text = (
-            f"ID 1 DETECTED {distance_cm:.1f} cm"
+            f"ID 1 DETECTED ~{distance_cm:.1f} cm"
             if distance_cm is not None
-            else "ID 1 DETECTED"
+            else "ID 1 DETECTED - DISTANCE UNAVAILABLE"
         )
     elif detection.disposition is ObservationDisposition.VALID:
         text = "ID 1 INVALID RESULT"
@@ -119,11 +163,13 @@ def main() -> int:
     last_status: tuple[ObservationDisposition, str | None] | None = None
     print(
         "Diagnostic ArUco statique : DICT_4X4_50 / ID 1. "
+        "Distance directe estimée par pose (côté 8 cm, focale 600 px) ; "
+        "objectif non calibré, distorsion non corrigée. "
         "Aucune image n'est enregistrée. Appuyez sur q pour quitter.",
         flush=True,
     )
     try:
-        camera.configure(camera.create_preview_configuration())
+        camera.configure(camera.create_preview_configuration(main={"size": PREVIEW_SIZE_PX}))
         camera.start()
         started = True
         while True:
@@ -132,12 +178,13 @@ def main() -> int:
             grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
             detection = decoder.detect(grayscale)
             display_frame = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2BGR)
-            _draw_detection(display_frame, detection, cv2)
+            frame_size_px = (rotated_rgb.shape[1], rotated_rgb.shape[0])
+            _draw_detection(display_frame, detection, cv2, frame_size_px)
             cv2.imshow("ArUco DICT_4X4_50 - ID 1", display_frame)
 
             status_key = (detection.disposition, detection.reason)
             if status_key != last_status:
-                print(format_detection_status(detection), flush=True)
+                print(format_detection_status(detection, frame_size_px), flush=True)
                 last_status = status_key
 
             if cv2.waitKey(1) & 0xFF == ord("q"):

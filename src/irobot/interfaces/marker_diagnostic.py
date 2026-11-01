@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from irobot.config.settings import MarkerIdentity
+from irobot.hardware.camera.distance_estimator import (
+    MARKER_FOCAL_PX,
+    MARKER_ORIENTED_SIZE_PX,
+    MARKER_SIDE_CM,
+    estimate_marker_distance_cm,
+)
 from irobot.interfaces.aruco_marker_decoder import (
     ArucoFrameDetection,
     ObservationDisposition,
@@ -12,10 +18,8 @@ from irobot.interfaces.aruco_marker_decoder import (
 
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
-MARKER_SIDE_CM = 8.0
-MARKER_FOCAL_PX = 600.0
 PREVIEW_SIZE_PX = (640, 480)
-ORIENTED_SIZE_PX = (480, 640)
+ORIENTED_SIZE_PX = MARKER_ORIENTED_SIZE_PX
 
 
 def compute_marker_distance_cm(
@@ -23,46 +27,10 @@ def compute_marker_distance_cm(
     frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
 ) -> float | None:
     """Estimate direct range from pose, assuming centred optics without distortion."""
-    if not _is_selected_detection(detection):
+    corners = detection.corners_px
+    if not _is_selected_detection(detection) or corners is None:
         return None
-    import cv2
-    import numpy as np
-
-    width, height = frame_size_px
-    if width <= 0 or height <= 0:
-        raise ValueError("Frame dimensions must be positive")
-    corners = np.asarray(detection.corners_px, dtype=np.float64)
-    if corners.shape != (4, 2) or not np.isfinite(corners).all():
-        return None
-    contour = corners.astype(np.float32)
-    if not cv2.isContourConvex(contour) or cv2.contourArea(contour) <= 0:
-        return None
-    half_side = MARKER_SIDE_CM / 2
-    object_points = np.array(
-        [
-            (-half_side, -half_side, 0),
-            (half_side, -half_side, 0),
-            (half_side, half_side, 0),
-            (-half_side, half_side, 0),
-        ],
-        dtype=np.float64,
-    )
-    # The focal length is provisional at 480x640; this is not lens calibration.
-    camera_matrix = np.array(
-        [
-            (MARKER_FOCAL_PX * width / ORIENTED_SIZE_PX[0], 0, width / 2),
-            (0, MARKER_FOCAL_PX * height / ORIENTED_SIZE_PX[1], height / 2),
-            (0, 0, 1),
-        ],
-        dtype=np.float64,
-    )
-    success, _, translation = cv2.solvePnP(
-        object_points, corners, camera_matrix, np.zeros(5),
-        flags=cv2.SOLVEPNP_ITERATIVE,
-    )
-    if not success or not np.isfinite(translation).all() or translation[2, 0] <= 0:
-        return None
-    return float(np.linalg.norm(translation))
+    return estimate_marker_distance_cm(corners, frame_size_px)
 
 
 def format_detection_status(
@@ -163,7 +131,8 @@ def main() -> int:
     last_status: tuple[ObservationDisposition, str | None] | None = None
     print(
         "Diagnostic ArUco statique : DICT_4X4_50 / ID 1. "
-        "Distance directe estimée par pose (côté 8 cm, focale 600 px) ; "
+        f"Distance directe estimée par pose (côté {MARKER_SIDE_CM:g} cm, "
+        f"focale {MARKER_FOCAL_PX:g} px) ; "
         "objectif non calibré, distorsion non corrigée. "
         "Aucune image n'est enregistrée. Appuyez sur q pour quitter.",
         flush=True,

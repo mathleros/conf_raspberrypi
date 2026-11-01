@@ -87,7 +87,9 @@ l'image et la distorsion est supposée nulle : ce n'est pas une calibration
 de l'objectif et la précision aux bords n'est pas garantie. L'affichage vidéo
 est actualisé à chaque trame (`~` indique une estimation) ; la console reste
 limitée aux changements de statut. Une pose inexploitable affiche une distance
-indisponible, sans repli sur la largeur. Le pipeline runtime n'est pas modifié.
+indisponible, sans repli sur la largeur. Le pipeline runtime partage désormais
+ce calcul de pose avec le diagnostic ; une pose inexploitable y est journalisée
+et ne fournit aucune détection.
 Les tests de pose utilisent uniquement des projections synthétiques ; ils ne
 valident pas les erreurs physiques rapportées sur le Pi.
 

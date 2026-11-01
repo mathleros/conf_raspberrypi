@@ -67,6 +67,17 @@ d'échec caméra. Un dépassement est journalisé et ne fournit aucune détectio
 Le suivi ArUco conserve l'arrêt sur absence ou perte du marqueur, sans balayage.
 Une protection déclarée `present` reste refusée, faute d'adaptateur qualifié.
 
+La distance ArUco du runtime et du diagnostic utilise la même fonction
+[estimate_marker_distance_cm](hardware/camera/distance_estimator.py) : pose
+`solvePnP` à partir des quatre coins, puis distance directe objectif–centre
+du marqueur. L'inclinaison et le décentrage sont pris en compte. Le carré est
+supposé mesurer 8 cm ; la focale provisoire est 600 px pour l'image tournée
+480×640, avec centre optique centré et distorsion nulle. Sans calibration
+optique, la précision réelle, notamment aux bords, reste à vérifier sur le Pi.
+Une pose inexploitable est journalisée et ne fournit aucune détection, sans
+repli sur la largeur apparente. L'estimation des balles, les seuils de position
+et l'absence de fusion ultrason pour les marqueurs restent inchangés.
+
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement
 `robot.stop()` puis la demande d'arrêt d'urgence, avant tout appel au parseur,

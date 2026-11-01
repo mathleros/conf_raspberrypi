@@ -1,9 +1,64 @@
-"""Estimation de distance à une balle (modèle sténopé), lissage et fusion ultrason."""
+"""Estimation de distance visuelle (balle et pose ArUco), lissage et fusion ultrason."""
 
 from __future__ import annotations
 
 import math
+import logging
 from collections.abc import Callable
+
+
+MARKER_SIDE_CM = 8.0
+MARKER_FOCAL_PX = 600.0
+MARKER_ORIENTED_SIZE_PX = (480, 640)
+
+
+def estimate_marker_distance_cm(
+    corners_px: tuple[tuple[float, float], ...],
+    frame_size_px: tuple[int, int] = MARKER_ORIENTED_SIZE_PX,
+) -> float | None:
+    """Estimate direct range from pose, assuming centred optics without distortion."""
+    import cv2
+    import numpy as np
+
+    width, height = frame_size_px
+    if width <= 0 or height <= 0:
+        raise ValueError("Frame dimensions must be positive")
+    corners = np.asarray(corners_px, dtype=np.float64)
+    if corners.shape != (4, 2) or not np.isfinite(corners).all():
+        return None
+    contour = corners.astype(np.float32)
+    if not cv2.isContourConvex(contour) or cv2.contourArea(contour) <= 0:
+        return None
+    half_side = MARKER_SIDE_CM / 2
+    object_points = np.array(
+        [
+            (-half_side, -half_side, 0),
+            (half_side, -half_side, 0),
+            (half_side, half_side, 0),
+            (-half_side, half_side, 0),
+        ],
+        dtype=np.float64,
+    )
+    # The focal length is provisional at 480x640; this is not lens calibration.
+    camera_matrix = np.array(
+        [
+            (MARKER_FOCAL_PX * width / MARKER_ORIENTED_SIZE_PX[0], 0, width / 2),
+            (0, MARKER_FOCAL_PX * height / MARKER_ORIENTED_SIZE_PX[1], height / 2),
+            (0, 0, 1),
+        ],
+        dtype=np.float64,
+    )
+    try:
+        success, _, translation = cv2.solvePnP(
+            object_points, corners, camera_matrix, np.zeros(5),
+            flags=cv2.SOLVEPNP_ITERATIVE,
+        )
+    except cv2.error:
+        logging.getLogger(__name__).exception("Échec de l'estimation de pose ArUco.")
+        return None
+    if not success or not np.isfinite(translation).all() or translation[2, 0] <= 0:
+        return None
+    return float(np.linalg.norm(translation))
 
 
 def estimate_distance_cm(diameter_px: float | None, ball_diameter_cm: float, focal_px: float) -> float | None:

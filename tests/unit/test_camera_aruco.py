@@ -1,4 +1,5 @@
 import queue
+import math
 import threading
 import time
 
@@ -39,7 +40,9 @@ def test_marker_position_and_distance(pipeline, center_x, position):
     assert detection.label == "marker_1"
     assert detection.position == position
     assert detection.confidence == 1.0
-    assert detection.distance_cm == pytest.approx(8 * 600 / 79)
+    assert detection.distance_cm == pytest.approx(
+        8 / 79 * math.sqrt(600**2 + (center_x - 240.5)**2 + 0.5**2),
+    )
     pipeline._last_detection = detection
     assert pipeline.detect(target="me").distance_cm == detection.distance_cm
 
@@ -68,7 +71,9 @@ def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, p
     monkeypatch.setattr(pipeline._marker_decoder, "detect", detect)
     detection = pipeline._process_frame(frame)
     assert detection.position == position
-    assert detection.distance_cm == 60
+    assert detection.distance_cm == pytest.approx(
+        8 / 80 * math.hypot(600, center_x - 240),
+    )
 
 
 def test_configured_identity(monkeypatch):
@@ -125,18 +130,20 @@ def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
         ),
     )
     assert pipeline._process_frame(_frame()) is None
-    assert "Largeur apparente ArUco invalide" in caplog.text
+    assert "Pose ArUco inexploitable" in caplog.text
 
 
 def test_marker_distance_is_not_fused_with_ultrasound(pipeline):
     pipeline.fusion_enabled = True
 
     def unexpected_read():
-        pytest.fail("Marker distance must remain the pinhole estimate")
+        pytest.fail("Marker distance must remain the pose estimate")
 
     pipeline.distance_reader = unexpected_read
     pipeline._last_detection = pipeline._process_frame(_frame())
-    assert pipeline.detect(target="marker").distance_cm == pytest.approx(8 * 600 / 79)
+    assert pipeline.detect(target="marker").distance_cm == pytest.approx(
+        8 / 79 * math.sqrt(600**2 + 0.5**2 + 0.5**2),
+    )
 
 
 @pytest.fixture
@@ -210,7 +217,9 @@ def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
         reader.join(2)
         assert not reader.is_alive()
         assert results[0].label == "marker_1"
-        assert results[0].distance_cm == pytest.approx(8 * 600 / 79)
+        assert results[0].distance_cm == pytest.approx(
+            8 / 79 * math.sqrt(600**2 + 0.5**2 + 0.5**2),
+        )
     finally:
         with pipeline._frame_condition:
             pipeline._stop_event.set()

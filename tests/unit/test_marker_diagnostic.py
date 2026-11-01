@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import pytest
 
+from irobot.config.settings import MarkerIdentity, RuntimeSettings
+from irobot.hardware.camera import camera_live_pipeline
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
 from irobot.interfaces.marker_diagnostic import (
     TEST_MARKER_IDENTITY,
@@ -33,6 +35,14 @@ def _project_marker(translation, yaw=0, pitch=0, roll=0, size=(480, 640)):
     return ArucoFrameDetection(
         ObservationDisposition.VALID, TEST_MARKER_IDENTITY,
         tuple((float(x), float(y)) for x, y in image_points),
+    )
+
+
+@pytest.fixture
+def runtime_pipeline(monkeypatch):
+    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    return camera_live_pipeline.CameraLivePerceptionPipeline(
+        default_target="marker", autostart=False,
     )
 
 
@@ -83,6 +93,35 @@ def test_distance_uses_actual_frame_dimensions(size):
     )
 
 
+@pytest.mark.parametrize("x,yaw", [(-20, -30), (0, 0), (20, 45)])
+@pytest.mark.parametrize("size", [(480, 640), (960, 1280)])
+@pytest.mark.parametrize("target", ["marker", "me"])
+@pytest.mark.parametrize("identifier", ["1", "2"])
+def test_runtime_uses_pose_distance_for_configured_marker(
+    runtime_pipeline, monkeypatch, x, yaw, size, target, identifier,
+):
+    projected = _project_marker((x, 10, 80), yaw=yaw, pitch=20, size=size)
+    detection = ArucoFrameDetection(
+        ObservationDisposition.VALID,
+        MarkerIdentity("aruco", "DICT_4X4_50", identifier), projected.corners_px,
+    )
+    monkeypatch.setattr(runtime_pipeline._marker_decoder, "identity", detection.identity)
+    monkeypatch.setattr(runtime_pipeline._marker_decoder, "detect", lambda image: detection)
+    runtime_pipeline.default_target = target
+    frame = np.zeros((size[1], size[0], 3), dtype=np.uint8)
+    result = runtime_pipeline._process_frame(frame)
+    expected = math.sqrt(x**2 + 10**2 + 80**2)
+    assert result is not None
+    assert result.distance_cm == pytest.approx(expected, abs=0.01)
+    assert result.distance_visual_cm == result.distance_cm
+    if identifier == "1":
+        assert result.distance_cm == compute_marker_distance_cm(projected, size)
+    runtime_pipeline._last_detection = result
+    runtime_pipeline.fusion_enabled = True
+    runtime_pipeline.distance_reader = lambda: pytest.fail("No ultrasound for marker pose")
+    assert runtime_pipeline.detect(target=target).distance_cm == result.distance_cm
+
+
 @pytest.mark.parametrize("disposition", [
     ObservationDisposition.ABSENT, ObservationDisposition.AMBIGUOUS,
     ObservationDisposition.REJECTED, ObservationDisposition.FAULT,
@@ -100,12 +139,15 @@ def test_non_detected_status_has_no_distance(disposition):
     ((0, 0), (float("nan"), 0), (10, 10), (0, 10)),
     ((0, 0), (10, 0), (10, 10)),
 ])
-def test_invalid_geometry_reports_unavailable(corners):
+def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeypatch, caplog):
     detection = ArucoFrameDetection(
         ObservationDisposition.VALID, TEST_MARKER_IDENTITY, corners,
     )
     assert compute_marker_distance_cm(detection) is None
     assert "distance=indisponible" in format_detection_status(detection)
+    monkeypatch.setattr(runtime_pipeline._marker_decoder, "detect", lambda image: detection)
+    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    assert "ArUco" in caplog.text
 
 
 @pytest.mark.parametrize("success,translation", [
@@ -113,9 +155,29 @@ def test_invalid_geometry_reports_unavailable(corners):
     (True, np.array([[0], [0], [-80]])),
     (True, np.array([[0], [0], [float("nan")]])),
 ])
-def test_failed_pose_does_not_produce_a_distance(monkeypatch, success, translation):
+def test_failed_pose_does_not_produce_a_distance(
+    monkeypatch, success, translation, runtime_pipeline, caplog,
+):
     monkeypatch.setattr(cv2, "solvePnP", lambda *args, **kwargs: (success, None, translation))
-    assert "distance=indisponible" in format_detection_status(_project_marker((0, 0, 80)))
+    detection = _project_marker((0, 0, 80))
+    assert "distance=indisponible" in format_detection_status(detection)
+    monkeypatch.setattr(runtime_pipeline._marker_decoder, "detect", lambda image: detection)
+    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    assert "Pose ArUco inexploitable" in caplog.text
+
+
+def test_opencv_pose_error_is_logged_without_width_fallback(
+    monkeypatch, runtime_pipeline, caplog,
+):
+    def fail(*args, **kwargs):
+        raise cv2.error("synthetic pose failure")
+
+    monkeypatch.setattr(cv2, "solvePnP", fail)
+    detection = _project_marker((0, 0, 80))
+    assert "distance=indisponible" in format_detection_status(detection)
+    monkeypatch.setattr(runtime_pipeline._marker_decoder, "detect", lambda image: detection)
+    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    assert "synthetic pose failure" in caplog.text
 
 
 def test_overlay_shows_current_pose_distance_and_failures():

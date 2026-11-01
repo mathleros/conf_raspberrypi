@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import math
 import threading
 
 import cv2
@@ -18,6 +17,7 @@ from irobot.hardware.camera.distance_estimator import (
     DistanceReader,
     ExponentialSmoother,
     estimate_distance_cm,
+    estimate_marker_distance_cm,
     fuse_with_ultrasound,
 )
 from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder, ObservationDisposition
@@ -30,8 +30,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
     """Perception Picamera2 : balles colorées et ArUco pour les cibles marker/me.
 
     Sans filtre balle, ArUco est prioritaire. L'identité configurée est utilisée,
-    sinon aruco/DICT_4X4_50/1 ; distance indicative pour un carré de 8 cm,
-    focale de 600 px et seuils horizontaux rapportés à une largeur de 480 px.
+    sinon aruco/DICT_4X4_50/1 ; distance directe indicative estimée par pose
+    pour un carré de 8 cm et une focale de 600 px, sans correction de distorsion.
+    Les seuils horizontaux sont rapportés à une largeur de 480 px.
     """
 
     TARGET_FRAME_TIMEOUT_S = 1.0
@@ -137,10 +138,11 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if corners is None or len(corners) != 4:
             logger.warning("Détection ArUco sans quatre coins valides.")
             return None
-        width_px = (math.dist(corners[0], corners[1]) + math.dist(corners[3], corners[2])) / 2
-        distance = estimate_distance_cm(width_px, 8.0, 600.0)
+        distance = estimate_marker_distance_cm(
+            corners, (frame_rgb.shape[1], frame_rgb.shape[0]),
+        )
         if distance is None:
-            logger.warning("Largeur apparente ArUco invalide : %s", width_px)
+            logger.warning("Pose ArUco inexploitable ; distance indisponible.")
             return None
         center_x = sum(x for x, _ in corners) / 4 * 480 / frame_rgb.shape[1]
         position = "left" if center_x < 180 else "right" if center_x > 300 else "center"

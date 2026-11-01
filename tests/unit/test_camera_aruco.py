@@ -242,12 +242,16 @@ def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path):
         frames.put(_frame())
         assert second_capture.wait(2)
         assert reader.is_alive()
-        frames.put(_frame())
+        # Un marqueur plus grand est dans le seuil d'approche commun, sans exception ArUco.
+        frames.put(_frame(width=200))
         reader.join(2)
         assert not reader.is_alive()
         assert results[0]["status"] == "accepted"
         assert results[0]["steps"][0]["attempt"] == 1
         assert results[0]["steps"][0]["results"][0].data["close_enough"] is True
+        assert results[0]["steps"][0]["results"][0].data["distance_cm"] == pytest.approx(
+            8 / 199 * math.sqrt(600**2 + 0.5**2 + 59.5**2),
+        )
         assert set(robot.commands) == {"stop"}
     finally:
         runtime._request_emergency_stop()

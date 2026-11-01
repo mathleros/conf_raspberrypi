@@ -13,25 +13,14 @@ from irobot.interfaces import voice_runtime as vr
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
+from irobot.interfaces import voice_llm_transport
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.test_follow_object_wiring import World
 
 
-def test_voice_runtime_handles_follow_red_ball_command():
-    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-
-    result = runtime.handle_text("va vers la balle rouge")
-
-    assert result["status"] == "accepted"
-    assert "detect_object" in result["plan"]
-    assert "approach_target" in result["plan"]
-    assert len(result["results"]) > 0
-
-
 @pytest.mark.parametrize("use_llm", [False, True])
-@pytest.mark.parametrize("as_plan", [False, True])
-def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm, as_plan):
+def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
     class MarkerPerception:
         def __init__(self):
             self.targets = []
@@ -48,12 +37,11 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm, as_plan
         robot=robot, perception=perception, use_llm=use_llm, trace_dir=str(tmp_path),
     )
     step_json = {"intent": "search_and_approach_object", "target": "marker", "parameters": {}}
-    llm = fake_llm({"steps": [step_json]} if as_plan else step_json)
-    handle = runtime.handle_text_as_plan if as_plan else runtime.handle_text
-    result = handle("approche toi de moi")
+    llm = fake_llm({"steps": [step_json]})
+    result = runtime.handle_text_as_plan("approche toi de moi")
 
     assert result["status"] == "accepted"
-    step = result["steps"][0] if as_plan else result
+    step = result["steps"][0]
     assert step["intent"].target == "marker"
     assert "approach_target" in step["plan"]
     approach_result = step["results"][step["plan"].index("approach_target")]
@@ -64,28 +52,16 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm, as_plan
     assert len(llm.calls) == int(use_llm)
     if use_llm:
         assert "« moi »" in llm.calls[0]["json"]["messages"][0]["content"]
-    if as_plan:
-        assert result["source"] == ("llm_plan" if use_llm else "local_parser")
+    assert result["source"] == ("llm_plan" if use_llm else "local_parser")
 
 
-def test_voice_runtime_handles_stop_command():
-    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-
-    result = runtime.handle_text("stop maintenant")
-
-    assert result["status"] == "accepted"
-    assert result["plan"] == ["stop_motion"]
-
-
-@pytest.mark.parametrize("as_plan", [False, True])
-def test_llm_cannot_replace_me_with_yellow(fake_llm, tmp_path, as_plan):
+def test_llm_cannot_replace_me_with_yellow(fake_llm, tmp_path):
     wrong = {"intent": "search_and_approach_object", "target": "yellow", "parameters": {}}
-    llm = fake_llm({"steps": [wrong]} if as_plan else wrong)
+    llm = fake_llm({"steps": [wrong]})
     robot = FakeRobot()
     runtime = VoiceRuntime(robot=robot, use_llm=True, trace_dir=str(tmp_path))
 
-    handle = runtime.handle_text_as_plan if as_plan else runtime.handle_text
-    result = handle("approche toi de moi")
+    result = runtime.handle_text_as_plan("approche toi de moi")
 
     assert len(llm.calls) == 1
     assert result["status"] == "rejected"
@@ -108,15 +84,6 @@ def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_ll
         ("search_and_approach_object", "marker"), ("turn_left", None),
     ]
     assert intents[0].parameters == {"stand_off_cm": 100}
-
-
-def test_voice_runtime_rejects_unknown_command():
-    runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-
-    result = runtime.handle_text("commande totalement inconnue")
-
-    assert result["status"] == "rejected"
-    assert result["reason"] == "intent not allowed"
 
 
 def test_voice_runtime_plan_expands_return_to_start(monkeypatch):
@@ -682,13 +649,13 @@ def json_dumps(value) -> str:
 def fake_llm(monkeypatch):
     def _install(*responses):
         llm = _FakeLLM(*responses)
-        monkeypatch.setattr(vr.requests, "post", llm)
+        monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
         return llm
 
     vr.reset_response_format_cache()
 
     for key in ("LLM_MODEL", "LLM_CONNECT_TIMEOUT_SECONDS", "LLM_READ_TIMEOUT_SECONDS",
-                "LLM_MAX_TOKENS_PLAN", "LLM_MAX_TOKENS_INTENT", "LLM_RESPONSE_FORMAT",
+                "LLM_MAX_TOKENS_PLAN", "LLM_RESPONSE_FORMAT",
                 "LLM_WARMUP_WAIT_SECONDS"):
         monkeypatch.delenv(key, raising=False)
     return _install
@@ -757,14 +724,7 @@ def test_normalizer_and_prompt_match_eval_script():
     for text in corpus:
         assert fr_numbers_to_digits(text) == script.fr_numbers_to_digits(text), text
         assert preprocess(text) == script.preprocess(text), text
-    assert vr.SYSTEM_PROMPT_PLAN == script.SYSTEM_PROMPT_PLAN
-
-
-def test_single_intent_prompt_lists_same_intents_as_plan_prompt():
-    intents_block = vr.SYSTEM_PROMPT_PLAN.split("Intents :\n", 1)[1].split("\nRègles", 1)[0]
-    assert intents_block in vr.SYSTEM_PROMPT
-    assert '"confidence"' in vr.SYSTEM_PROMPT
-    assert "« approche toi de moi »" in vr.SYSTEM_PROMPT
+    assert voice_llm_transport.SYSTEM_PROMPT_PLAN == script.SYSTEM_PROMPT_PLAN
 
 
 def test_local_parser_understands_spelled_distances_and_angles():
@@ -797,7 +757,9 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     assert len(llm.calls) == 1
     payload = llm.calls[0]["json"]
     assert llm.user_text() == USE_CASE_NORMALIZED
-    assert payload["messages"][0] == {"role": "system", "content": vr.SYSTEM_PROMPT_PLAN}
+    assert payload["messages"][0] == {
+        "role": "system", "content": voice_llm_transport.SYSTEM_PROMPT_PLAN,
+    }
     assert payload["model"] == "qwen2.5-1.5b"
     assert payload["temperature"] == 0.0
     assert payload["max_tokens"] == 120
@@ -953,21 +915,17 @@ def test_llm_http_400_on_every_format_falls_back(fake_llm):
 
 
 def test_llm_settings_from_environment(fake_llm, monkeypatch):
-    llm = fake_llm({"steps": [{"intent": "stop"}]}, {"intent": "stop"})
+    llm = fake_llm({"steps": [{"intent": "stop"}]})
     monkeypatch.setenv("LLM_MODEL", "mon-modele")
     monkeypatch.setenv("LLM_CONNECT_TIMEOUT_SECONDS", "0.5")
     monkeypatch.setenv("LLM_READ_TIMEOUT_SECONDS", "2.5")
     monkeypatch.setenv("LLM_MAX_TOKENS_PLAN", "64")
-    monkeypatch.setenv("LLM_MAX_TOKENS_INTENT", "32")
 
     vr.ask_llm_for_intent_plan_with_trace("stop")
-    vr.ask_llm_for_intent("stop")
 
     assert llm.calls[0]["json"]["model"] == "mon-modele"
     assert llm.calls[0]["json"]["max_tokens"] == 64
     assert llm.calls[0]["timeout"] == (0.5, 2.5)
-    assert llm.calls[1]["json"]["model"] == "mon-modele"
-    assert llm.calls[1]["json"]["max_tokens"] == 32
 
 
 def test_load_llm_settings_defaults_and_invalid_values():
@@ -976,38 +934,12 @@ def test_load_llm_settings_defaults_and_invalid_values():
         connect_timeout_seconds=1.0,
         read_timeout_seconds=10.0,
         max_tokens_plan=120,
-        max_tokens_intent=96,
     )
     invalid = load_llm_settings(
         {"LLM_MODEL": " ", "LLM_READ_TIMEOUT_SECONDS": "abc", "LLM_MAX_TOKENS_PLAN": "-3",
          "LLM_CONNECT_TIMEOUT_SECONDS": "nan"}
     )
     assert invalid == LLMSettings()
-
-
-def test_ask_llm_for_intent_uses_preprocessed_text_and_short_output(fake_llm):
-    llm = fake_llm({"intent": "move_forward", "target": None, "parameters": {"distance": 50}})
-
-    intent = vr.ask_llm_for_intent("avance de cinquante centimètres")
-
-    payload = llm.calls[0]["json"]
-    assert llm.user_text() == "avance de 50 centimètres"
-    assert payload["messages"][0]["content"] == vr.SYSTEM_PROMPT
-    assert payload["max_tokens"] == 96
-    assert payload["temperature"] == 0.0
-    assert payload["response_format"] == {"type": "json_object"}
-    assert payload["cache_prompt"] is True
-    assert intent.name == "move_forward"
-    assert intent.confidence == 0.8
-    assert intent.raw_text == "avance de cinquante centimètres"
-
-
-def test_ask_llm_for_intent_malformed_parameters_falls_back(fake_llm):
-    fake_llm({"intent": "move_forward", "parameters": "vite"})
-
-    intent = vr.ask_llm_for_intent("avance de cinquante centimètres")
-
-    assert intent.parameters == {"distance": 50.0, "unit": "cm"}
 
 
 def test_unsupported_command_is_rejected_without_parser_or_motion(fake_llm, monkeypatch, tmp_path):
@@ -1044,7 +976,7 @@ def test_warm_up_sends_plan_system_prompt_in_background(fake_llm):
     assert not thread.is_alive()
     assert thread.daemon
     payload = llm.calls[0]["json"]
-    assert payload["messages"][0]["content"] == vr.SYSTEM_PROMPT_PLAN
+    assert payload["messages"][0]["content"] == voice_llm_transport.SYSTEM_PROMPT_PLAN
     assert payload["cache_prompt"] is True
     assert payload["max_tokens"] == 1
 
@@ -1373,7 +1305,6 @@ def test_response_format_none_sends_no_response_format(fake_llm, monkeypatch):
     monkeypatch.setenv("LLM_RESPONSE_FORMAT", "none")
 
     _, trace = vr.ask_llm_for_intent_plan_with_trace("stop")
-    vr.ask_llm_for_intent("stop")
 
     assert all("response_format" not in call["json"] for call in llm.calls)
     assert trace["llm_response_format"] == "none"
@@ -1422,7 +1353,7 @@ class _SlowWarmupLLM:
 
 
 def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
-    monkeypatch.setattr(vr.requests, "post", llm)
+    monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     monkeypatch.setattr(vr, "build_hardware_runtime",
                         lambda: {"robot": FakeRobot(), "camera": None, "sensor": None, "perception": None})
     monkeypatch.chdir(tmp_path)
@@ -1471,7 +1402,7 @@ def test_text_mode_warmup_wait_timeout_still_processes_command(fake_llm, monkeyp
 
 def test_continuous_mode_does_not_wait_for_warmup(fake_llm, monkeypatch, tmp_path):
     llm = _SlowWarmupLLM(delay=0.5)
-    monkeypatch.setattr(vr.requests, "post", llm)
+    monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
     runtime.warmup = vr.LLMWarmup().start()
 

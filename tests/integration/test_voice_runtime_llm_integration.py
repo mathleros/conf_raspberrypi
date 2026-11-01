@@ -93,13 +93,13 @@ def _start_llm_if_needed() -> bool:
             process.wait(timeout=5)
 
 
-def test_voice_runtime_uses_llm_when_available():
+def test_voice_runtime_uses_llm_plan_when_available():
     if not _start_llm_if_needed():
         pytest.skip("Aucun LLM local ou modèle GGUF détecté; test d'intégration ignoré.")
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
-    result = runtime.handle_text("va vers la balle rouge")
+    result = runtime.handle_text_as_plan("va vers la balle rouge")
 
     assert result["status"] == "accepted"
-    assert result["intent"].name in {"follow_red_ball", "unknown"}
-    assert len(result["plan"]) > 0
+    assert result["steps"][0]["intent"].name in {"follow_red_ball", "unknown"}
+    assert len(result["steps"]) > 0

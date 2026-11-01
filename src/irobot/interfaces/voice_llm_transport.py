@@ -26,26 +26,8 @@ LLM_WARMUP_WAIT_SECONDS = 60.0
 # LLM_RESPONSE_FORMAT : schema (chaîne de repli 8b) | json_object | none.
 LLM_RESPONSE_FORMAT_MODES = ("schema", "json_object", "none")
 LLM_DEFAULT_CONFIDENCE = 0.8
-# Prompts courts et statiques (préfixe identique à chaque appel -> cache de prompt de llama-server).
+# Prompt court et statique (préfixe identique à chaque appel -> cache de prompt de llama-server).
 # L'entrée utilisateur est déjà normalisée par text_normalizer.preprocess.
-SYSTEM_PROMPT = """Tu convertis une consigne vocale pour un robot en JSON strict, sans aucun texte autour.
-Format : {"intent":"...","target":null,"parameters":{},"confidence":0.9}
-Intents :
-- move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
-- turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
-- stop
-- search_and_approach_object : target "red", "yellow" ou "marker", parameters {"stand_off_cm":cm}
-- follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
-- follow_red_ball : target "red_ball"
-- follow_person : target "marker", pour « suis-moi »
-- avoid_obstacle, spin_360, return_to_start
-- move_square : parameters {"side":cm}
-Règles : une seule action. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"intent":"unknown","target":null,"parameters":{},"confidence":0}.
-« moi » désigne le marqueur porté par l'utilisateur : target "marker", jamais une couleur. Pour rejoindre ou approcher le porteur, utilise search_and_approach_object. N'invente pas de distance.
-Exemples :
-« approche toi de moi » -> {"intent":"search_and_approach_object","target":"marker","parameters":{},"confidence":0.9}
-« avance de 50 centimètres » -> {"intent":"move_forward","target":null,"parameters":{"distance":50},"confidence":0.9}"""
-
 SYSTEM_PROMPT_PLAN = """Tu convertis une consigne vocale pour un robot en JSON strict, sans aucun texte autour.
 Format : {"steps":[{"intent":"...","target":null,"parameters":{}}]}
 Intents :
@@ -121,7 +103,6 @@ class ResponseFormatChain:
 
 
 PLAN_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, True))
-INTENT_RESPONSE_FORMATS = ResponseFormatChain(build_formats(False, False))
 
 
 class LLMPost(Protocol):
@@ -135,7 +116,6 @@ class LLMPost(Protocol):
 
 def reset_response_format_cache() -> None:
     PLAN_RESPONSE_FORMATS.reset()
-    INTENT_RESPONSE_FORMATS.reset()
 
 
 def llm_response_format_mode(environ: Any = None) -> str:

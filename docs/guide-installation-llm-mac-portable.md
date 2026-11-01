@@ -99,7 +99,7 @@ for text in [
     "avance",
 ]:
     print(f"\n--- texte: {text}")
-    print(runtime.handle_text(text))
+    print(runtime.handle_text_as_plan(text))
 PY
 ```
 

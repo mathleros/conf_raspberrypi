@@ -9,7 +9,6 @@ import sys
 import threading
 import time
 from typing import Any
-import requests
 
 from irobot.config.settings import load_runtime_settings
 from irobot.interfaces.intent_parser import Intent
@@ -17,8 +16,6 @@ from irobot.interfaces.plan_guards import is_pure_stop, fold, follow_request_ref
 from irobot.interfaces import voice_llm
 from irobot.interfaces.voice_llm import LLMWarmup, warm_up_llm, warm_up_llm_async
 from irobot.interfaces.voice_llm_transport import (
-    SYSTEM_PROMPT,
-    SYSTEM_PROMPT_PLAN,
     _post_llm_chat,
     reset_response_format_cache,
     llm_warmup_wait_seconds,
@@ -26,10 +23,6 @@ from irobot.interfaces.voice_llm_transport import (
 )
 from irobot.interfaces.voice_plan import VoicePlanMixin
 from irobot.interfaces.voice_execution import VoiceExecutionMixin
-
-
-def ask_llm_for_intent(text: str) -> Intent:
-    return voice_llm.ask_llm_for_intent(text, post=_post_llm_chat)
 
 
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
@@ -65,9 +58,6 @@ def build_hardware_runtime() -> dict[str, Any]:
 class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
     """Microphone/text -> validated intents -> interruptible skill execution."""
 
-    def _ask_intent(self, text: str) -> Intent:
-        return ask_llm_for_intent(text)
-
     def _ask_plan(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
         return ask_llm_for_intent_plan_with_trace(text)
 
@@ -83,18 +73,6 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
             logging.getLogger(__name__).exception("Impossible de lire l'arret d'urgence")
             return True
 
-    def _resolve_intent(self, text: str) -> Intent:
-        local_intent = self.parser.parse(text)
-        if not self.use_llm:
-            return local_intent
-
-        llm_intent = self._ask_intent(text)
-        if llm_intent.name == "unsupported_follow_target":
-            return llm_intent
-        if self.validator.validate(llm_intent):
-            return llm_intent
-        return self.parser.parse(text)
-
     def _safe_stop(self) -> None:
         stop = getattr(self.robot, "stop", None)
         if not callable(stop):
@@ -103,15 +81,6 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
             stop()
         except Exception:
             logging.getLogger(__name__).exception("Impossible d'arreter le robot")
-
-    def handle_text(self, text: str):
-        refusal = follow_request_refusal(text)
-        if refusal:
-            return {"status": "rejected", "reason": refusal}
-        intent = self._resolve_intent(text)
-        if not self.validator.validate(intent):
-            return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
-        return self.controller.handle_intent(intent)
 
     def handle_text_as_plan(self, text: str):
         return self._handle_text_as_plan(text)

@@ -86,9 +86,9 @@ phrase contenant d'autres commandes. La mission est marquée `aborted` ;
 le signal d'annulation interdit les retries et les étapes suivantes, même si
 la planification LLM est encore en cours. Une nouvelle commande ne peut effacer
 ce signal qu'une fois le worker précédent terminé.
-Les entrées directes `handle_text()` et `handle_text_as_plan()` conservent leur
-interprétation des commandes et des plans ; la priorité lexicale s'applique à
-l'écoute continue via `handle_transcript()`.
+L'entrée directe `handle_text_as_plan()` et l'écoute continue utilisent le même
+chemin de planification ; la priorité lexicale des arrêts s'applique à
+`handle_transcript()`.
 
 ## Organisation du contrôleur robot
 

@@ -249,11 +249,11 @@ Le Pi sert **Qwen2.5-1.5B-Instruct** quantisé **Q4_K_M** (~1,1 Go) via `llama-s
 Fonctionnement du runtime (`voice_runtime.py`) :
 - la transcription est normalisée de façon déterministe (nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
 - les commandes d'arrêt (« stop », « arrête toi », « halte », « pause ») sont traitées localement, sans LLM ;
-- les prompts expliquent que « moi » désigne le marqueur : « approche-toi de moi » produit `search_and_approach_object` avec `target="marker"`, « suis-moi » produit `follow_person`. Le LLM interprète ces commandes et leurs plans composés ; le parseur local reste disponible sans LLM ou en repli technique. Les deux intents utilisent l'approche commune, pas un suivi continu ;
+- le prompt de planification explique que « moi » désigne le marqueur : « approche-toi de moi » produit `search_and_approach_object` avec `target="marker"`, « suis-moi » produit `follow_person`. Le LLM interprète ces commandes et leurs plans composés ; le parseur local reste disponible sans LLM ou en repli technique. Les deux intents utilisent l'approche commune, pas un suivi continu ;
 - le plan LLM est contrôlé lexicalement ; toute intention ou valeur numérique non justifiée par la phrase est rejetée ;
 - en cas de timeout, d'erreur HTTP, de JSON invalide ou de réponse incomplète, le parseur local prend le relais ; une liste d'étapes vide est rejetée.
 
-Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_MAX_TOKENS_INTENT` (96), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
+Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
 
 Pour vérifier que le LLM retourne `target="marker"` pour « moi », sans commander les moteurs :
 

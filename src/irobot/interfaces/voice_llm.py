@@ -13,18 +13,15 @@ from irobot.interfaces.plan_guards import (
     grounding_check,
     follow_request_refusal,
     contains_unsupported_follow_step,
-    marker_target_mismatch,
 )
 from irobot.interfaces.text_normalizer import preprocess
 from irobot.interfaces.voice_constants import PLAN_INTENT_SYNONYMS
 from irobot.interfaces.voice_llm_transport import (
     LLMPost,
-    SYSTEM_PROMPT,
     SYSTEM_PROMPT_PLAN,
     LLM_DEFAULT_CONFIDENCE,
     LLM_WARMUP_READ_TIMEOUT_SECONDS,
     PLAN_RESPONSE_FORMATS,
-    INTENT_RESPONSE_FORMATS,
     _llm_payload,
     _post_llm_chat,
     _select_formats,
@@ -62,34 +59,6 @@ def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
         confidence=_llm_confidence(step.get("confidence")),
         raw_text=raw_text,
     )
-
-
-def ask_llm_for_intent(text: str, *, post: LLMPost = _post_llm_chat) -> Intent:
-    """Demande un JSON de type Intent au LLM local, puis reconstruit l'objet Intent."""
-    if follow_request_refusal(text):
-        return IntentParser().parse(text)
-    settings = load_llm_settings()
-    payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
-    try:
-        content = post(
-            payload,
-            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
-            _select_formats(INTENT_RESPONSE_FORMATS),
-        )
-        parsed = _parse_llm_json_payload(content)
-        if isinstance(parsed, dict) and marker_target_mismatch(text, parsed):
-            print("[LLM] Cible refusée : moi désigne le marqueur, pas une couleur", flush=True)
-            return Intent(name="unsupported_follow_target", raw_text=text)
-        if contains_unsupported_follow_step(parsed):
-            return Intent(name="unsupported_follow_target")
-        intent = _intent_from_llm_step(parsed, text) if parsed else None
-        if intent is not None:
-            return intent
-        print("[LLM] Intention JSON invalide, repli sur le parseur local", flush=True)
-        return IntentParser().parse(text)
-    except Exception as exc:
-        print(f"[LLM] {_llm_error_reason(exc, settings.read_timeout_seconds)}, repli sur le parseur local", flush=True)
-        return IntentParser().parse(text)
 
 
 def _normalize_llm_step(step: Any) -> dict[str, Any] | None:

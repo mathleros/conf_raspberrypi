@@ -90,7 +90,6 @@ class LLMSettings:
     connect_timeout_seconds: float = 1.0
     read_timeout_seconds: float = 10.0
     max_tokens_plan: int = 120
-    max_tokens_intent: int = 96
 
 
 def _env_positive(environ: Mapping[str, str], key: str, default: float, cast=float):
@@ -103,7 +102,7 @@ def _env_positive(environ: Mapping[str, str], key: str, default: float, cast=flo
 
 def load_llm_settings(environ: Mapping[str, str] | None = None) -> LLMSettings:
     """Lit LLM_MODEL, LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS,
-    LLM_MAX_TOKENS_PLAN et LLM_MAX_TOKENS_INTENT ; valeur absente ou invalide -> défaut."""
+    LLM_MAX_TOKENS_PLAN ; valeur absente ou invalide -> défaut."""
     env = os.environ if environ is None else environ
     defaults = LLMSettings()
     return LLMSettings(
@@ -111,7 +110,6 @@ def load_llm_settings(environ: Mapping[str, str] | None = None) -> LLMSettings:
         connect_timeout_seconds=_env_positive(env, "LLM_CONNECT_TIMEOUT_SECONDS", defaults.connect_timeout_seconds),
         read_timeout_seconds=_env_positive(env, "LLM_READ_TIMEOUT_SECONDS", defaults.read_timeout_seconds),
         max_tokens_plan=_env_positive(env, "LLM_MAX_TOKENS_PLAN", defaults.max_tokens_plan, int),
-        max_tokens_intent=_env_positive(env, "LLM_MAX_TOKENS_INTENT", defaults.max_tokens_intent, int),
     )
 
 

@@ -14,7 +14,7 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
 
     Ce behavior est un exemple de logique de niveau supérieur : il combine
     perception et primitives de déplacement.
-    Pour un marqueur ArUco, arrêt à 120 cm ou à la perte de cible, sans balayage.
+    Pour un marqueur ArUco, arrêt à 80 cm ou à la perte de cible, sans balayage.
     """
 
     name = "follow_target"
@@ -27,7 +27,7 @@ class FollowTargetSkill(TargetTrackingMixin, Skill):
     DEFAULT_MAX_TARGET_LOSS_S = 1.0
     DEFAULT_APPROACH_THRESHOLD_CM = 20.0
     DEFAULT_STAND_OFF_TOLERANCE_CM = 10.0
-    MARKER_COMFORT_DISTANCE_CM = 120.0
+    MARKER_COMFORT_DISTANCE_CM = 80.0
     MIN_FORWARD_SCALE = 0.25
     PHASE_SEARCH = "search"
     PHASE_TRACK = "track"

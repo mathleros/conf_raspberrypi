@@ -29,6 +29,45 @@ def test_voice_runtime_handles_follow_red_ball_command():
     assert len(result["results"]) > 0
 
 
+@pytest.mark.parametrize("use_llm", [False, True])
+@pytest.mark.parametrize("as_plan", [False, True])
+def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm, as_plan):
+    class MarkerPerception:
+        def __init__(self):
+            self.targets = []
+
+        def detect(self, *, target=None):
+            from irobot.interfaces.perception_pipeline import ObjectDetection
+
+            self.targets.append(target)
+            return ObjectDetection(label="marker_1", position="center", distance_cm=25.0, confidence=1.0)
+
+    perception = MarkerPerception()
+    robot = FakeRobot()
+    runtime = VoiceRuntime(
+        robot=robot, perception=perception, use_llm=use_llm, trace_dir=str(tmp_path),
+    )
+    step_json = {"intent": "search_and_approach_object", "target": "marker", "parameters": {}}
+    llm = fake_llm({"steps": [step_json]} if as_plan else step_json)
+    handle = runtime.handle_text_as_plan if as_plan else runtime.handle_text
+    result = handle("approche toi de moi")
+
+    assert result["status"] == "accepted"
+    step = result["steps"][0] if as_plan else result
+    assert step["intent"].target == "marker"
+    assert "approach_target" in step["plan"]
+    approach_result = step["results"][step["plan"].index("approach_target")]
+    assert approach_result.data["close_enough"] is True
+    assert perception.targets[0] == "marker"
+    assert set(perception.targets) <= {"marker", "marker_1"}
+    assert set(robot.commands) == {"stop"}
+    assert len(llm.calls) == int(use_llm)
+    if use_llm:
+        assert "« moi »" in llm.calls[0]["json"]["messages"][0]["content"]
+    if as_plan:
+        assert result["source"] == ("llm_plan" if use_llm else "local_parser")
+
+
 def test_voice_runtime_handles_stop_command():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
 
@@ -36,6 +75,39 @@ def test_voice_runtime_handles_stop_command():
 
     assert result["status"] == "accepted"
     assert result["plan"] == ["stop_motion"]
+
+
+@pytest.mark.parametrize("as_plan", [False, True])
+def test_llm_cannot_replace_me_with_yellow(fake_llm, tmp_path, as_plan):
+    wrong = {"intent": "search_and_approach_object", "target": "yellow", "parameters": {}}
+    llm = fake_llm({"steps": [wrong]} if as_plan else wrong)
+    robot = FakeRobot()
+    runtime = VoiceRuntime(robot=robot, use_llm=True, trace_dir=str(tmp_path))
+
+    handle = runtime.handle_text_as_plan if as_plan else runtime.handle_text
+    result = handle("approche toi de moi")
+
+    assert len(llm.calls) == 1
+    assert result["status"] == "rejected"
+    assert robot.commands == []
+
+
+def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_llm):
+    expected = [
+        {"intent": "search_and_approach_object", "target": "marker", "parameters": {"stand_off_cm": 100}},
+        {"intent": "turn_left", "target": None, "parameters": {"angle": 90}},
+    ]
+    llm = fake_llm({"steps": expected})
+    intents, trace = vr.ask_llm_for_intent_plan_with_trace(
+        "rapproche toi à un mètre de moi puis tourne à gauche",
+    )
+
+    assert trace["source"] == "llm_plan"
+    assert len(llm.calls) == 1
+    assert [(intent.name, intent.target) for intent in intents] == [
+        ("search_and_approach_object", "marker"), ("turn_left", None),
+    ]
+    assert intents[0].parameters == {"stand_off_cm": 100}
 
 
 def test_voice_runtime_rejects_unknown_command():
@@ -692,7 +764,7 @@ def test_single_intent_prompt_lists_same_intents_as_plan_prompt():
     intents_block = vr.SYSTEM_PROMPT_PLAN.split("Intents :\n", 1)[1].split("\nRègles", 1)[0]
     assert intents_block in vr.SYSTEM_PROMPT
     assert '"confidence"' in vr.SYSTEM_PROMPT
-    assert "Exemples" not in vr.SYSTEM_PROMPT
+    assert "« approche toi de moi »" in vr.SYSTEM_PROMPT
 
 
 def test_local_parser_understands_spelled_distances_and_angles():

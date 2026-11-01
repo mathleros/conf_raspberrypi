@@ -27,7 +27,7 @@ INTENT_LEXICON = {
     "follow_object": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
     "follow_red_ball": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
     "follow_person": (("suis", "suiv", "follow", "track"), set(), ()),
-    "search_and_approach_object": (("cherch", "trouv", "approch", "rejoin", "search", "find",
+    "search_and_approach_object": (("cherch", "trouv", "approch", "rapproch", "rejoin", "search", "find",
                                     "repere", "localis"), set(), ()),
     "stop": (("stop", "arret", "halte", "pause", "attend"), set(), ()),
     "return_to_start": (("retour", "revien", "reven", "depart", "origine", "return"), set(), ()),
@@ -207,6 +207,20 @@ def _licensed(intent: str, folded: str) -> bool:
             or any(f" {ph} " in padded for ph in phrases))
 
 
+def marker_target_mismatch(text: str, step: dict[str, Any]) -> bool:
+    folded = fold(text)
+    params = step.get("parameters")
+    return (
+        (step.get("intent") or step.get("name")) in {"search_and_approach_object", "follow_person"}
+        and re.search(r"\bmoi\b", folded) is not None
+        and re.search(r"\b(?:jaune|yellow|rouge|red)\b", folded) is None
+        and (
+            step.get("target") != "marker"
+            or (isinstance(params, dict) and params.get("target_object", "marker") != "marker")
+        )
+    )
+
+
 def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list[str]]:
     """Retourne (étapes_conservées, raison_de_rejet | None, notes).
 
@@ -229,6 +243,8 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
         if not isinstance(step, dict):
             return [], "étape invalide", notes
         intent = step.get("intent") or step.get("name")
+        if marker_target_mismatch(sent_text, step):
+            return [], "moi désigne le marqueur : target doit être marker", notes
         if not _licensed(intent, folded):
             if intent == "stop":
                 notes.append("stop parasite supprimé")

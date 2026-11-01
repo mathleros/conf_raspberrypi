@@ -34,13 +34,16 @@ Intents :
 - move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
 - turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
 - stop
-- search_and_approach_object : target "red" ou "yellow", parameters {"stand_off_cm":cm}
+- search_and_approach_object : target "red", "yellow" ou "marker", parameters {"stand_off_cm":cm}
 - follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
 - follow_red_ball : target "red_ball"
+- follow_person : target "marker", pour « suis-moi »
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
 Règles : une seule action. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"intent":"unknown","target":null,"parameters":{},"confidence":0}.
-Exemple :
+« moi » désigne le marqueur porté par l'utilisateur : target "marker", jamais une couleur. Pour rejoindre ou approcher le porteur, utilise search_and_approach_object. N'invente pas de distance.
+Exemples :
+« approche toi de moi » -> {"intent":"search_and_approach_object","target":"marker","parameters":{},"confidence":0.9}
 « avance de 50 centimètres » -> {"intent":"move_forward","target":null,"parameters":{"distance":50},"confidence":0.9}"""
 
 SYSTEM_PROMPT_PLAN = """Tu convertis une consigne vocale pour un robot en JSON strict, sans aucun texte autour.
@@ -49,13 +52,18 @@ Intents :
 - move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
 - turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
 - stop
-- search_and_approach_object : target "red" ou "yellow", parameters {"stand_off_cm":cm}
+- search_and_approach_object : target "red", "yellow" ou "marker", parameters {"stand_off_cm":cm}
 - follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
 - follow_red_ball : target "red_ball"
+- follow_person : target "marker", pour « suis-moi »
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
 Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
+« moi » désigne le marqueur porté par l'utilisateur : target "marker", jamais une couleur. Pour rejoindre ou approcher le porteur, utilise search_and_approach_object. N'invente pas de distance.
 Exemples :
+« approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"marker","parameters":{}}]}
+« rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"marker","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
+« suis-moi » -> {"steps":[{"intent":"follow_person","target":"marker","parameters":{}}]}
 « cherche la balle jaune approche toi à 100 centimètres de la balle jaune puis suis la pendant 300 secondes » -> {"steps":[{"intent":"search_and_approach_object","target":"yellow","parameters":{"stand_off_cm":100}},{"intent":"follow_object","target":"yellow","parameters":{"stand_off_cm":100,"duration_s":300}}]}
 « avance de 50 centimètres puis tourne à gauche de 45 degrés » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"distance":50}},{"intent":"turn_left","target":null,"parameters":{"angle":45}}]}
 « avance » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"duration":1}}]}

@@ -227,14 +227,15 @@ def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
         reader.join(2)
 
 
-def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path):
+@pytest.mark.parametrize("phrase", ["suis-moi", "approche toi de moi"])
+def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, phrase):
     pipeline, frames, second_capture, wait_started = live_pipeline
     robot = FakeRobot()
     runtime = VoiceRuntime(
         robot=robot, perception=pipeline, use_llm=False, trace_dir=str(tmp_path),
     )
     results = []
-    reader = threading.Thread(target=lambda: results.append(runtime.handle_text_as_plan("suis-moi")))
+    reader = threading.Thread(target=lambda: results.append(runtime.handle_text_as_plan(phrase)))
     reader.start()
     try:
         assert wait_started.wait(2)

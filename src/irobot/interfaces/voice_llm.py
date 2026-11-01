@@ -13,6 +13,7 @@ from irobot.interfaces.plan_guards import (
     grounding_check,
     follow_request_refusal,
     contains_unsupported_follow_step,
+    marker_target_mismatch,
 )
 from irobot.interfaces.text_normalizer import preprocess
 from irobot.interfaces.voice_constants import PLAN_INTENT_SYNONYMS
@@ -76,13 +77,11 @@ def ask_llm_for_intent(text: str, *, post: LLMPost = _post_llm_chat) -> Intent:
             _select_formats(INTENT_RESPONSE_FORMATS),
         )
         parsed = _parse_llm_json_payload(content)
+        if isinstance(parsed, dict) and marker_target_mismatch(text, parsed):
+            print("[LLM] Cible refusée : moi désigne le marqueur, pas une couleur", flush=True)
+            return Intent(name="unsupported_follow_target", raw_text=text)
         if contains_unsupported_follow_step(parsed):
             return Intent(name="unsupported_follow_target")
-        if isinstance(parsed, dict) and any(
-            str(parsed.get(key, "")).strip().lower() == "follow_person"
-            for key in ("intent", "name")
-        ):
-            return Intent(name="follow_person", target="marker", raw_text=text)
         intent = _intent_from_llm_step(parsed, text) if parsed else None
         if intent is not None:
             return intent

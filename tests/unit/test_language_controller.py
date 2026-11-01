@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from irobot.interfaces.intent_parser import IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_pipeline import ObjectDetection
@@ -27,6 +29,19 @@ def test_intent_parser_and_planner_follow_person():
 
     controller = LanguageController(robot=FakeRobot())
     assert [skill.name for skill in controller.planner.plan("follow_person")] == ["approach_target"]
+
+
+@pytest.mark.parametrize("phrase", [
+    "approche toi de moi", "approche-toi de moi", "Approche-toi de moi !",
+    "rapproche-toi de moi", "rejoins-moi",
+])
+def test_intent_parser_approach_me_targets_marker(phrase):
+    intent = IntentParser().parse(phrase)
+
+    assert intent.name == "follow_person"
+    assert intent.target == "marker"
+    assert intent.raw_text == phrase
+    assert IntentValidator().validate(intent)
 
 
 def test_intent_parser_stop():

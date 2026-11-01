@@ -190,9 +190,6 @@ class VoiceExecutionMixin(VoiceRuntimeState):
             # Sécurité : arrêt pur traité localement, sans LLM ni normalisation des nombres.
             intents = [Intent(name="stop", raw_text=text, confidence=1.0)]
             plan_trace = {"source": "local_stop", "llm_content": None, "llm_json": None, "normalized_text": None}
-        elif (local_intent := self.parser.parse(text)).name == "follow_person":
-            intents = [local_intent]
-            plan_trace = {"source": "local_parser_follow_person"}
         elif self.use_llm:
             warmup_status = self._await_warmup()
             intents, plan_trace = self._ask_plan(text)

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits
-from irobot.interfaces.plan_guards import follow_request_refusal, supported_follow_target
+from irobot.interfaces.plan_guards import fold, follow_request_refusal, supported_follow_target
 
 
 @dataclass
@@ -182,7 +182,9 @@ class IntentParser:
             return Intent(name="unknown", raw_text=text)
 
         lowered = cleaned.lower()
-        if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
+        if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")) or re.fullmatch(
+            r"(?:(?:approche|rapproche)(?: toi)? (?:de|vers) moi|rejoins moi)", fold(cleaned).strip(),
+        ):
             return Intent(name="follow_person", target="marker", confidence=1.0, raw_text=text)
 
         refusal = follow_request_refusal(cleaned)

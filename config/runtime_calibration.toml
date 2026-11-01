@@ -24,6 +24,11 @@ ball_diameter_cm = 6.0
 focal_px = 680.0
 # Fusion avec le HC-SR04 (lue depuis detect(), jamais depuis le thread caméra)
 ultrasonic_fusion = false
+# Contre-jour : compensation automatique d'exposition (EV) et contraste local LAB.
+# Pour retrouver le flux non corrigé : clahe_enabled = false et exposure_value = 0.0.
+exposure_value = 1.0
+clahe_enabled = true
+clahe_clip_limit = 3.0
 
 [human_follow]
 # Budgets provisoires autorises, NON qualifies ; ne debloquent pas le suivi moteur.

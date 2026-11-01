@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from irobot.config.settings import MarkerIdentity
+from irobot.config.settings import MarkerIdentity, load_runtime_settings
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.hardware.camera.distance_estimator import (
     MARKER_FOCAL_PX,
     MARKER_ORIENTED_SIZE_PX,
@@ -126,6 +127,8 @@ def main() -> int:
         return 2
 
     decoder = OpenCVArucoMarkerDecoder(TEST_MARKER_IDENTITY)
+    settings = load_runtime_settings()
+    enhancer = FrameEnhancer(settings)
     camera = Picamera2(0)
     started = False
     last_status: tuple[ObservationDisposition, str | None] | None = None
@@ -138,12 +141,16 @@ def main() -> int:
         flush=True,
     )
     try:
-        camera.configure(camera.create_preview_configuration(main={"size": PREVIEW_SIZE_PX}))
+        camera.configure(camera.create_preview_configuration(
+            main={"size": PREVIEW_SIZE_PX, "format": "BGR888"},
+        ))
+        configure_exposure(camera, settings)
         camera.start()
         started = True
         while True:
             frame_rgb = camera.capture_array()
             rotated_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
+            rotated_rgb = enhancer.apply(rotated_rgb)
             grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
             detection = decoder.detect(grayscale)
             display_frame = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2BGR)
@@ -166,6 +173,7 @@ def main() -> int:
             if started:
                 camera.stop()
         finally:
+            camera.close()
             cv2.destroyAllWindows()
     return 0
 

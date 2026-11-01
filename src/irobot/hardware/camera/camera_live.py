@@ -9,6 +9,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 import cv2
 from picamera2 import Picamera2
 
+from irobot.config.settings import load_runtime_settings
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+
 CAMERA_INDEX = 0
 
 def main():
@@ -22,17 +25,23 @@ def main():
         return
 
     print(f"Utilisation de la caméra: {info[CAMERA_INDEX]['Model']}")
+    settings = load_runtime_settings()
+    enhancer = FrameEnhancer(settings)
     picam2 = Picamera2(CAMERA_INDEX)
-    config = picam2.create_preview_configuration()
-    picam2.configure(config)
-    picam2.start()
+    started = False
 
     print("Appuyez sur 'q' pour quitter")
 
     try:
+        config = picam2.create_preview_configuration(main={"format": "BGR888"})
+        picam2.configure(config)
+        configure_exposure(picam2, settings)
+        picam2.start()
+        started = True
         while True:
             frame = picam2.capture_array()
             rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            rotated_frame = enhancer.apply(rotated_frame)
             rotated_frame = cv2.cvtColor(rotated_frame, cv2.COLOR_RGB2BGR)
             cv2.imshow("Camera 1 - Live", rotated_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -41,8 +50,12 @@ def main():
         print("\nDiagnostic interrompu par l'utilisateur.", flush=True)
         return 130
     finally:
-        picam2.stop()
-        cv2.destroyAllWindows()
+        try:
+            if started:
+                picam2.stop()
+        finally:
+            picam2.close()
+            cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

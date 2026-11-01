@@ -20,6 +20,7 @@ from irobot.hardware.camera.distance_estimator import (
     estimate_marker_distance_cm,
     fuse_with_ultrasound,
 )
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder, ObservationDisposition
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
@@ -56,6 +57,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self.poll_interval_s = max(0.0, float(poll_interval_s))
 
         settings = load_runtime_settings()
+        self._settings = settings
+        self._frame_enhancer = FrameEnhancer(settings)
         self._marker_decoder = OpenCVArucoMarkerDecoder(
             settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
         )
@@ -153,6 +156,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
         """Détecte la meilleure cible dans une frame déjà orientée (RGB) et renseigne la distance."""
+        frame_rgb = self._frame_enhancer.apply(frame_rgb)
         if target is None:
             with self._lock:
                 target = self._requested_target or self.default_target
@@ -219,6 +223,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 main={"size": (640, 480), "format": "BGR888"}
             )
             camera.configure(config)
+            configure_exposure(camera, self._settings)
             camera.start()
 
             while not self._stop_event.is_set():

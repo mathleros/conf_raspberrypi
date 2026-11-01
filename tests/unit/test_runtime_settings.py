@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from irobot.config import settings
 
 
@@ -104,3 +106,45 @@ def test_load_separate_backward_calibration(tmp_path, monkeypatch):
 
     assert loaded.cm_per_second == 55.0
     assert loaded.backward_cm_per_second == 25.0
+
+
+def test_backlight_settings_from_toml(tmp_path, monkeypatch):
+    cfg = tmp_path / "calibration.toml"
+    cfg.write_text(
+        "[camera]\nclahe_enabled = true\nclahe_clip_limit = 2.5\nexposure_value = 1.5\n",
+    )
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    loaded = settings.load_runtime_settings()
+    assert loaded.camera_clahe_enabled is True
+    assert loaded.camera_clahe_clip_limit == 2.5
+    assert loaded.camera_exposure_value == 1.5
+
+
+def test_backlight_defaults_preserve_uncorrected_frames():
+    defaults = settings.RuntimeSettings()
+    assert defaults.camera_clahe_enabled is False
+    assert defaults.camera_exposure_value == 0.0
+
+
+@pytest.mark.parametrize("key,value", [
+    ("clahe_enabled", '"false"'),
+    ("clahe_enabled", "1"),
+    ("clahe_clip_limit", "0"),
+    ("clahe_clip_limit", "-1.0"),
+    ("clahe_clip_limit", "nan"),
+    ("clahe_clip_limit", "inf"),
+    ("clahe_clip_limit", "true"),
+    ("clahe_clip_limit", '"3.0"'),
+    ("exposure_value", "nan"),
+    ("exposure_value", "inf"),
+    ("exposure_value", "8.1"),
+    ("exposure_value", "-8.1"),
+    ("exposure_value", "false"),
+    ("exposure_value", '"1.0"'),
+])
+def test_invalid_backlight_settings_are_rejected(tmp_path, monkeypatch, key, value):
+    cfg = tmp_path / "calibration.toml"
+    cfg.write_text(f"[camera]\n{key} = {value}\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    with pytest.raises(ValueError, match=f"camera_{key}"):
+        settings.load_runtime_settings()

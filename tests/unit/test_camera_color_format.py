@@ -1,29 +1,49 @@
+import importlib
+import sys
+from types import SimpleNamespace
+
 import cv2
 import numpy as np
 import pytest
 
 from irobot.hardware.camera import calibrate_distance
 from irobot.hardware.camera import camera_live_pipeline
+from irobot.config.settings import RuntimeSettings
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 
 
 @pytest.fixture
 def camera_factory():
     class Camera:
+        camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
+
+        @staticmethod
+        def global_camera_info():
+            return [{"Model": "ov5647"}]
+
         def __init__(self, index):
             self.config = None
             self.stopped = False
             self.closed = False
             self.captures = 0
             self.on_capture = lambda: None
+            self.controls = {}
+            self.red_level = 255
+            self.calls = []
 
         def create_preview_configuration(self, **kwargs):
             return kwargs
 
         def configure(self, config):
             self.config = config
+            self.calls.append("configure")
 
         def start(self):
-            pass
+            self.calls.append("start")
+
+        def set_controls(self, controls):
+            self.controls.update(controls)
+            self.calls.append("exposure")
 
         def capture_array(self):
             self.captures += 1
@@ -31,7 +51,10 @@ def camera_factory():
                 raise RuntimeError("La calibration ne détecte pas la cible synthétique rouge.")
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
             # Ordre mémoire Picamera2 : BGR888 -> RGB, RGB888 -> BGR.
-            red = (255, 0, 0) if self.config["main"]["format"] == "BGR888" else (0, 0, 255)
+            red = (
+                (self.red_level, 0, 0) if self.config["main"]["format"] == "BGR888"
+                else (0, 0, self.red_level)
+            )
             cv2.circle(frame, (320, 240), 25, red, -1)
             self.on_capture()
             return frame
@@ -57,6 +80,7 @@ def test_calibration_detects_red_from_picamera_memory_layout(monkeypatch, camera
     ])
 
     assert camera.config["main"] == {"size": (640, 480), "format": "BGR888"}
+    assert camera.controls == {"ExposureValue": 1.0}
     assert "focal_px =" in capsys.readouterr().out
     assert camera.stopped and camera.closed
 
@@ -71,8 +95,101 @@ def test_runtime_detects_red_from_picamera_memory_layout(monkeypatch, camera_fac
     detection = pipeline.detect(target="red")
 
     assert camera.config["main"] == {"size": (640, 480), "format": "BGR888"}
+    assert camera.controls == {"ExposureValue": 1.0}
     assert detection is not None
     assert detection.label == "red_ball"
     assert detection.diameter_px == pytest.approx(50, rel=0.05)
     assert detection.distance_cm is not None
     assert camera.stopped and camera.closed
+
+
+def _entrypoint(monkeypatch, name, camera):
+    monkeypatch.setenv("DISPLAY", ":test")
+    monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=lambda index: camera))
+    module = importlib.import_module(f"irobot.hardware.camera.{name}")
+
+    class Factory:
+        global_camera_info = staticmethod(lambda: [{"Model": "ov5647"}])
+
+        def __new__(cls, index):
+            return camera
+
+    monkeypatch.setattr(module, "Picamera2", Factory)
+    monkeypatch.setattr(
+        module, "load_runtime_settings",
+        lambda: RuntimeSettings(camera_clahe_enabled=True, camera_exposure_value=1.0),
+    )
+    monkeypatch.setattr(cv2, "imshow", lambda *args: None)
+    monkeypatch.setattr(cv2, "waitKey", lambda *args: ord("q"))
+    monkeypatch.setattr(cv2, "destroyAllWindows", lambda: None)
+    if name == "color_detector":
+        monkeypatch.setattr(module, "parse_args", lambda: SimpleNamespace(
+            debug=False, robotic=True, color="red",
+        ))
+    return module
+
+
+@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "camera_live"])
+def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factory, name, capsys):
+    camera = camera_factory(0)
+    camera.red_level = 78
+    module = _entrypoint(monkeypatch, name, camera)
+    calls = []
+    original_apply = FrameEnhancer.apply
+
+    def apply(enhancer, frame):
+        calls.append(frame.copy())
+        return original_apply(enhancer, frame)
+
+    monkeypatch.setattr(FrameEnhancer, "apply", apply)
+    if name == "calibrate_distance":
+        module.main(["--color", "red", "--known-distance-cm", "70", "--samples", "1"])
+        assert "focal_px =" in capsys.readouterr().out
+    else:
+        module.main()
+        if name == "color_detector":
+            assert "BALL_RED_" in capsys.readouterr().out
+    assert len(calls) == 1
+    assert calls[0].shape == (640, 480, 3)
+    assert calls[0][320, 239].tolist() == [78, 0, 0]
+    assert camera.calls == ["configure", "exposure", "start"]
+    assert camera.stopped and camera.closed
+
+
+@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "camera_live"])
+def test_exposure_failure_releases_standalone_camera(monkeypatch, camera_factory, name):
+    camera = camera_factory(0)
+    module = _entrypoint(monkeypatch, name, camera)
+
+    def fail(controls):
+        raise RuntimeError("exposure rejected")
+
+    monkeypatch.setattr(camera, "set_controls", fail)
+    with pytest.raises(RuntimeError, match="exposure rejected"):
+        if name == "calibrate_distance":
+            module.main([])
+        else:
+            module.main()
+    assert camera.calls == ["configure"]
+    assert camera.captures == 0
+    assert camera.closed
+
+
+def test_exposure_failure_is_logged_and_releases_runtime_camera(monkeypatch, camera_factory, caplog):
+    camera = camera_factory(0)
+    monkeypatch.setattr(camera_live_pipeline, "Picamera2", lambda index: camera)
+    monkeypatch.setattr(
+        camera_live_pipeline, "load_runtime_settings",
+        lambda: RuntimeSettings(camera_exposure_value=1.0),
+    )
+
+    def fail(controls):
+        raise RuntimeError("exposure rejected")
+
+    monkeypatch.setattr(camera, "set_controls", fail)
+    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    pipeline._capture_loop()
+    assert pipeline.detect(target="red") is None
+    assert camera.closed
+    assert camera.captures == 0
+    assert "exposure rejected" in caplog.text

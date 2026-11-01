@@ -13,6 +13,8 @@ def test_close_waits_for_camera_initialization_and_releases_resources(monkeypatc
     calls = []
 
     class Camera:
+        camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
+
         def __init__(self, index):
             pass
 
@@ -26,6 +28,9 @@ def test_close_waits_for_camera_initialization_and_releases_resources(monkeypatc
 
         def start(self):
             calls.append("start")
+
+        def set_controls(self, controls):
+            assert controls == {"ExposureValue": 1.0}
 
         def stop(self):
             calls.append("stop")

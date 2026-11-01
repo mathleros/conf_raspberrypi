@@ -63,6 +63,9 @@ class RuntimeSettings:
     camera_ball_diameter_cm: float = 6.5
     camera_focal_px: float = 600.0
     camera_ultrasonic_fusion: bool = False
+    camera_clahe_enabled: bool = False
+    camera_clahe_clip_limit: float = 3.0
+    camera_exposure_value: float = 0.0
     backward_cm_per_second: float | None = None
     protection_presence: str = "absent"
     human_marker_identity: MarkerIdentity | None = None
@@ -70,6 +73,16 @@ class RuntimeSettings:
     human_announcement_timeout_seconds: float = 2.0
 
     def __post_init__(self) -> None:
+        if not isinstance(self.camera_clahe_enabled, bool):
+            raise ValueError("camera_clahe_enabled must be a boolean")
+        for name in ("camera_clahe_clip_limit", "camera_exposure_value"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be a finite number")
+        if self.camera_clahe_clip_limit <= 0:
+            raise ValueError("camera_clahe_clip_limit must be positive")
+        if not -8.0 <= self.camera_exposure_value <= 8.0:
+            raise ValueError("camera_exposure_value must be between -8 and 8 EV")
         for name in ("human_max_age_seconds", "human_announcement_timeout_seconds"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -163,6 +176,9 @@ def load_runtime_settings() -> RuntimeSettings:
         camera_ball_diameter_cm=float(camera.get("ball_diameter_cm", 6.5)),
         camera_focal_px=float(camera.get("focal_px", 600.0)),
         camera_ultrasonic_fusion=bool(camera.get("ultrasonic_fusion", False)),
+        camera_clahe_enabled=camera.get("clahe_enabled", defaults.camera_clahe_enabled),
+        camera_clahe_clip_limit=camera.get("clahe_clip_limit", defaults.camera_clahe_clip_limit),
+        camera_exposure_value=camera.get("exposure_value", defaults.camera_exposure_value),
         human_marker_identity=marker_identity,
         human_max_age_seconds=human_follow.get(
             "max_age_seconds", defaults.human_max_age_seconds,

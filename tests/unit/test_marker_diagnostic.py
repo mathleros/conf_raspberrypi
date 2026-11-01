@@ -8,6 +8,7 @@ import pytest
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
 from irobot.interfaces.marker_diagnostic import (
     TEST_MARKER_IDENTITY,
@@ -206,6 +207,8 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
     class Camera:
+        camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
+
         @staticmethod
         def global_camera_info():
             return [{"Model": "ov5647"}]
@@ -214,7 +217,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
             assert index == 0
 
         def create_preview_configuration(self, *, main):
-            assert main == {"size": (640, 480)}
+            assert main == {"size": (640, 480), "format": "BGR888"}
             return main
 
         def configure(self, config):
@@ -223,14 +226,25 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
         def start(self):
             calls.append("start")
 
+        def set_controls(self, controls):
+            assert controls == {"ExposureValue": 1.0}
+            calls.append("exposure")
+
         def capture_array(self):
             return frame
 
         def stop(self):
             calls.append("stop")
 
+        def close(self):
+            calls.append("camera_close")
+
     def detect(grayscale):
         assert grayscale.shape == (640, 480)
+        expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
+            cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
+        )
+        np.testing.assert_array_equal(grayscale, cv2.cvtColor(expected_rgb, cv2.COLOR_RGB2GRAY))
         return _project_marker((0, 0, 80))
 
     monkeypatch.setenv("DISPLAY", ":test")
@@ -243,7 +257,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     monkeypatch.setattr(cv2, "waitKey", lambda *args: ord("q"))
     monkeypatch.setattr(cv2, "destroyAllWindows", lambda: calls.append("close"))
     assert marker_diagnostic.main() == 0
-    assert calls == ["configure", "start", "stop", "close"]
+    assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
     output = capsys.readouterr().out
     assert "objectif non calibré" in output
     assert "distance=80.0 cm" in output

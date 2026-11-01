@@ -33,6 +33,9 @@ else:
 import cv2
 import numpy as np
 
+from irobot.config.settings import load_runtime_settings
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+
 try:
     from picamera2 import Picamera2
 except ModuleNotFoundError:  # pragma: no cover - environnements hors Raspberry Pi
@@ -346,10 +349,10 @@ def main():
 
     if not robotic:
         safe_print(f"Utilisation de la caméra: {info[CAMERA_INDEX]['Model']}")
+    settings = load_runtime_settings()
+    enhancer = FrameEnhancer(settings)
     picam2 = Picamera2(CAMERA_INDEX)
-    config = picam2.create_preview_configuration()
-    picam2.configure(config)
-    picam2.start()
+    started = False
 
     if not HAS_GUI and not robotic:
         safe_print("Mode headless: détection uniquement via logs.")
@@ -357,9 +360,15 @@ def main():
         safe_print(f"Mode DEBUG activé pour la couleur: {requested_color}")
 
     try:
+        config = picam2.create_preview_configuration(main={"format": "BGR888"})
+        picam2.configure(config)
+        configure_exposure(picam2, settings)
+        picam2.start()
+        started = True
         while True:
             frame = picam2.capture_array()
             rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            rotated_frame = enhancer.apply(rotated_frame)
             rotated_frame = cv2.cvtColor(rotated_frame, cv2.COLOR_RGB2BGR)
 
             best_result = None
@@ -382,13 +391,17 @@ def main():
                 safe_print("NONE")
 
             if HAS_GUI:
-                cv2.imshow("Camera 1 - Live", frame)
+                cv2.imshow("Camera 1 - Live", rotated_frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
     finally:
-        picam2.stop()
-        if HAS_GUI:
-            cv2.destroyAllWindows()
+        try:
+            if started:
+                picam2.stop()
+        finally:
+            picam2.close()
+            if HAS_GUI:
+                cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

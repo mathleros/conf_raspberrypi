@@ -25,6 +25,7 @@ from irobot.hardware.camera.color_detector import (
     detect_colored_objects,
 )
 from irobot.hardware.camera.distance_estimator import estimate_distance_cm, focal_from_known_distance
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -51,14 +52,20 @@ def main(argv: list[str] | None = None) -> None:
     if Picamera2 is None:
         sys.exit("Picamera2 indisponible : à lancer sur le Raspberry Pi.")
 
+    settings = load_runtime_settings()
+    enhancer = FrameEnhancer(settings)
     camera = Picamera2(CAMERA_INDEX)
-    # Picamera2 BGR888 fournit des octets R, G, B au détecteur is_rgb=True.
-    camera.configure(camera.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"}))
-    camera.start()
+    started = False
     samples: list[float] = []
     try:
+        # Picamera2 BGR888 fournit des octets R, G, B au détecteur is_rgb=True.
+        camera.configure(camera.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"}))
+        configure_exposure(camera, settings)
+        camera.start()
+        started = True
         while True:
             frame = cv2.rotate(camera.capture_array(), cv2.ROTATE_90_CLOCKWISE)
+            frame = enhancer.apply(frame)
             diameter = measure_diameter_px(frame, args.color)
             if diameter is None:
                 print("balle non détectée          ", end="\r", flush=True)
@@ -80,7 +87,8 @@ def main(argv: list[str] | None = None) -> None:
         print()
     finally:
         try:
-            camera.stop()
+            if started:
+                camera.stop()
         finally:
             camera.close()
 

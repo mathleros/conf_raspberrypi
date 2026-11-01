@@ -89,6 +89,35 @@ Une pose inexploitable est journalisée et ne fournit aucune détection, sans
 repli sur la largeur apparente. L'estimation des balles, les seuils de position
 et l'absence de fusion ultrason pour les marqueurs restent inchangés.
 
+## Correction du contre-jour
+
+[frame_enhancer.py](hardware/camera/frame_enhancer.py) partage la correction entre
+le runtime, `camera-live`, `color-detector` / `balle-rouge`, `marker-detect-live`
+et `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
+au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
+appliqué uniquement au canal de luminosité L de LAB, avant toute détection.
+
+Dans [runtime_calibration.toml](../../config/runtime_calibration.toml), section
+`[camera]`, la correction est activée avec `exposure_value = 1.0` EV,
+`clahe_enabled = true`, `clahe_clip_limit = 3.0` et une grille fixe 8×8.
+La compensation d'exposition est transmise à Picamera2 après configuration et
+avant démarrage ; elle dépend de l'exposition automatique de la caméra.
+Si `ExposureValue` n'est pas disponible, un avertissement est journalisé et le
+CLAHE reste utilisable. Une erreur de réglage n'est pas masquée.
+
+Pour retrouver le comportement précédent, régler `exposure_value = 0.0` et
+`clahe_enabled = false`. Ces valeurs sont aussi les défauts lorsque les clés
+sont absentes. Un booléen CLAHE invalide, une limite non positive ou une
+exposition non finie/hors de [-8, 8] EV est refusé explicitement.
+
+Le traitement améliore le contraste local mais ne récupère pas les détails
+déjà perdus par sous-exposition ou saturation. Une compensation positive peut
+surexposer l'arrière-plan ; le CLAHE peut amplifier le bruit et modifier les
+valeurs HSV malgré la conservation des canaux a/b. Vérifier sur le Pi les
+balles rouge/jaune, les IDs ArUco, les faux positifs et la latence, en éclairage
+normal et en contre-jour. Refaire la calibration de distance avec les mêmes
+réglages que le runtime si la segmentation et les diamètres mesurés changent.
+
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement
 `robot.stop()` puis la demande d'arrêt d'urgence, avant tout appel au parseur,

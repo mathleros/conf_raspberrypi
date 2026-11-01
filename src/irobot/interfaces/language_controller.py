@@ -37,7 +37,8 @@ class LanguageController:
         if self.perception is None:
             return
         params = context.state.get("active_intent_parameters") or {}
-        target = params.get("target_object")
+        active_intent = context.state.get("active_intent")
+        target = params.get("target_object") or getattr(active_intent, "target", None)
         detection = self.perception.detect(target=target)
         if detection is None:
             return
@@ -83,7 +84,10 @@ class LanguageController:
             state=BlackboardState(
                 active_intent=intent,
                 active_intent_name=intent.name,
-                active_intent_parameters=dict(intent.parameters),
+                active_intent_parameters={
+                    **intent.parameters,
+                    **({"target_object": intent.target} if intent.name == "follow_person" else {}),
+                },
                 last_camera_position=None,
                 last_object_position=None,
                 last_ball_position=None,
@@ -120,8 +124,6 @@ class LanguageController:
         }
 
     def handle_intent(self, intent: Intent, *, permit: MissionPermit | None = None):
-        if intent.name in {"follow_person", "resume_follow_person"}:
-            return {"intent": intent, "status": "rejected", "reason": "human_capability_unavailable"}
         refusal = follow_request_refusal(intent.raw_text)
         if refusal:
             return {"intent": intent, "status": "rejected", "reason": refusal}
@@ -173,7 +175,10 @@ class LanguageController:
             state=BlackboardState(
                 active_intent=intent,
                 active_intent_name=intent.name,
-                active_intent_parameters=dict(intent.parameters),
+                active_intent_parameters={
+                    **intent.parameters,
+                    **({"target_object": intent.target} if intent.name == "follow_person" else {}),
+                },
                 last_camera_position=None,
                 last_object_position=None,
                 last_ball_position=None,

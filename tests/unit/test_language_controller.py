@@ -14,6 +14,21 @@ def test_intent_parser_follow_red_ball():
     assert intent.confidence > 0.5
 
 
+def test_intent_parser_and_planner_follow_person():
+    parser = IntentParser()
+    validator = IntentValidator()
+    for phrase in ("suis-moi", "suis moi", "suivez-moi"):
+        intent = parser.parse(phrase)
+        assert intent.name == "follow_person"
+        assert intent.target == "marker"
+        assert intent.confidence == 1.0
+        assert intent.raw_text == phrase
+        assert validator.validate(intent)
+
+    controller = LanguageController(robot=FakeRobot())
+    assert [skill.name for skill in controller.planner.plan("follow_person")] == ["follow_target"]
+
+
 def test_intent_parser_stop():
     intent = IntentParser().parse("stop maintenant")
 

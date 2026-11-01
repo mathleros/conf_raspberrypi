@@ -10,7 +10,6 @@ from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
 from irobot.interfaces.intent_parser import Intent
 from irobot.interfaces.plan_guards import (
     is_pure_stop,
-    contains_human_step,
     follow_request_refusal,
     contains_unsupported_follow_step,
 )
@@ -52,7 +51,7 @@ class VoiceExecutionMixin(VoiceRuntimeState):
     def _effective_step_timeout(self, intent: Intent) -> float:
         base = float(self.settings.step_timeout_seconds)
         params = intent.parameters or {}
-        if intent.name in {"search_and_approach_object", "follow_red_ball"}:
+        if intent.name in {"search_and_approach_object", "follow_red_ball", "follow_person"}:
             tracking_s = FollowTargetSkill._to_float(
                 params.get("tracking_timeout_s"), FollowTargetSkill.DEFAULT_MAX_TRACKING_S
             )
@@ -188,6 +187,9 @@ class VoiceExecutionMixin(VoiceRuntimeState):
             # Sécurité : arrêt pur traité localement, sans LLM ni normalisation des nombres.
             intents = [Intent(name="stop", raw_text=text, confidence=1.0)]
             plan_trace = {"source": "local_stop", "llm_content": None, "llm_json": None, "normalized_text": None}
+        elif (local_intent := self.parser.parse(text)).name == "follow_person":
+            intents = [local_intent]
+            plan_trace = {"source": "local_parser_follow_person"}
         elif self.use_llm:
             warmup_status = self._await_warmup()
             intents, plan_trace = self._ask_plan(text)
@@ -202,13 +204,8 @@ class VoiceExecutionMixin(VoiceRuntimeState):
         return intents, plan_trace, warmup_status
 
     def _plan_refusal(self, intents: list[Intent], plan_trace: dict[str, Any]) -> str | None:
-        if plan_trace.get("source") in {"llm_human_refused", "llm_follow_refused"}:
+        if plan_trace.get("source") == "llm_follow_refused":
             return plan_trace["guard_reason"]
-        if any(
-            contains_human_step({"intent": it.name, "parameters": it.parameters})
-            for it in intents
-        ):
-            return "human_capability_unavailable"
         if any(
             follow_request_refusal(it.raw_text)
             or contains_unsupported_follow_step({

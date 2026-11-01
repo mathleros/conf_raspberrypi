@@ -26,6 +26,7 @@ INTENT_LEXICON = {
     "spin_360": (("tour", "pivot", "rotat", "360", "spin"), set(), ()),
     "follow_object": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
     "follow_red_ball": (("suis", "suit", "suiv", "poursui", "follow", "track"), set(), ()),
+    "follow_person": (("suis", "suiv", "follow", "track"), set(), ()),
     "search_and_approach_object": (("cherch", "trouv", "approch", "rejoin", "search", "find",
                                     "repere", "localis"), set(), ()),
     "stop": (("stop", "arret", "halte", "pause", "attend"), set(), ()),
@@ -41,6 +42,7 @@ ALLOWED_PARAMS = {
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
     "search_and_approach_object": {"stand_off_cm", "target_object"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
+    "follow_person": set(),
     "move_square": {"side", "unit"},
 }
 
@@ -55,7 +57,7 @@ PLAN_SCHEMA = {
                 "properties": {
                     "intent": {"type": "string", "enum": [
                         "move_forward", "move_backward", "turn_left", "turn_right", "stop",
-                        "search_and_approach_object", "follow_object", "follow_red_ball",
+                        "search_and_approach_object", "follow_object", "follow_red_ball", "follow_person",
                         "avoid_obstacle", "spin_360", "move_square", "return_to_start"]},
                     "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "parameters": {
@@ -107,7 +109,7 @@ def is_pure_stop(text: str) -> bool:
 
 
 def requests_human_follow(text: str) -> bool:
-    """Refusal guard only, not a human-follow language implementation."""
+    """Identifies human-follow wording so target validation does not reject it."""
     normalized = fold(text)
     return bool(re.search(
         r"\b(?:suis|suit|suivre|suivez|suivez moi|follow|track|poursuis|rejoins)\s+"
@@ -122,11 +124,12 @@ def requests_human_follow(text: str) -> bool:
 TARGET_COLOR_SYNONYMS = {
     "jaune": "yellow", "yellow": "yellow", "balle jaune": "yellow", "yellow_ball": "yellow",
     "rouge": "red", "red": "red", "balle rouge": "red", "red_ball": "red",
+    "marker": "marker",
 }
 
 FOLLOW_INTENTS = {
     "follow_object", "follow_red_ball", "follow", "track", "track_object",
-    "follow_target", "suivre", "suit",
+    "follow_target", "follow_person", "suivre", "suit",
 }
 
 
@@ -137,9 +140,9 @@ def supported_follow_target(value: Any) -> bool:
 
 
 def follow_request_refusal(text: str) -> str | None:
-    if requests_human_follow(text):
-        return "human_capability_unavailable"
     for segment in re.split(r"\b(?:puis|ensuite|then|and|et)\b", fold(text)):
+        if requests_human_follow(segment):
+            continue
         follow = re.search(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis|rejoins)\b", segment)
         if follow is None:
             continue
@@ -183,20 +186,6 @@ def contains_unsupported_follow_step(value: Any) -> bool:
     return False
 
 
-def contains_human_step(value: Any) -> bool:
-    """Refuse human payloads before malformed-step filtering or expansion."""
-    if isinstance(value, dict):
-        names = {str(value.get(key, "")).strip().lower() for key in ("intent", "name", "action")}
-        if names & {"follow_person", "follow_human", "track_person", "resume_follow_person"}:
-            return True
-        return any(contains_human_step(item) for item in value.values())
-    if isinstance(value, list):
-        return any(contains_human_step(item) for item in value)
-    if isinstance(value, str):
-        return requests_human_follow(value)
-    return False
-
-
 def _num(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
@@ -233,12 +222,6 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
     refusal = follow_request_refusal(sent_text)
     if refusal:
         return [], refusal, []
-    if any(
-        isinstance(step, dict) and (step.get("intent") or step.get("name")) in {
-            "follow_person", "resume_follow_person",
-        } for step in steps
-    ):
-        return [], "human_capability_unavailable", []
     folded = fold(sent_text)
     numbers = {float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", folded)}
     kept, notes = [], []

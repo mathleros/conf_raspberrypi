@@ -1372,12 +1372,16 @@ class HumanFollowRuntimeTests(unittest.TestCase):
         self.assertIsNone(self.runtime.pending_human_announcement)
         self.assertEqual(len(self.rig.witness.cycles), cycles)
 
-    def test_human_requests_remain_refused_in_all_language_entries(self):
-        self.prepare()
-        for entry in (self.runtime.handle_text, self.runtime.handle_text_as_plan,
-                      self.runtime.handle_transcript):
-            with self.subTest(entry=entry.__name__):
-                self.assertEqual(entry("suis-moi")["reason"], "human_capability_unavailable")
+    def test_follow_person_resolves_to_marker_follow_skill(self):
+        intent = self.runtime.parser.parse("suis-moi")
+        self.assertEqual(intent.name, "follow_person")
+        self.assertEqual(intent.target, "marker")
+        self.assertEqual(intent.confidence, 1.0)
+        self.assertTrue(self.runtime.validator.validate(intent))
+        self.assertEqual(
+            [skill.name for skill in self.runtime.controller.planner.plan(intent.name)],
+            ["follow_target"],
+        )
         self.assertFalse(nonzero(self.rig.motor))
 
     def test_ball_human_preparation_ball_same_runtime_no_inherited_context(self):

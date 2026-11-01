@@ -84,8 +84,11 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
             return True
 
     def _resolve_intent(self, text: str) -> Intent:
+        local_intent = self.parser.parse(text)
+        if local_intent.name == "follow_person":
+            return local_intent
         if not self.use_llm:
-            return self.parser.parse(text)
+            return local_intent
 
         llm_intent = self._ask_intent(text)
         if llm_intent.name == "unsupported_follow_target":

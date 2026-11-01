@@ -182,12 +182,12 @@ class IntentParser:
             return Intent(name="unknown", raw_text=text)
 
         lowered = cleaned.lower()
+        if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
+            return Intent(name="follow_person", target="marker", confidence=1.0, raw_text=text)
+
         refusal = follow_request_refusal(cleaned)
         if refusal:
-            return Intent(
-                name="follow_person" if refusal == "human_capability_unavailable" else "unknown",
-                raw_text=text,
-            )
+            return Intent(name="unknown", raw_text=text)
 
         # "arrête-toi quand tu vois X" est une condition d'arrêt, pas un ordre d'arrêt immédiat.
         has_condition = any(
@@ -418,6 +418,7 @@ class IntentValidator:
     """Valide qu'une intention est cohérente et autorisée."""
 
     ALLOWED_INTENTS = {
+        "follow_person",
         "follow_red_ball",
         "avoid_obstacle",
         "search_and_approach_object",
@@ -434,7 +435,7 @@ class IntentValidator:
     }
 
     def validate(self, intent: Intent) -> bool:
-        if follow_request_refusal(intent.raw_text) or intent.name in {"follow_person", "resume_follow_person"}:
+        if follow_request_refusal(intent.raw_text):
             return False
         if intent.name not in self.ALLOWED_INTENTS:
             return False

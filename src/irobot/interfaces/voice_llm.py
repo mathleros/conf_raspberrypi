@@ -11,7 +11,6 @@ from irobot.config.settings import load_llm_settings
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.plan_guards import (
     grounding_check,
-    contains_human_step,
     follow_request_refusal,
     contains_unsupported_follow_step,
 )
@@ -77,10 +76,13 @@ def ask_llm_for_intent(text: str, *, post: LLMPost = _post_llm_chat) -> Intent:
             _select_formats(INTENT_RESPONSE_FORMATS),
         )
         parsed = _parse_llm_json_payload(content)
-        if contains_human_step(parsed):
-            return Intent(name="follow_person")
         if contains_unsupported_follow_step(parsed):
             return Intent(name="unsupported_follow_target")
+        if isinstance(parsed, dict) and any(
+            str(parsed.get(key, "")).strip().lower() == "follow_person"
+            for key in ("intent", "name")
+        ):
+            return Intent(name="follow_person", target="marker", raw_text=text)
         intent = _intent_from_llm_step(parsed, text) if parsed else None
         if intent is not None:
             return intent
@@ -162,8 +164,6 @@ def _interpret_plan_response(
     parsed = _parse_llm_json_payload(content)
     if not parsed:
         return fallback("JSON invalide", llm_content=content, reason="invalid json")
-    if contains_human_step(parsed):
-        return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
     if contains_unsupported_follow_step(parsed):
         return [], {"source": "llm_follow_refused", "guard_reason": "unsupported_follow_target"}
 

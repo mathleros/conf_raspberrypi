@@ -8,14 +8,15 @@ from datetime import datetime, timezone
 import math
 
 from irobot.config.settings import RuntimeSettings
+from irobot.interfaces import human_follow_announcements, human_follow_perception
+from irobot.interfaces.human_follow_announcements import HumanAnnouncement
 from irobot.interfaces.human_lifecycle import (
     HumanFollowLifecycle, HumanFollowPhase, HumanFollowSnapshot,
 )
 from irobot.interfaces.human_perception import (
-    AcquisitionAssessment, AcquisitionReason, AcquisitionStatus, HumanMarkerAcquisition,
+    AcquisitionAssessment, AcquisitionStatus, HumanMarkerAcquisition,
     HumanMarkerMissionContext, HumanPerceptionFrame,
-    HumanPerceptionFrameSource, HumanPerceptionProvider, HumanPerceptionStreamFault,
-    MarkerObservation, ObservationDisposition,
+    HumanPerceptionFrameSource, HumanPerceptionProvider, MarkerObservation,
 )
 from irobot.interfaces.protection import (
     DecisionJournal, HumanConditions, ProtectionFault,
@@ -35,18 +36,6 @@ class HumanFollowRequest:
             if (isinstance(value, bool) or not isinstance(value, (int, float))
                     or not math.isfinite(value) or not lower <= value <= upper):
                 raise ValueError("Human-follow parameters are outside the approved request contract")
-
-
-@dataclass(frozen=True)
-class HumanAnnouncement:
-    token: str
-    mission_id: str
-    context_version: str
-    template: str
-    text: str
-    prepared_at: float
-    deadline: float
-    remaining_s: float | None = None
 
 
 class HumanFollowRuntime:
@@ -70,25 +59,9 @@ class HumanFollowRuntime:
             raise ProtectionFault("human_marker_not_configured")
         if not isinstance(request, HumanFollowRequest):
             raise TypeError("Human-follow request must be validated")
-        if max_age_seconds is None:
-            max_age_seconds = settings.human_max_age_seconds
-        if announcement_timeout_seconds is None:
-            announcement_timeout_seconds = settings.human_announcement_timeout_seconds
-        if (isinstance(announcement_timeout_seconds, bool)
-                or not isinstance(announcement_timeout_seconds, (int, float))
-                or not math.isfinite(announcement_timeout_seconds)
-                or announcement_timeout_seconds <= 0):
-            raise ValueError("Announcement budget must be explicit and positive")
-        # Validate resolved budgets before reserving; no default identity.
-        HumanMarkerMissionContext.from_runtime_settings(
-            settings, mission_id="validation", context_version="validation",
-        ).new_acquisition(max_age_seconds=max_age_seconds)
-        if (frame_source is None) != (provider is None):
-            raise ValueError("A bound frame source and provider must be supplied together")
-        if frame_source is not None and not callable(getattr(frame_source, "read_frame", None)):
-            raise TypeError("Human runtime requires a structured frame source")
-        if provider is not None and not callable(getattr(provider, "observe", None)):
-            raise TypeError("Human runtime requires a structured perception provider")
+        max_age_seconds, announcement_timeout_seconds = self._validate_inputs(
+            settings, max_age_seconds, announcement_timeout_seconds, frame_source, provider,
+        )
         self._frame_source = frame_source
         self._provider = provider
         self._context_started_at = robot.time_fn()
@@ -111,30 +84,61 @@ class HumanFollowRuntime:
         self._ended_deadline: float | None = None
         self._ended_locked = False
         self.permit = robot.admit(human=True, acquisition=True, conditions=self.conditions)
+        self._prepare(settings)
+
+    @staticmethod
+    def _validate_inputs(
+        settings: RuntimeSettings, max_age_seconds: float | None,
+        announcement_timeout_seconds: float | None,
+        frame_source: HumanPerceptionFrameSource | None,
+        provider: HumanPerceptionProvider | None,
+    ) -> tuple[float, float]:
+        if max_age_seconds is None:
+            max_age_seconds = settings.human_max_age_seconds
+        if announcement_timeout_seconds is None:
+            announcement_timeout_seconds = settings.human_announcement_timeout_seconds
+        if (isinstance(announcement_timeout_seconds, bool)
+                or not isinstance(announcement_timeout_seconds, (int, float))
+                or not math.isfinite(announcement_timeout_seconds)
+                or announcement_timeout_seconds <= 0):
+            raise ValueError("Announcement budget must be explicit and positive")
+        # Validate resolved budgets before reserving; no default identity.
+        HumanMarkerMissionContext.from_runtime_settings(
+            settings, mission_id="validation", context_version="validation",
+        ).new_acquisition(max_age_seconds=max_age_seconds)
+        if (frame_source is None) != (provider is None):
+            raise ValueError("A bound frame source and provider must be supplied together")
+        if frame_source is not None and not callable(getattr(frame_source, "read_frame", None)):
+            raise TypeError("Human runtime requires a structured frame source")
+        if provider is not None and not callable(getattr(provider, "observe", None)):
+            raise TypeError("Human runtime requires a structured perception provider")
+        return max_age_seconds, announcement_timeout_seconds
+
+    def _prepare(self, settings: RuntimeSettings) -> None:
         try:
             context = HumanMarkerMissionContext.from_runtime_settings(
                 settings,
                 mission_id=f"{self.permit.generation}:{self.permit.mission}",
                 context_version=str(self.permit.context),
             )
-            self._lifecycle.begin(context, now=robot.time_fn())
-            self._acquisition = context.new_acquisition(max_age_seconds=max_age_seconds)
+            self._lifecycle.begin(context, now=self.robot.time_fn())
+            self._acquisition = context.new_acquisition(max_age_seconds=self._max_age)
             self._write(
                 "reserved", identity={
                     "family": context.identity.family,
                     "dictionary": context.identity.dictionary,
                     "identifier": context.identity.identifier,
-                }, stand_off_cm=request.stand_off_cm, duration_s=request.duration_s,
+                }, stand_off_cm=self.request.stand_off_cm, duration_s=self.request.duration_s,
                 max_age_seconds=self._max_age,
                 announcement_timeout_seconds=self._announcement_timeout,
             )
             self._announce("acquiring", "Je cherche votre marqueur.")
         except ProtectionFault:
-            robot.finish(self.permit)
+            self.robot.finish(self.permit)
             raise
         except Exception:
-            robot.priority_one("human_preparation_exception")
-            robot.finish(self.permit)
+            self.robot.priority_one("human_preparation_exception")
+            self.robot.finish(self.permit)
             raise
 
     @property
@@ -215,35 +219,17 @@ class HumanFollowRuntime:
                 else:
                     self._lifecycle.suspend("journal_error", now=now)
                 if self.snapshot.context is None:
-                    self._acquisition = None
-                    self._assessment = None
-                    self._observation = None
-                    self._frame_source = None
-                    self._provider = None
-                    self._last_stream = None
-                    self._retired_streams.clear()
+                    self._clear_perception()
             raise ProtectionFault("journal_error") from exc
 
     def _invalidate_announcement(self) -> None:
-        previous = self.pending_announcement
-        self.pending_announcement = None
-        if previous is not None:
-            self._write("announcement_invalidated", token=previous.token)
+        human_follow_announcements.invalidate(self)
 
     def _announce(self, template: str, text: str, *, remaining_s: float | None = None) -> None:
-        self._invalidate_announcement()
-        context = self.snapshot.context
-        if context is None:
-            raise ProtectionFault("no_human_context")
-        self._announcement_sequence += 1
-        now = self.robot.time_fn()
-        self.pending_announcement = HumanAnnouncement(
-            f"{context.mission_id}:{context.context_version}:{self._announcement_sequence}",
-            context.mission_id, context.context_version, template, text,
-            now, now + self._announcement_timeout, remaining_s,
-        )
-        self._write("announcement_prepared", template=template,
-                    token=self.pending_announcement.token, remaining_s=remaining_s)
+        human_follow_announcements.announce(self, template, text, remaining_s=remaining_s)
+
+    def _announce_acquired(self, now: float) -> None:
+        human_follow_announcements.announce_acquired(self, now)
 
     def _finish(self, reason: str) -> None:
         self.robot.stop()
@@ -251,6 +237,11 @@ class HumanFollowRuntime:
         self._remember_end(reason)
         self.robot.finish(self.permit)
         self._lifecycle.finish(reason)
+        self._clear_perception()
+        self._invalidate_announcement()
+        self._write("ended", outcome=reason, ended_mission=ended.mission_id if ended else None)
+
+    def _clear_perception(self) -> None:
         self._acquisition = None
         self._assessment = None
         self._observation = None
@@ -258,8 +249,6 @@ class HumanFollowRuntime:
         self._provider = None
         self._last_stream = None
         self._retired_streams.clear()
-        self._invalidate_announcement()
-        self._write("ended", outcome=reason, ended_mission=ended.mission_id if ended else None)
 
     def _sync(self) -> None:
         if self.snapshot.context is None:
@@ -289,24 +278,7 @@ class HumanFollowRuntime:
                         self._announce("suspended", self._suspension_text())
 
     def _suspension_text(self) -> str:
-        messages = {
-            "observation_absent": ("Marqueur perdu", "Rendez votre marqueur visible."),
-            "observation_ambiguous": (
-                "Identifiant attendu en plusieurs exemplaires",
-                "Ne laissez visible qu'un exemplaire du marqueur configuré.",
-            ),
-            "stale": ("Image périmée", "Rétablissez la caméra."),
-            "observations_fresh": ("Image périmée", "Rétablissez la caméra."),
-            "stream_changed": ("Flux renouvelé", "Vérifiez le flux de perception."),
-            "perception_fault": ("Perception indisponible", "Rétablissez le flux de perception."),
-            "obstacle": ("Obstacle détecté", "Dégagez l'obstacle."),
-            "obstacle_clear": ("Obstacle détecté", "Dégagez l'obstacle."),
-            "output_audio_ready": ("Sortie audio défaillante", "Rétablissez l'audio."),
-            "input_audio_ready": ("Entrée audio défaillante", "Rétablissez l'audio."),
-        }
-        cause = self.robot.causes[0] if self.robot.causes else ""
-        reason, correction = messages.get(cause, ("Défaut signalé", "Vérifiez le défaut signalé."))
-        return f"{reason}, suivi suspendu. {correction} Dites : reprends le suivi."
+        return human_follow_announcements.suspension_text(self)
 
     def cycle(
         self, *, events: tuple[str, ...] = (),
@@ -363,86 +335,10 @@ class HumanFollowRuntime:
         assessed: AcquisitionAssessment | None = None
         if ((frame is not None or self._frame_source is not None)
                 and self.snapshot.phase is not HumanFollowPhase.SUSPENDED):
-            context = self.snapshot.context
-            acquisition = self._acquisition
-            if context is None or acquisition is None:
-                raise ProtectionFault("no_human_acquisition")
-            stream_fault: HumanPerceptionStreamFault | None = None
-            try:
-                if self._frame_source is not None:
-                    frame = self._frame_source.read_frame()
-                    provider = self._provider
-            except HumanPerceptionStreamFault as exc:
-                stream_fault = exc
-            except Exception:
-                try:
-                    self.robot.priority_one("human_perception_exception")
-                finally:
-                    self.terminate("human_perception_exception")
-                raise
-            if stream_fault is None:
-                if not isinstance(frame, HumanPerceptionFrame):
-                    raise TypeError("Frame source must return a HumanPerceptionFrame")
-                self.robot.supervise(defer_proof=True)
-                self._sync()
-                if self.snapshot.context != context or self.snapshot.phase is HumanFollowPhase.SUSPENDED:
-                    self._write(
-                        "perception_input_discarded", reason="obsolete_context",
-                        requested_mission=context.mission_id,
-                        requested_context=context.context_version,
-                    )
-                    return self.snapshot
-                if self._wait_expired(self.robot.time_fn()):
-                    return self.snapshot
-                if provider is None:
-                    raise ProtectionFault("no_human_perception_provider")
-                try:
-                    observation = provider.observe(frame, context=context)
-                except HumanPerceptionStreamFault as exc:
-                    stream_fault = exc
-                except Exception:
-                    try:
-                        self.robot.priority_one("human_perception_exception")
-                    finally:
-                        self.terminate("human_perception_exception")
-                    raise
-
-            # Re-evaluate after both source and provider; stop/deadline/context
-            # invalidation always wins over a result produced in flight.
-            self.robot.supervise(defer_proof=True)
-            self._sync()
-            if (self.snapshot.context != context
-                    or self.snapshot.phase is HumanFollowPhase.SUSPENDED
-                    or acquisition is not self._acquisition):
-                self._write(
-                    "perception_result_discarded", reason="obsolete_context",
-                    requested_mission=context.mission_id,
-                    requested_context=context.context_version,
-                )
+            result = human_follow_perception.process_frame(self, frame, provider)
+            if result is None:
                 return self.snapshot
-            now = self.robot.time_fn()
-            if self._wait_expired(now):
-                return self.snapshot
-            if stream_fault is not None:
-                acquisition.reset()
-                self._assessment = AcquisitionAssessment(
-                    AcquisitionStatus.REJECTED, AcquisitionReason.PERCEPTION_FAULT, 0,
-                    detail=str(stream_fault),
-                )
-                self._observation = None
-                self._write("perception_fault", reason=str(stream_fault))
-                if self.snapshot.phase is HumanFollowPhase.ACQUIRING:
-                    self._lifecycle.record_acquisition(self._assessment, now=now)
-                else:
-                    self.robot.suspend(AcquisitionReason.PERCEPTION_FAULT.value)
-                    self._sync()
-                return self.snapshot
-            if not isinstance(frame, HumanPerceptionFrame):
-                raise TypeError("Frame source must return a HumanPerceptionFrame")
-            if not isinstance(observation, MarkerObservation):
-                acquisition.reset()
-                raise TypeError("Human provider must return a MarkerObservation")
-            assessed = acquisition.observe_frame(frame, observation, now=now)
+            observation, assessed, now = result
         if observation is not None and self.snapshot.phase is not HumanFollowPhase.SUSPENDED:
             self._accept_observation(observation, assessed=assessed, now=now)
         if completed_announcement is not None:
@@ -459,13 +355,7 @@ class HumanFollowRuntime:
                     raise RuntimeError("A terminal acquisition transition requires an outcome")
                 self._remember_end(transition.outcome, previous)
                 self.robot.finish(self.permit)
-                self._acquisition = None
-                self._assessment = None
-                self._observation = None
-                self._frame_source = None
-                self._provider = None
-                self._last_stream = None
-                self._retired_streams.clear()
+                self._clear_perception()
                 self._invalidate_announcement()
                 self._write("ended", outcome=transition.outcome,
                             ended_mission=transition.ended_mission_id)
@@ -486,110 +376,10 @@ class HumanFollowRuntime:
         self, observation: MarkerObservation, *,
         assessed: AcquisitionAssessment | None, now: float,
     ) -> None:
-        if self._acquisition is None or self.snapshot.context is None:
-            raise ProtectionFault("no_human_acquisition")
-        if not isinstance(observation, MarkerObservation):
-            raise TypeError("Human runtime requires a structured marker observation")
-        if not isinstance(observation.disposition, ObservationDisposition):
-            self._acquisition.reset()
-            raise ValueError("Human runtime requires a typed observation disposition")
-        assessment = (
-            assessed if assessed is not None
-            else self._acquisition.observe(observation, now=now)
-        )
-        stream = (observation.source_id, observation.stream_generation)
-        if stream in self._retired_streams:
-            self._acquisition.reset()
-            assessment = AcquisitionAssessment(
-                AcquisitionStatus.REJECTED, AcquisitionReason.STREAM_CHANGED, 0,
-                detail="obsolete_stream",
-            )
-        elif assessment.reason is AcquisitionReason.STREAM_CHANGED:
-            if self._last_stream is not None:
-                self._retired_streams.add(self._last_stream)
-            self._last_stream = stream
-        elif assessment.status is not AcquisitionStatus.REJECTED:
-            if self._last_stream is not None and self._last_stream != stream:
-                self._retired_streams.add(self._last_stream)
-                if self.snapshot.mission_deadline is None:
-                    self._acquisition.reset()
-                    assessment = AcquisitionAssessment(
-                        AcquisitionStatus.REJECTED, AcquisitionReason.STREAM_CHANGED, 0,
-                        detail="stream_changed_after_fault",
-                    )
-            self._last_stream = stream
-        if (assessment.status is not AcquisitionStatus.REJECTED
-                and observation.captured_at < self._context_started_at):
-            self._acquisition.reset()
-            assessment = AcquisitionAssessment(
-                AcquisitionStatus.REJECTED, AcquisitionReason.CONTEXT_MISMATCH, 0,
-                detail="capture_precedes_context",
-            )
-        self._assessment = assessment
-        self._observation = observation
-        self._write(
-            "observation_assessed", reason=assessment.reason.value,
-            confirmations=assessment.confirmations, detail=assessment.detail,
-            disposition=observation.disposition.value,
-            frame=observation.frame_number, captured_at=observation.captured_at,
-            published_at=observation.published_at,
-            source=observation.source_id, stream=observation.stream_generation,
-            calibration=observation.calibration_version,
-            identity_matches=observation.identity == self.snapshot.context.identity,
-            robot_clearance_cm=observation.robot_clearance_cm,
-            optical_distance_cm=observation.optical_distance_cm,
-            age_s=now - observation.captured_at,
-        )
-        if assessment.reason is AcquisitionReason.STREAM_CHANGED:
-            self.robot.suspend(assessment.reason.value)
-            self._sync()
-        elif self.snapshot.phase is HumanFollowPhase.ACQUIRING:
-            self._lifecycle.record_acquisition(assessment, now=now)
-            if self.snapshot.phase is HumanFollowPhase.ACQUIRED:
-                remaining = (None if self.snapshot.mission_deadline is None
-                             else self.snapshot.mission_deadline - now)
-                distance = f"{self.request.stand_off_cm:g} centimètres"
-                text = (
-                    f"Je vais suivre votre marqueur, à {distance}, "
-                    f"pendant {self.request.duration_s:g} secondes."
-                    if remaining is None else
-                    f"Je reprends le suivi à {distance}. Il reste {remaining:g} secondes."
-                )
-                self._announce("activate" if remaining is None else "resume",
-                               text, remaining_s=remaining)
-        elif assessment.status is not AcquisitionStatus.ACQUIRED:
-            self.robot.suspend(assessment.reason.value)
-            self._sync()
-            self._write("suspended", reason=assessment.reason.value)
+        human_follow_perception.accept_observation(self, observation, assessed=assessed, now=now)
 
     def _complete_announcement(self, completed_announcement: str) -> None:
-        pending = self.pending_announcement
-        if pending is None or pending.token != completed_announcement:
-            self._write("announcement_completion_rejected", reason="obsolete_announcement")
-            raise ProtectionFault("obsolete_announcement")
-        if pending.template in {"activate", "resume"}:
-            failures = self.conditions().failures()
-            if failures:
-                self.robot.supervise(events=failures, defer_proof=True)
-                self._sync()
-                self._write("activation_refused", failures=failures)
-                return
-        self.pending_announcement = None
-        self._write("announcement_completed_by_adapter", token=pending.token)
-        if pending.template in {"activate", "resume"}:
-            deadline = (self.robot.time_fn() + self.request.duration_s
-                        if self.snapshot.mission_deadline is None else None)
-            try:
-                self.robot.activate_human(self.permit, deadline=deadline)
-            except ProtectionFault as exc:
-                self.robot.suspend(str(exc))
-                self._sync()
-                raise
-            self._lifecycle.activate_after_announcement(
-                now=self.robot.time_fn(), mission_deadline=deadline,
-                conditions=self.conditions(),
-            )
-            self._write("activated")
+        human_follow_announcements.complete(self, completed_announcement)
 
     def resume(self) -> HumanFollowSnapshot:
         self.cycle()

@@ -1,8 +1,8 @@
 # Instructions d'Optimisation de Tokens (Mode Concis)
 
 ## 0. REGLES DE STRUCTURE ET DE RAILLE DU CODE (STRICT)
-- **FIchiers Python :** Ne jamais dépasser ***500 lignes*** par fichier. Si un module grandit, sépare la logique (sépare les responsabilités dans plusieurs fichiers).
-- **Fonctions et Méthodes :** Ne jamais dépasser **50 lignes** par fonction (idéalement en tre 10 et 30 lignes). une fonction = une seule responsabilité (Clean code).
+- **FIchiers Python :** Ne jamais dépasser ***500 lignes*** par fichier (idéalement entre 300 et 450 lignes). Si un module grandit, sépare la logique (sépare les responsabilités dans plusieurs fichiers).
+- **Fonctions et Méthodes :** Ne jamais dépasser **50 lignes** par fonction (idéalement entre 10 et 30 lignes). une fonction = une seule responsabilité (Clean code).
 
 ## 1. CONNAISSANCE DU CONTEXTE
 - Les conventions du projet, les décisions d'architecture et l'état actuel sont maintenus dans `PROJECT_CONTEXT.md`.

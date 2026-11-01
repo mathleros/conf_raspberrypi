@@ -1,0 +1,267 @@
+"""Language-only LLM interpretation and deterministic refusal/fallback."""
+
+from __future__ import annotations
+
+import math
+import threading
+from collections.abc import Callable
+from typing import Any
+
+from irobot.config.settings import load_llm_settings
+from irobot.interfaces.intent_parser import Intent, IntentParser
+from irobot.interfaces.plan_guards import (
+    grounding_check,
+    contains_human_step,
+    follow_request_refusal,
+    contains_unsupported_follow_step,
+)
+from irobot.interfaces.text_normalizer import preprocess
+from irobot.interfaces.voice_constants import PLAN_INTENT_SYNONYMS
+from irobot.interfaces.voice_llm_transport import (
+    LLMPost,
+    SYSTEM_PROMPT,
+    SYSTEM_PROMPT_PLAN,
+    LLM_DEFAULT_CONFIDENCE,
+    LLM_WARMUP_READ_TIMEOUT_SECONDS,
+    PLAN_RESPONSE_FORMATS,
+    INTENT_RESPONSE_FORMATS,
+    _llm_payload,
+    _post_llm_chat,
+    _select_formats,
+    _parse_llm_json_payload,
+    _llm_error_reason,
+)
+
+
+def _llm_confidence(value: Any) -> float:
+    if value is None or isinstance(value, bool):
+        return LLM_DEFAULT_CONFIDENCE
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return LLM_DEFAULT_CONFIDENCE
+    if not math.isfinite(confidence):
+        return LLM_DEFAULT_CONFIDENCE
+    return max(0.0, min(1.0, confidence))
+
+
+def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
+    """Reconstruit un Intent depuis un objet JSON du LLM ; None si l'objet est malformé."""
+    if not isinstance(step, dict):
+        return None
+    parameters = step.get("parameters")
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        return None
+    target = step.get("target")
+    return Intent(
+        name=str(step.get("intent") or step.get("name") or "unknown").strip(),
+        target=str(target) if target is not None else None,
+        parameters=dict(parameters),
+        confidence=_llm_confidence(step.get("confidence")),
+        raw_text=raw_text,
+    )
+
+
+def ask_llm_for_intent(text: str, *, post: LLMPost = _post_llm_chat) -> Intent:
+    """Demande un JSON de type Intent au LLM local, puis reconstruit l'objet Intent."""
+    if follow_request_refusal(text):
+        return IntentParser().parse(text)
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT, preprocess(text), settings.max_tokens_intent, settings.model)
+    try:
+        content = post(
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(INTENT_RESPONSE_FORMATS),
+        )
+        parsed = _parse_llm_json_payload(content)
+        if contains_human_step(parsed):
+            return Intent(name="follow_person")
+        if contains_unsupported_follow_step(parsed):
+            return Intent(name="unsupported_follow_target")
+        intent = _intent_from_llm_step(parsed, text) if parsed else None
+        if intent is not None:
+            return intent
+        print("[LLM] Intention JSON invalide, repli sur le parseur local", flush=True)
+        return IntentParser().parse(text)
+    except Exception as exc:
+        print(f"[LLM] {_llm_error_reason(exc, settings.read_timeout_seconds)}, repli sur le parseur local", flush=True)
+        return IntentParser().parse(text)
+
+
+def _normalize_llm_step(step: Any) -> dict[str, Any] | None:
+    """Étape LLM tolérante (target absent -> None, parameters absent -> {}) ; None si malformée."""
+    if not isinstance(step, dict):
+        return None
+    parameters = step.get("parameters")
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        return None
+    name = str(step.get("intent") or step.get("name") or "unknown").strip().lower()
+    return {
+        **step,
+        "intent": PLAN_INTENT_SYNONYMS.get(name, name),
+        "target": step.get("target"),
+        "parameters": dict(parameters),
+    }
+
+
+def ask_llm_for_intent_plan_with_trace(
+    text: str, *, post: LLMPost = _post_llm_chat,
+) -> tuple[list[Intent], dict[str, Any]]:
+    """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace.
+
+    - JSON valide avec `steps: []` -> ([], source "llm_unsupported") : commande hors périmètre ;
+    - plan non justifié par la phrase prétraitée (`grounding_check`) -> ([], source "llm_ungrounded") ;
+    - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
+      -> repli sur IntentParser (texte d'origine).
+    """
+    refusal = follow_request_refusal(text)
+    if refusal:
+        return [], {"source": "llm_follow_refused", "guard_reason": refusal}
+    normalized_text = preprocess(text)
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
+    meta: dict[str, Any] = {}
+
+    def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
+        print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
+        return IntentParser().parse_plan(text), {
+            "source": "local_parser_fast_fallback",
+            "llm_content": None,
+            "llm_json": None,
+            "normalized_text": normalized_text,
+            **meta,
+            **trace,
+        }
+
+    try:
+        content = post(
+            payload,
+            (settings.connect_timeout_seconds, settings.read_timeout_seconds),
+            _select_formats(PLAN_RESPONSE_FORMATS),
+            meta,
+        )
+    except Exception as exc:
+        return _fallback(
+            _llm_error_reason(exc, settings.read_timeout_seconds),
+            error=f"{type(exc).__name__}: {exc}",
+            error_type=type(exc).__name__,
+        )
+
+    return _interpret_plan_response(text, normalized_text, content, meta, _fallback)
+
+
+def _interpret_plan_response(
+    text: str, normalized_text: str, content: str, meta: dict[str, Any],
+    fallback: Callable[..., tuple[list[Intent], dict[str, Any]]],
+) -> tuple[list[Intent], dict[str, Any]]:
+    parsed = _parse_llm_json_payload(content)
+    if not parsed:
+        return fallback("JSON invalide", llm_content=content, reason="invalid json")
+    if contains_human_step(parsed):
+        return [], {"source": "llm_human_refused", "guard_reason": "human_capability_unavailable"}
+    if contains_unsupported_follow_step(parsed):
+        return [], {"source": "llm_follow_refused", "guard_reason": "unsupported_follow_target"}
+
+    raw_steps = parsed.get("steps")
+    if not isinstance(raw_steps, list):
+        return fallback("réponse sans « steps »", llm_content=content, llm_json=parsed, reason="missing steps")
+
+    trace: dict[str, Any] = {"llm_content": content, "llm_json": parsed, "normalized_text": normalized_text, **meta}
+    if not raw_steps:
+        return [], {"source": "llm_unsupported", **trace}
+
+    steps: list[dict[str, Any]] = []
+    skipped: list[int] = []
+    for index, step in enumerate(raw_steps):
+        normalized_step = _normalize_llm_step(step)
+        if normalized_step is None:
+            skipped.append(index)
+            continue
+        steps.append(normalized_step)
+
+    if not steps:
+        return fallback(
+            "aucune étape exploitable", llm_content=content, llm_json=parsed, reason="no usable step",
+            skipped_steps=skipped,
+        )
+
+    # Le LLM propose, le lexique dispose : contrôle sur le texte réellement envoyé au LLM.
+    kept, guard_reason, guard_notes = grounding_check(normalized_text, steps)
+    trace["guard_notes"] = guard_notes
+    trace["skipped_steps"] = skipped
+    if guard_reason or not kept:
+        return [], {"source": "llm_ungrounded", **trace, "guard_reason": guard_reason or "no grounded step"}
+
+    intents = [intent for step in kept if (intent := _intent_from_llm_step(step, text)) is not None]
+    return intents, {"source": "llm_plan", **trace}
+
+
+def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
+    """Requête minimale avec le prompt système du plan pour remplir le cache de prompt du serveur."""
+    settings = load_llm_settings()
+    payload = _llm_payload(SYSTEM_PROMPT_PLAN, "stop", 1, settings.model)
+    try:
+        _post_llm_chat(
+            payload,
+            timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS),
+            _select_formats(PLAN_RESPONSE_FORMATS),
+        )
+        return True
+    except Exception as exc:
+        print(f"[LLM] Echec du prechauffage : {exc}", flush=True)
+        return False
+
+
+class LLMWarmup:
+    """Préchauffage en thread daemon ; `wait()` le rend bloquant (mode une seule commande).
+
+    Statuts : skipped (non lancé) | running | done | failed | timeout (attente expirée, définitif).
+    """
+
+    def __init__(self) -> None:
+        self._thread: threading.Thread | None = None
+        self._result: bool | None = None
+        self._timed_out = False
+
+    def start(self) -> "LLMWarmup":
+        self._thread = threading.Thread(target=self._run, name="llm-warmup", daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        self._result = warm_up_llm()
+
+    def wait(self, timeout: float) -> str:
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                self._timed_out = True
+        return self.status
+
+    @property
+    def status(self) -> str:
+        if self._thread is None:
+            return "skipped"
+        if self._timed_out:
+            return "timeout"
+        if self._thread.is_alive():
+            return "running"
+        return "done" if self._result else "failed"
+
+
+def warm_up_llm_async() -> threading.Thread:
+    """Lance le préchauffage en arrière-plan (thread daemon) sans bloquer le démarrage."""
+    thread = threading.Thread(target=warm_up_llm, name="llm-warmup", daemon=True)
+    thread.start()
+    return thread
+
+
+def ask_llm_for_intent_plan(text: str) -> list[Intent]:
+    """Compatibilité : retourne uniquement la liste d'intents planifiées."""
+    intents, _ = ask_llm_for_intent_plan_with_trace(text)
+    return intents

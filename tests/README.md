@@ -28,7 +28,23 @@ Ce dossier contient deux catégories de tests distinctes :
 uv run pytest -q tests/unit
 ```
 
+Pour le découpage vocal et les limites 500/50, sans périphérique réel :
+
+```bash
+uv run pytest -q tests/unit/test_voice_runtime_structure.py tests/unit/test_voice_runtime.py
+```
+
 Pour les scripts hardware, lancer directement les fichiers Python depuis `tests/hardware/` sur le Raspberry Pi concerné.
+
+Pour le découpage du contrôleur, ses limites 500/50, les imports sans matériel,
+la capacité publique et l'horloge temporisée :
+
+```bash
+uv run pytest -q tests/unit/test_robot_controller_structure.py
+```
+
+Ce test est aussi inclus dans les campagnes isolées pytest et stdlib du lot A.
+Les régressions protégées suivent exclusivement le protocole ci-dessous.
 
 ## Suivi humain : sélection strictement isolée
 
@@ -73,8 +89,11 @@ Sélection ciblée, sous les mêmes gardes avant imports et collecte :
 .venv/bin/python -I -S tests/isolated/run_lot_a.py --human-perception
 ```
 
-Cette sélection ne collecte que `test_human_perception.py` et
-`test_human_follow_runtime.py`. Elle peut aussi utiliser `--stdlib` ;
+Cette sélection ne collecte que `test_human_perception.py`,
+`test_human_follow_runtime.py` et `test_human_runtime_structure.py`.
+Ce dernier contrôle le découpage 500/50, la compatibilité des contrats publics
+et le chargement paresseux du backend ArUco sur doubles.
+Elle peut aussi utiliser `--stdlib` ;
 elle ne se combine pas avec `--legacy-stdlib`. La campagne de régression
 reste constituée des trois commandes du protocole, sans pytest global.
 

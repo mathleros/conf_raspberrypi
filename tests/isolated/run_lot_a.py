@@ -22,8 +22,10 @@ SELECTED = (
     "test_language_controller.py", "test_plan_guards.py", "test_voice_runtime.py",
     "test_human_perception.py", "test_human_lifecycle.py", "test_marker_diagnostic.py",
     "test_human_follow_runtime.py",
+    "test_human_runtime_structure.py",
     "test_marker_calibration.py",
     "test_human_safety.py",
+    "test_robot_controller_structure.py",
 )
 
 
@@ -153,7 +155,8 @@ def main():
     signal.alarm(120)
     before_threads = set(threading.enumerate())
     selected = (("test_human_safety.py",) if human_safety else
-                ("test_human_perception.py", "test_human_follow_runtime.py")
+                ("test_human_perception.py", "test_human_follow_runtime.py",
+                 "test_human_runtime_structure.py")
                 if human_perception else SELECTED)
     paths = [str(root / "tests" / "unit" / name) for name in selected]
     with tempfile.TemporaryDirectory(prefix="irobot-lot-a-") as work:
@@ -169,12 +172,15 @@ def main():
             else:
                 modules = (
                     ("tests.unit.test_human_safety",) if human_safety else
-                    ("tests.unit.test_human_perception", "tests.unit.test_human_follow_runtime")
+                    ("tests.unit.test_human_perception", "tests.unit.test_human_follow_runtime",
+                     "tests.unit.test_human_runtime_structure")
                     if human_perception else (
                         "tests.isolated.lot_a_cases", "tests.unit.test_human_perception",
                         "tests.unit.test_human_lifecycle", "tests.unit.test_marker_diagnostic",
                         "tests.unit.test_marker_calibration", "tests.unit.test_human_follow_runtime",
+                        "tests.unit.test_human_runtime_structure",
                         "tests.unit.test_human_safety",
+                        "tests.unit.test_robot_controller_structure",
                     )
                 )
                 suite = unittest.TestSuite(

@@ -66,6 +66,12 @@ class RuntimeSettings:
     camera_clahe_enabled: bool = False
     camera_clahe_clip_limit: float = 3.0
     camera_exposure_value: float = 0.0
+    camera_face_width_cm: float = 15.0
+    camera_face_score_threshold: float = 0.45
+    camera_face_grace_frames: int = 10
+    camera_face_model_path: str = str(
+        Path(__file__).resolve().parents[3] / "config" / "face_detection_yunet_2023mar.onnx"
+    )
     backward_cm_per_second: float | None = None
     protection_presence: str = "absent"
     human_marker_identity: MarkerIdentity | None = None
@@ -73,6 +79,20 @@ class RuntimeSettings:
     human_announcement_timeout_seconds: float = 2.0
 
     def __post_init__(self) -> None:
+        for name in ("camera_face_width_cm", "camera_face_score_threshold"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be a finite positive number")
+            if value <= 0:
+                raise ValueError(f"{name} must be a finite positive number")
+        if self.camera_face_score_threshold > 1:
+            raise ValueError("camera_face_score_threshold must be at most 1")
+        if (isinstance(self.camera_face_grace_frames, bool)
+                or not isinstance(self.camera_face_grace_frames, int)
+                or self.camera_face_grace_frames < 0):
+            raise ValueError("camera_face_grace_frames must be a non-negative integer")
+        if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
+            raise ValueError("camera_face_model_path must be a non-empty path string")
         if not isinstance(self.camera_clahe_enabled, bool):
             raise ValueError("camera_clahe_enabled must be a boolean")
         for name in ("camera_clahe_clip_limit", "camera_exposure_value"):
@@ -148,6 +168,12 @@ def load_runtime_settings() -> RuntimeSettings:
             "max_age_seconds and announcement_timeout_seconds"
         )
     defaults = RuntimeSettings()
+    face_model_path = camera.get("face_model_path", defaults.camera_face_model_path)
+    if not isinstance(face_model_path, str) or not face_model_path.strip():
+        raise ValueError("camera_face_model_path must be a non-empty path string")
+    model_path = Path(face_model_path)
+    if not model_path.is_absolute():
+        model_path = path.parent / model_path
     marker_identity = MarkerIdentity.from_mapping(raw.get("human_marker"))
     presence = raw.get("protection", {}).get("presence", "absent")
     if presence not in {"absent", "present"}:
@@ -179,6 +205,10 @@ def load_runtime_settings() -> RuntimeSettings:
         camera_clahe_enabled=camera.get("clahe_enabled", defaults.camera_clahe_enabled),
         camera_clahe_clip_limit=camera.get("clahe_clip_limit", defaults.camera_clahe_clip_limit),
         camera_exposure_value=camera.get("exposure_value", defaults.camera_exposure_value),
+        camera_face_width_cm=camera.get("face_width_cm", defaults.camera_face_width_cm),
+        camera_face_score_threshold=camera.get("face_score_threshold", defaults.camera_face_score_threshold),
+        camera_face_grace_frames=camera.get("face_grace_frames", defaults.camera_face_grace_frames),
+        camera_face_model_path=str(model_path),
         human_marker_identity=marker_identity,
         human_max_age_seconds=human_follow.get(
             "max_age_seconds", defaults.human_max_age_seconds,

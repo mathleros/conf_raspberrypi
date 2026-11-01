@@ -21,6 +21,7 @@ from irobot.hardware.camera.distance_estimator import (
     fuse_with_ultrasound,
 )
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.hardware.camera.face_detector import FaceDetector
 from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder, ObservationDisposition
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
-    """Perception Picamera2 : balles colorées et ArUco pour les cibles marker/me.
+    """Perception Picamera2 : balles, ArUco (marker/me) et YuNet (face/human).
 
     Sans filtre balle, ArUco est prioritaire. L'identité configurée est utilisée,
     sinon aruco/DICT_4X4_50/1 ; distance directe indicative estimée par pose
@@ -54,11 +55,14 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
     ) -> None:
         self.camera_index = int(camera_index)
         self.default_target = (default_target or "").strip().lower()
+        if self.default_target == "human":
+            self.default_target = "face"
         self.poll_interval_s = max(0.0, float(poll_interval_s))
 
         settings = load_runtime_settings()
         self._settings = settings
         self._frame_enhancer = FrameEnhancer(settings)
+        self._face_detector: FaceDetector | None = None
         self._marker_decoder = OpenCVArucoMarkerDecoder(
             settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
         )
@@ -118,7 +122,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def _fuse_distance_cm(self, detection: ObjectDetection) -> float | None:
         """Fusion ultrason, appelée depuis le thread appelant de detect()."""
-        if detection.label == "marker_1":
+        if detection.label in {"marker_1", "face"}:
             return detection.distance_cm
         visual = detection.distance_visual_cm
         if visual is None or not self.fusion_enabled or self.distance_reader is None:
@@ -160,6 +164,13 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if target is None:
             with self._lock:
                 target = self._requested_target or self.default_target
+        if target in {"face", "human"}:
+            self._smoother.reset()
+            if self._face_detector is None:
+                self._face_detector = FaceDetector(self._settings, focal_px=self.focal_px)
+            return self._face_detector.detect(frame_rgb)
+        if self._face_detector is not None:
+            self._face_detector.reset()
         marker_only = target in {"marker", "me"}
         ball_filter = target == "both" or any(value in target for value in ("red", "yellow", "ball"))
         if marker_only or not ball_filter:
@@ -225,12 +236,18 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             camera.configure(config)
             configure_exposure(camera, self._settings)
             camera.start()
+            processed_revision = -1
 
             while not self._stop_event.is_set():
                 with self._lock:
                     target = self._requested_target or self.default_target
                     revision = self._target_revision
                 frame_rgb = camera.capture_array()
+                if revision != processed_revision:
+                    if self._face_detector is not None:
+                        self._face_detector.reset()
+                    self._smoother.reset()
+                    processed_revision = revision
                 rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
                 detection = self._process_frame(rotated_frame_rgb, target=target)
                 with self._frame_condition:
@@ -263,6 +280,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def detect(self, *, target: str | None = None) -> ObjectDetection | None:
         expected = (target or "").strip().lower()
+        if expected == "human":
+            expected = "face"
         requested = "marker" if expected == "me" else expected
         with self._frame_condition:
             previous = self._requested_target or self.default_target

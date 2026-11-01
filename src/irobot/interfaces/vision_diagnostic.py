@@ -1,14 +1,18 @@
-"""Live, non-recording diagnostic for the selected static ArUco test marker."""
+"""Live, non-recording diagnostic for ArUco, faces and red/yellow balls."""
 
 from __future__ import annotations
 
-from irobot.config.settings import MarkerIdentity, load_runtime_settings
+from irobot.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.hardware.camera.face_detector import FaceDetector
+from irobot.hardware.camera.color_detector import detect_colored_objects, choose_best_result_with_metrics
+from irobot.interfaces.perception_pipeline import ObjectDetection
 from irobot.hardware.camera.distance_estimator import (
     MARKER_FOCAL_PX,
     MARKER_ORIENTED_SIZE_PX,
     MARKER_SIDE_CM,
     estimate_marker_distance_cm,
+    estimate_distance_cm,
 )
 from irobot.interfaces.aruco_marker_decoder import (
     ArucoFrameDetection,
@@ -21,6 +25,53 @@ TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
 PREVIEW_SIZE_PX = (640, 480)
 ORIENTED_SIZE_PX = MARKER_ORIENTED_SIZE_PX
+
+
+def detect_balls(
+    frame_rgb, settings: RuntimeSettings,
+) -> dict[str, tuple[ObjectDetection, tuple[int, int, int, int]] | None]:
+    results: dict[str, tuple[ObjectDetection, tuple[int, int, int, int]] | None] = {}
+    for color in ("red", "yellow"):
+        candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
+        _, metrics = choose_best_result_with_metrics(
+            candidates, color, frame_rgb.shape, robotic=True,
+        )
+        if metrics is None or metrics["kind"] != "ball":
+            results[color] = None
+            continue
+        x, _, width, _ = metrics["bbox"]
+        center_x = (x + width / 2) * 480 / frame_rgb.shape[1]
+        position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
+        distance = estimate_distance_cm(
+            metrics["diameter_px"], settings.camera_ball_diameter_cm, settings.camera_focal_px,
+        )
+        results[color] = (
+            ObjectDetection(
+                label=f"{color}_ball", position=position, distance_cm=distance,
+                distance_visual_cm=distance, confidence=0.95, diameter_px=metrics["diameter_px"],
+            ),
+            metrics["bbox"],
+        )
+    return results
+
+
+def format_object_status(name: str, detection: ObjectDetection | None, *, cached: bool = False) -> str:
+    if detection is None:
+        return f"{name}: absent"
+    distance = f"{detection.distance_cm:.1f} cm" if detection.distance_cm is not None else "indisponible"
+    state = "memorized" if cached else "detected"
+    return f"{name}: {state}; {detection.position}; distance={distance}; confidence={detection.confidence:.2f}"
+
+
+def _draw_object_status(
+    frame, name: str, detection: ObjectDetection | None, row: int, color, cv2_api, *, cached: bool = False,
+) -> None:
+    text = f"{name} ABSENT"
+    if detection is not None:
+        distance = f"~{detection.distance_cm:.1f}cm" if detection.distance_cm is not None else "DIST N/A"
+        state = " MEM" if cached else ""
+        text = f"{name}{state} {detection.position} {distance} ({detection.confidence:.2f})"
+    cv2_api.putText(frame, text, (12, 30 + row * 30), cv2_api.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
 
 def compute_marker_distance_cm(
@@ -129,14 +180,16 @@ def main() -> int:
     decoder = OpenCVArucoMarkerDecoder(TEST_MARKER_IDENTITY)
     settings = load_runtime_settings()
     enhancer = FrameEnhancer(settings)
+    faces = FaceDetector(settings)
     camera = Picamera2(0)
     started = False
-    last_status: tuple[ObservationDisposition, str | None] | None = None
+    last_status: tuple | None = None
     print(
-        "Diagnostic ArUco statique : DICT_4X4_50 / ID 1. "
+        "Diagnostic vision : ArUco DICT_4X4_50 / ID 1, visages, balles rouge/jaune. "
         f"Distance directe estimée par pose (côté {MARKER_SIDE_CM:g} cm, "
         f"focale {MARKER_FOCAL_PX:g} px) ; "
         "objectif non calibré, distorsion non corrigée. "
+        "Distances visage/balle indicatives. Visage mémorisé signalé pendant la grâce. "
         "Aucune image n'est enregistrée. Appuyez sur q pour quitter.",
         flush=True,
     )
@@ -153,14 +206,33 @@ def main() -> int:
             rotated_rgb = enhancer.apply(rotated_rgb)
             grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
             detection = decoder.detect(grayscale)
+            face = faces.detect(rotated_rgb)
+            balls = detect_balls(rotated_rgb, settings)
             display_frame = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2BGR)
             frame_size_px = (rotated_rgb.shape[1], rotated_rgb.shape[0])
             _draw_detection(display_frame, detection, cv2, frame_size_px)
-            cv2.imshow("ArUco DICT_4X4_50 - ID 1", display_frame)
+            statuses = [format_object_status("FACE", face, cached=faces.is_cached)]
+            _draw_object_status(
+                display_frame, "FACE", face, 1, (255, 200, 0), cv2, cached=faces.is_cached,
+            )
+            if faces.bounding_box is not None:
+                x, y, width, height = map(round, faces.bounding_box)
+                cv2.rectangle(display_frame, (x, y), (x + width, y + height), (255, 200, 0), 2)
+            for row, (color, result) in enumerate(balls.items(), start=2):
+                ball = result[0] if result else None
+                text = format_object_status(f"BALL {color.upper()}", ball)
+                statuses.append(text)
+                box_color = (0, 0, 255) if color == "red" else (0, 255, 255)
+                _draw_object_status(display_frame, f"BALL {color.upper()}", ball, row, box_color, cv2)
+                if result:
+                    x, y, width, height = result[1]
+                    cv2.rectangle(display_frame, (x, y), (x + width, y + height), box_color, 2)
+            cv2.imshow("Vision - ArUco / Face / Red / Yellow", display_frame)
 
-            status_key = (detection.disposition, detection.reason)
+            status_key = (detection.disposition, detection.reason, *statuses)
             if status_key != last_status:
                 print(format_detection_status(detection, frame_size_px), flush=True)
+                print(" | ".join(statuses), flush=True)
                 last_status = status_key
 
             if cv2.waitKey(1) & 0xFF == ord("q"):

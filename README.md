@@ -105,6 +105,14 @@ Depuis la racine du dépôt, utiliser les scripts selon le matériel et la plate
 | [`install_respeaker.sh`](scripts/install/install_respeaker.sh) | Configure l'overlay audio et les outils du HAT ReSpeaker 2-Mic. | Sur le Pi avec le HAT ReSpeaker connecté, en alternative au casque Bluetooth. Un redémarrage est nécessaire. |
 | [`install_llm_mac_portable.sh`](scripts/install/install_llm_mac_portable.sh) | Installe le LLM portable pour les tests locaux sans Homebrew. | Sur macOS uniquement ; ne configure pas le matériel du Raspberry Pi. |
 
+Pour vérifier la vision sur le Pi avec affichage X11, lancer
+`uv run vision-detect-live` : ID ArUco 1, visage et balles rouge/jaune sont
+détectés simultanément, avec distances estimées et rectangles/coins.
+L'outil [vision_diagnostic.py](src/irobot/interfaces/vision_diagnostic.py) réutilise
+la correction du contre-jour et les détecteurs du runtime, sans moteur ni
+enregistrement. Quitter avec `q` ou Ctrl+C. L'ancienne commande
+`marker-detect-live` reste un alias. Voir les [réglages et limites](src/irobot/README.md#diagnostic-vision).
+
 ## Installation et configuration sur Raspberry Pi
 
 ### 1. Préparer Raspberry Pi OS

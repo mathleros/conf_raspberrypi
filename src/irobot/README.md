@@ -92,7 +92,7 @@ et l'absence de fusion ultrason pour les marqueurs restent inchangés.
 ## Correction du contre-jour
 
 [frame_enhancer.py](hardware/camera/frame_enhancer.py) partage la correction entre
-le runtime, `camera-live`, `color-detector` / `balle-rouge`, `marker-detect-live`
+le runtime, `camera-live`, `color-detector` / `balle-rouge`, `vision-detect-live`
 et `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
 au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
 appliqué uniquement au canal de luminosité L de LAB, avant toute détection.
@@ -117,6 +117,69 @@ valeurs HSV malgré la conservation des canaux a/b. Vérifier sur le Pi les
 balles rouge/jaune, les IDs ArUco, les faux positifs et la latence, en éclairage
 normal et en contre-jour. Refaire la calibration de distance avec les mêmes
 réglages que le runtime si la segmentation et les diamètres mesurés changent.
+
+## Détection de visages
+
+[face_detector.py](hardware/camera/face_detector.py) utilise YuNet uniquement
+pour les cibles explicites `face` et `human` (alias). Le runtime applique d'abord
+le même CLAHE que pour les balles/ArUco, puis le wrapper convertit RGB vers BGR.
+Le modèle est chargé à la première image demandée pour un visage, jamais pour
+une balle ou un marqueur. Un modèle absent ou invalide et une erreur YuNet sont
+signalés explicitement ; une erreur de capture arrête le flux sans détection.
+
+Le modèle [face_detection_yunet_2023mar.onnx](../../config/face_detection_yunet_2023mar.onnx)
+provient d'[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet),
+sous [licence MIT](../../config/face_detection_yunet_LICENSE.txt).
+Taille : 232 589 octets ; SHA-256 :
+`8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`.
+Il est livré avec le projet, sans téléchargement automatique au démarrage.
+
+La section `[camera]` de [runtime_calibration.toml](../../config/runtime_calibration.toml)
+configure `face_model_path` (relatif au TOML ou absolu), `face_width_cm = 15.0`,
+`face_score_threshold = 0.45` et `face_grace_frames = 10`.
+La distance indicative vaut `focal_px × face_width_cm / largeur_du_visage_px`,
+avec la focale caméra existante et les pixels de l'image orientée, sans fusion
+ultrason. Largeur et seuil doivent être finis et positifs, le seuil au plus 1,
+et la tolérance un entier non négatif.
+
+Le visage de plus grande largeur admissible est sélectionné ; sa sortie est
+un `ObjectDetection(label="face")` avec position, distance, confiance et largeur
+dans `diameter_px`. La mémoire conserve la dernière observation jusqu'à N images
+traitées sans visage, puis retourne `None`. Elle est effacée lors d'un changement
+de cible, de dimensions ou d'une erreur YuNet ; une réacquisition remet le compteur
+à zéro. Les appels répétés à `detect()` ne consomment pas cette tolérance.
+Pendant la grâce, position/distance/confiance sont celles de l'ancienne observation,
+pas des mesures actuelles ; la durée réelle dépend du débit caméra. Régler
+`face_grace_frames = 0` pour que toute perte soit immédiatement visible au suivi.
+
+Il s'agit de détection, pas de reconnaissance d'identité : plusieurs visages
+peuvent provoquer un changement de personne suivie. La distance varie avec la
+largeur réelle et l'orientation du visage et doit être vérifiée sur le Pi avant
+suivi moteur. Aucune image ni donnée biométrique n'est enregistrée par le wrapper.
+`SimulatedObjectPerception` accepte les mêmes cibles pour les essais Mac.
+Les contrôleurs de suivi existants acceptent la source `face` sans nouveau contrat.
+La commande vocale « suis-moi » et les cibles `marker`/`me` restent liées au
+marqueur ArUco : cette modification ne change pas le parseur ni les prompts LLM.
+
+## Diagnostic vision
+
+`uv run vision-detect-live` lance [vision_diagnostic.py](interfaces/vision_diagnostic.py)
+sur la caméra 0 OV5647, avec affichage X11 et rotation habituelle de 90°.
+Il recherche simultanément l'ID ArUco `DICT_4X4_50 / 1`, le visage sélectionné
+par YuNet et la meilleure balle de chacune des couleurs rouge et jaune.
+Le CLAHE n'est appliqué qu'une fois à chaque image avant les trois détecteurs.
+Le visage et les balles ont des rectangles distincts ; le marqueur conserve
+ses quatre coins et sa distance par pose. Les statuts et distances sont affichés
+à l'écran et journalisés lors de changements. Les objets colorés non classés
+comme balles ne sont pas présentés comme balles.
+
+Un visage conservé pendant le délai de grâce est marqué `memorized`, avec sa
+dernière boîte et ses anciennes mesures. Le diagnostic utilise les réglages
+caméra du TOML, ne commande aucun moteur et n'enregistre aucune image.
+Le modèle YuNet doit être disponible ; une erreur de détection n'est pas
+assimilée à une absence. Appuyer sur `q` ou Ctrl+C pour quitter.
+L'ancienne commande `marker-detect-live` reste un alias du diagnostic générique.
+Pour le lancement Python direct, utiliser `python -m irobot.interfaces.vision_diagnostic`.
 
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement

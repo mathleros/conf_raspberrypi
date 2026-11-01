@@ -9,8 +9,10 @@ import pytest
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.interfaces.perception_pipeline import ObjectDetection
+from irobot.interfaces.vision_diagnostic import detect_balls, format_object_status
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
-from irobot.interfaces.marker_diagnostic import (
+from irobot.interfaces.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
     compute_marker_distance_cm,
@@ -200,11 +202,17 @@ def test_overlay_shows_current_pose_distance_and_failures():
     ]
 
 
-def test_main_configures_reference_resolution_and_rotates_without_camera(monkeypatch, capsys):
-    from irobot.interfaces import marker_diagnostic
+@pytest.mark.parametrize("inference_error", [False, True])
+def test_main_configures_reference_resolution_and_rotates_without_camera(monkeypatch, capsys, inference_error):
+    from irobot.interfaces import vision_diagnostic
 
     calls = []
+    texts = []
+    boxes = []
+    windows = []
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.circle(frame, (180, 240), 25, (255, 0, 0), -1)
+    cv2.circle(frame, (460, 240), 25, (255, 255, 0), -1)
 
     class Camera:
         camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
@@ -250,14 +258,91 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     monkeypatch.setenv("DISPLAY", ":test")
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
     monkeypatch.setattr(
-        marker_diagnostic, "OpenCVArucoMarkerDecoder",
+        vision_diagnostic, "OpenCVArucoMarkerDecoder",
         lambda identity: SimpleNamespace(detect=detect),
     )
-    monkeypatch.setattr(cv2, "imshow", lambda *args: None)
+    face = ObjectDetection(label="face", position="left", distance_cm=90, confidence=0.9)
+
+    def detect_face(frame_rgb):
+        expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
+            cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
+        )
+        np.testing.assert_array_equal(frame_rgb, expected_rgb)
+        if inference_error:
+            raise cv2.error("synthetic diagnostic inference failure")
+        return face
+
+    monkeypatch.setattr(
+        vision_diagnostic, "FaceDetector",
+        lambda settings: SimpleNamespace(
+            detect=detect_face, is_cached=True, bounding_box=(20, 150, 100, 110),
+        ),
+    )
+    monkeypatch.setattr(cv2, "imshow", lambda name, image: windows.append((name, image.copy())))
+    monkeypatch.setattr(cv2, "putText", lambda image, text, *args: texts.append(text))
+    monkeypatch.setattr(cv2, "rectangle", lambda image, start, end, color, thickness: boxes.append(
+        (start, end, color),
+    ))
     monkeypatch.setattr(cv2, "waitKey", lambda *args: ord("q"))
     monkeypatch.setattr(cv2, "destroyAllWindows", lambda: calls.append("close"))
-    assert marker_diagnostic.main() == 0
+    if inference_error:
+        with pytest.raises(cv2.error, match="diagnostic inference failure"):
+            vision_diagnostic.main()
+        assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
+        assert windows == []
+        return
+    assert vision_diagnostic.main() == 0
     assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
     output = capsys.readouterr().out
     assert "objectif non calibré" in output
     assert "distance=80.0 cm" in output
+    assert "FACE: memorized; left; distance=90.0 cm" in output
+    assert "BALL RED: detected" in output
+    assert "BALL YELLOW: detected" in output
+    assert len(texts) == 4
+    assert len(boxes) == 3
+    assert boxes[0][:2] == ((20, 150), (120, 260))
+    assert windows[0][0] == "Vision - ArUco / Face / Red / Yellow"
+    assert windows[0][1].shape == (640, 480, 3)
+    assert "MEM" in texts[1]
+    for text in texts[1:]:
+        width = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0]
+        assert width <= 480 - 12
+
+
+def test_both_balls_are_detected_independently_with_existing_distance_model():
+    frame = np.zeros((640, 480, 3), np.uint8)
+    cv2.circle(frame, (100, 320), 25, (255, 0, 0), -1)
+    cv2.circle(frame, (380, 320), 35, (255, 255, 0), -1)
+    results = detect_balls(frame, RuntimeSettings(camera_ball_diameter_cm=6, camera_focal_px=680))
+    red, red_box = results["red"]
+    yellow, yellow_box = results["yellow"]
+    assert red.label == "red_ball" and red.position == "left"
+    assert yellow.label == "yellow_ball" and yellow.position == "right"
+    assert red.distance_cm == pytest.approx(680 * 6 / red.diameter_px)
+    assert yellow.distance_cm == pytest.approx(680 * 6 / yellow.diameter_px)
+    assert red_box[2] == 49
+    assert yellow_box[2] == 69
+    assert red.distance_cm > yellow.distance_cm
+
+
+def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
+    from irobot.interfaces import vision_diagnostic
+
+    frame = np.zeros((640, 480, 3), np.uint8)
+    assert detect_balls(frame, RuntimeSettings()) == {"red": None, "yellow": None}
+    monkeypatch.setattr(vision_diagnostic, "detect_colored_objects", lambda *args, **kwargs: [
+        {"kind": "object", "bbox": (100, 200, 50, 50), "area": 1000, "diameter_px": 35},
+    ])
+    assert detect_balls(frame, RuntimeSettings()) == {"red": None, "yellow": None}
+
+
+def test_object_status_distinguishes_absence_detection_and_cached_face():
+    assert format_object_status("FACE", None, cached=True) == "FACE: absent"
+    detection = ObjectDetection(label="face", position="center", distance_cm=100, confidence=0.8)
+    assert format_object_status("FACE", detection) == (
+        "FACE: detected; center; distance=100.0 cm; confidence=0.80"
+    )
+    assert "memorized" in format_object_status("FACE", detection, cached=True)
+    detection.distance_cm = None
+    assert "distance=indisponible" in format_object_status("FACE", detection)

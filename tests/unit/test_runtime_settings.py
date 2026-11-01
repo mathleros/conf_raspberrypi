@@ -148,3 +148,44 @@ def test_invalid_backlight_settings_are_rejected(tmp_path, monkeypatch, key, val
     monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     with pytest.raises(ValueError, match=f"camera_{key}"):
         settings.load_runtime_settings()
+
+
+def test_face_settings_and_relative_model_path(tmp_path, monkeypatch):
+    cfg = tmp_path / "runtime_calibration.toml"
+    cfg.write_text(
+        '[camera]\nface_model_path = "models/yunet.onnx"\nface_width_cm = 12.0\n'
+        "face_score_threshold = 0.8\nface_grace_frames = 4\n",
+    )
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    loaded = settings.load_runtime_settings()
+    assert loaded.camera_face_model_path == str(tmp_path / "models" / "yunet.onnx")
+    assert loaded.camera_face_width_cm == 12
+    assert loaded.camera_face_score_threshold == 0.8
+    assert loaded.camera_face_grace_frames == 4
+
+
+def test_absolute_face_model_path_preserved(tmp_path, monkeypatch):
+    model = tmp_path / "yunet.onnx"
+    cfg = tmp_path / "runtime_calibration.toml"
+    cfg.write_text(f'[camera]\nface_model_path = "{model}"\n')
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    assert settings.load_runtime_settings().camera_face_model_path == str(model)
+
+
+@pytest.mark.parametrize("key,value", [
+    ("face_width_cm", "0"), ("face_width_cm", "-1"),
+    ("face_width_cm", "nan"), ("face_width_cm", "true"),
+    ("face_width_cm", '"15"'),
+    ("face_score_threshold", "0"), ("face_score_threshold", "1.1"),
+    ("face_score_threshold", "inf"), ("face_score_threshold", "false"),
+    ("face_grace_frames", "-1"), ("face_grace_frames", "1.5"),
+    ("face_grace_frames", "true"), ("face_grace_frames", '"10"'),
+    ("face_model_path", '""'), ("face_model_path", '"  "'),
+    ("face_model_path", "false"),
+])
+def test_invalid_face_settings_rejected(tmp_path, monkeypatch, key, value):
+    cfg = tmp_path / "runtime_calibration.toml"
+    cfg.write_text(f"[camera]\n{key} = {value}\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    with pytest.raises(ValueError, match=f"camera_{key}"):
+        settings.load_runtime_settings()

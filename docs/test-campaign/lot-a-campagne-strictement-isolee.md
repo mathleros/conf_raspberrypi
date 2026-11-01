@@ -59,8 +59,9 @@ les résultats obsolètes et les pannes de journal pendant préparation,
 activation/reprise et franchissement d'échéance. Un journal bloqué ne retarde
 pas la remise du zéro par le stop local.
 
-`tests/unit/test_marker_diagnostic.py` vérifie le contrat de présentation du
-diagnostic ArUco sans caméra. La commande `marker-detect-live` ouvre la caméra
+`tests/unit/test_vision_diagnostic.py` vérifie le contrat de présentation du
+diagnostic vision sans caméra. La commande `vision-detect-live` (ancien alias
+`marker-detect-live`) ouvre la caméra
 réelle et son affichage. Une campagne statique avec marqueur a été autorisée
 séparément ; ne pas la lancer pendant la validation isolée ni avant
 synchronisation explicite du code vers le Pi.
@@ -69,12 +70,15 @@ Après synchronisation du code sur le Pi, invocation depuis la racine du dépôt
 sans réinstaller de dépendance :
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m irobot.interfaces.marker_diagnostic
+PYTHONPATH=src .venv/bin/python -m irobot.interfaces.vision_diagnostic
 ```
 
 Cette commande ouvre la caméra 0 uniquement si son modèle est rapporté comme
 OV5647, détecte le seul couple configuré dans le diagnostic
 `DICT_4X4_50`/ID `1`, affiche les coins en pixels et ne sauvegarde pas d'image.
+Elle détecte désormais aussi les visages YuNet et les balles rouge/jaune,
+avec le même prétraitement contre-jour. Les distances sont indicatives et
+le visage conservé pendant le délai de grâce est signalé explicitement.
 Elle exige une campagne réelle autorisée séparément ; `camera-live` déjà
 autorisé ne couvre pas cette détection.
 

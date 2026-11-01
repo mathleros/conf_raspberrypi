@@ -29,6 +29,12 @@ ultrasonic_fusion = false
 exposure_value = 1.0
 clahe_enabled = true
 clahe_clip_limit = 3.0
+# YuNet : chemin relatif à ce fichier TOML (ou chemin absolu).
+face_model_path = "face_detection_yunet_2023mar.onnx"
+face_width_cm = 15.0
+face_score_threshold = 0.45
+# Tolérance en images traitées sans visage ; 0 désactive la mémoire.
+face_grace_frames = 10
 
 [human_follow]
 # Budgets provisoires autorises, NON qualifies ; ne debloquent pas le suivi moteur.

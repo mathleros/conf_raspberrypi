@@ -18,7 +18,9 @@ pythonpath = ["src"]
 [project.scripts]
 test = "irobot:main"
 camera-live = "irobot.hardware.camera.camera_live:main"
-marker-detect-live = "irobot.interfaces.marker_diagnostic:main"
+vision-detect-live = "irobot.interfaces.vision_diagnostic:main"
+# Ancien nom conservé comme alias.
+marker-detect-live = "irobot.interfaces.vision_diagnostic:main"
 color-detector = "irobot.hardware.camera.color_detector:main"
 # Alias conservé pour compatibilité avec l'ancien nom
 balle-rouge = "irobot.hardware.camera.color_detector:main"

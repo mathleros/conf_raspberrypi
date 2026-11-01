@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
@@ -23,6 +23,10 @@ class SimulatedObjectPerception(ObjectPerceptionPipeline):
             self._idx = (self._idx + 1) % len(self.sequence)
         else:
             self._idx = min(self._idx + 1, len(self.sequence) - 1)
+        if target and target.strip().lower() in {"face", "human"}:
+            if current.label in {"face", "human", "object"}:
+                return replace(current, label="face")
+            return None
         if target and current.label not in {target, "object"}:
             return ObjectDetection(label=target, position="UNKNOWN", distance_cm=None, confidence=0.0)
         return current

@@ -36,6 +36,53 @@ uv venv --system-site-packages
 uv sync --project .
 ```
 
+### Détection de visages (Pi et Mac)
+
+Aucun installateur supplémentaire n'est nécessaire : `opencv-python`, déclaré
+dans [pyproject.toml](../pyproject.toml), fournit YuNet et CLAHE. Le modèle
+[face_detection_yunet_2023mar.onnx](../config/face_detection_yunet_2023mar.onnx)
+et sa [licence MIT](../config/face_detection_yunet_LICENSE.txt) sont livrés dans
+le dépôt : conserver ces deux fichiers lors d'une copie vers le Pi.
+
+`install_llm.sh` synchronise déjà les dépendances Python. Le script
+`install_llm_mac_portable.sh` ne gère que le LLM ; sur Mac, exécuter aussi
+`uv sync --project .` comme à l'étape 1. Il n'est pas nécessaire de recompiler
+llama.cpp ou de retélécharger le modèle GGUF pour activer les visages.
+
+Depuis la racine du projet, vérifier le chargement du modèle et une inférence
+sans caméra, sans visage réel et sans moteur :
+
+```bash
+uv run python - <<'PY'
+import numpy as np
+from irobot.config.settings import load_runtime_settings
+from irobot.hardware.camera.face_detector import FaceDetector
+
+detector = FaceDetector(load_runtime_settings())
+assert detector.detect(np.zeros((640, 480, 3), dtype=np.uint8)) is None
+print("YuNet : chargement et inference OK")
+PY
+```
+
+Le chemin `face_model_path` de la section `[camera]` de
+[runtime_calibration.toml](../config/runtime_calibration.toml) est relatif à ce
+fichier TOML, ou absolu. Une absence du modèle ou une erreur OpenCV est signalée,
+sans téléchargement automatique ni repli silencieux. Le contrôle ci-dessus
+ne qualifie ni la caméra Picamera2 sur le Pi, ni la précision des distances,
+ni le suivi moteur ; ces essais matériels restent nécessaires.
+
+Sur le Pi avec un affichage X11, lancer le diagnostic commun :
+
+```bash
+uv run vision-detect-live
+```
+
+Il affiche simultanément l'ID ArUco 1, le visage sélectionné et les balles
+rouge/jaune, avec leurs distances estimées, sans piloter les moteurs ni enregistrer
+d'images. `q` ou Ctrl+C quitte l'outil. L'ancienne commande `marker-detect-live`
+reste un alias. Après mise à jour du dépôt, `uv sync --project .` installe la
+nouvelle commande.
+
 ### 2. Installer le support Bluetooth audio (recommandé pour le casque Jabra)
 
 ```bash

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import threading
 
 import cv2
@@ -11,7 +12,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
 
-from irobot.config.settings import load_runtime_settings
+from irobot.config.settings import MarkerIdentity, load_runtime_settings
 from irobot.hardware.camera.color_detector import choose_best_result_with_metrics, detect_colored_objects
 from irobot.hardware.camera.distance_estimator import (
     DistanceReader,
@@ -19,13 +20,20 @@ from irobot.hardware.camera.distance_estimator import (
     estimate_distance_cm,
     fuse_with_ultrasound,
 )
+from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder
+from irobot.interfaces.human_perception_contracts import ObservationDisposition
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
 logger = logging.getLogger(__name__)
 
 
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
-    """Pipeline de perception live basé sur Picamera2 + détection couleur."""
+    """Perception Picamera2 : balles colorées et ArUco pour les cibles marker/me.
+
+    Sans filtre balle, ArUco est prioritaire. L'identité configurée est utilisée,
+    sinon aruco/DICT_4X4_50/1 ; distance indicative pour un carré de 8 cm,
+    focale de 600 px et seuils horizontaux rapportés à une largeur de 480 px.
+    """
 
     def __init__(
         self,
@@ -42,10 +50,13 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         autostart: bool = True,
     ) -> None:
         self.camera_index = int(camera_index)
-        self.default_target = (default_target or "red").strip().lower()
+        self.default_target = (default_target or "").strip().lower()
         self.poll_interval_s = max(0.0, float(poll_interval_s))
 
         settings = load_runtime_settings()
+        self._marker_decoder = OpenCVArucoMarkerDecoder(
+            settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
+        )
         self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
         self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
         self.distance_reader = distance_reader
@@ -54,6 +65,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._smoother = ExponentialSmoother(smoothing_alpha)
 
         self._last_detection: ObjectDetection | None = None
+        self._requested_target: str | None = None
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._capture_loop, name="camera-live-perception", daemon=False)
@@ -97,6 +109,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def _fuse_distance_cm(self, detection: ObjectDetection) -> float | None:
         """Fusion ultrason, appelée depuis le thread appelant de detect()."""
+        if detection.label == "marker_1":
+            return detection.distance_cm
         visual = detection.distance_visual_cm
         if visual is None or not self.fusion_enabled or self.distance_reader is None:
             return visual
@@ -108,11 +122,42 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             return visual
         return fuse_with_ultrasound(visual, ultrasound, self.fusion_tolerance)
 
+    def _detect_marker(self, frame_rgb) -> ObjectDetection | None:
+        result = self._marker_decoder.detect(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY))
+        if result.disposition != ObservationDisposition.VALID:
+            if result.disposition != ObservationDisposition.ABSENT:
+                logger.warning("Détection ArUco non valide : %s", result.reason)
+            return None
+        corners = result.corners_px
+        if corners is None or len(corners) != 4:
+            logger.warning("Détection ArUco sans quatre coins valides.")
+            return None
+        width_px = (math.dist(corners[0], corners[1]) + math.dist(corners[3], corners[2])) / 2
+        distance = estimate_distance_cm(width_px, 8.0, 600.0)
+        if distance is None:
+            logger.warning("Largeur apparente ArUco invalide : %s", width_px)
+            return None
+        center_x = sum(x for x, _ in corners) / 4 * 480 / frame_rgb.shape[1]
+        position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
+        return ObjectDetection(
+            label="marker_1", position=position, distance_cm=distance,
+            distance_visual_cm=distance, confidence=1.0,
+        )
+
     def _process_frame(self, frame_rgb) -> ObjectDetection | None:
         """Détecte la meilleure cible dans une frame déjà orientée (RGB) et renseigne la distance."""
+        with self._lock:
+            target = self._requested_target or self.default_target
+        marker_only = target in {"marker", "me"}
+        ball_filter = target == "both" or any(value in target for value in ("red", "yellow", "ball"))
+        if marker_only or not ball_filter:
+            marker = self._detect_marker(frame_rgb)
+            if marker is not None or marker_only:
+                self._smoother.reset()
+                return marker
         results: list[str] = []
         metrics_by_result: dict[str, dict | None] = {}
-        for color in self._iter_colors_for_target(None, self.default_target):
+        for color in self._iter_colors_for_target(target, self.default_target):
             candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True, debug=False)
             best, metrics = choose_best_result_with_metrics(candidates, color, frame_rgb.shape, robotic=True)
             if best:
@@ -189,15 +234,19 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     logger.exception("Échec de la fermeture de la caméra.")
 
     def detect(self, *, target: str | None = None) -> ObjectDetection | None:
+        expected = (target or "").strip().lower()
         with self._lock:
+            self._requested_target = expected or None
             detection = self._last_detection
 
         if detection is None:
             return None
-        if target:
-            expected = target.strip().lower()
+        if expected:
             label = detection.label.lower()
-            if expected not in label and label not in expected:
+            if expected in {"marker", "me"}:
+                if label != "marker_1":
+                    return None
+            elif expected not in label and label not in expected:
                 return None
         return dataclasses.replace(detection, distance_cm=self._fuse_distance_cm(detection))
 

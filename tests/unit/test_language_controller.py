@@ -28,7 +28,7 @@ def test_intent_parser_and_planner_follow_person():
         assert validator.validate(intent)
 
     controller = LanguageController(robot=FakeRobot())
-    assert [skill.name for skill in controller.planner.plan("follow_person")] == ["approach_target"]
+    assert [skill.name for skill in controller.planner.plan("follow_person")] == ["follow_object"]
 
 
 @pytest.mark.parametrize("phrase", [
@@ -38,7 +38,7 @@ def test_intent_parser_and_planner_follow_person():
 def test_intent_parser_approach_me_targets_marker(phrase):
     intent = IntentParser().parse(phrase)
 
-    assert intent.name == "follow_person"
+    assert intent.name == "search_and_approach_object"
     assert intent.target == "marker"
     assert intent.raw_text == phrase
     assert IntentValidator().validate(intent)

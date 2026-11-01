@@ -29,11 +29,6 @@ def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[st
     return voice_llm.ask_llm_for_intent_plan_with_trace(text, post=_post_llm_chat)
 
 
-def ask_llm_for_intent_plan(text: str) -> list[Intent]:
-    intents, _ = ask_llm_for_intent_plan_with_trace(text)
-    return intents
-
-
 def transcribe_loop(device: str):
     from irobot.hardware.audio.voice_input import transcribe_loop as transcribe
 

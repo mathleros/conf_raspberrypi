@@ -64,7 +64,18 @@ et lors d'un changement de cible (par exemple balle rouge vers marqueur avec
 « suis-moi »). Une image encore en traitement pour l'ancienne cible ne satisfait
 pas cette attente, limitée à une seconde et interrompue à la fermeture ou en cas
 d'échec caméra. Un dépassement est journalisé et ne fournit aucune détection.
-Le suivi ArUco conserve l'arrêt sur absence ou perte du marqueur, sans balayage.
+Les intentions `follow_person`, `follow_red_ball` et `follow_object` utilisent
+le même suivi continu, sans limite de tentatives, de tracking ou de recherche
+lorsqu'aucune durée n'est demandée. À distance de consigne, le robot attend puis
+reprend si la cible s'éloigne. Lors d'une perte de cible, il arrête la translation,
+attend le délai de perte courte puis recherche en rotation jusqu'à réacquisition
+ou arrêt. Cela vaut aussi pour le marqueur ArUco.
+Une durée explicitement demandée (`duration_s`) conserve le mode temporisé et
+ses bornes. `search_and_approach_object` reste une approche ponctuelle bornée,
+y compris « approche-toi de moi » avec ou sans LLM.
+Les arrêts vocaux, les obstacles, la validation et les erreurs matérielles restent
+prioritaires ; une erreur de suivi n'est pas relancée automatiquement.
+Les traces `step_result` incluent le statut, le message et les données des skills.
 Une protection déclarée `present` reste refusée, faute d'adaptateur qualifié.
 
 La distance ArUco du runtime et du diagnostic utilise la même fonction

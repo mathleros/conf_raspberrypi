@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
+from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
 from irobot.interfaces.intent_parser import Intent
 from irobot.interfaces.plan_guards import (
     is_pure_stop,
@@ -51,7 +52,9 @@ class VoiceExecutionMixin(VoiceRuntimeState):
     def _effective_step_timeout(self, intent: Intent) -> float:
         base = float(self.settings.step_timeout_seconds)
         params = intent.parameters or {}
-        if intent.name in {"search_and_approach_object", "follow_red_ball", "follow_person"}:
+        if intent.name in FOLLOW_INTENTS and params.get("duration_s") is None:
+            return float("inf")
+        if intent.name == "search_and_approach_object":
             tracking_s = ApproachTargetSkill._to_float(
                 params.get("tracking_timeout_s"), ApproachTargetSkill.DEFAULT_MAX_TRACKING_S
             )
@@ -75,7 +78,8 @@ class VoiceExecutionMixin(VoiceRuntimeState):
         return max(float(self.settings.mission_timeout_seconds), total)
 
     def _execute_intent_with_retry(self, intent: Intent, trace_path: Path) -> dict[str, Any]:
-        max_retries = max(0, int(self.settings.max_step_retries))
+        following = intent.name in FOLLOW_INTENTS
+        max_retries = 0 if following else max(0, int(self.settings.max_step_retries))
         step_timeout = self._effective_step_timeout(intent)
         attempt = 0
         last_result: dict[str, Any] | None = None
@@ -100,6 +104,10 @@ class VoiceExecutionMixin(VoiceRuntimeState):
             if result.get("status") == "aborted":
                 return result
 
+            if following and (self._step_has_failure(result) or self._step_in_progress(result)):
+                result.update(status="failed", reason="tracking did not complete")
+                return result
+
             if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
                 return result
 
@@ -121,6 +129,10 @@ class VoiceExecutionMixin(VoiceRuntimeState):
             "event": "step_result", "attempt": attempt,
             "intent": self._intent_to_dict(intent), "status": result.get("status"),
             "duration_seconds": round(duration, 4),
+            "results": [
+                {"status": item.status, "message": item.message, "data": item.data}
+                for item in result.get("results") or []
+            ],
         })
 
     def _abort_on_safety_stop(

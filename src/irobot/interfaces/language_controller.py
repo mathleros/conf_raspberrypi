@@ -9,6 +9,7 @@ from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
+from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import follow_request_refusal
@@ -53,7 +54,7 @@ class LanguageController:
         check_obstacle = getattr(context.robot, "check_obstacle", None)
         if check_obstacle is None:
             return False
-        if skill_name not in {"move_forward", "turn_left", "turn_right", "approach_target"}:
+        if skill_name not in {"move_forward", "turn_left", "turn_right", "approach_target", "follow_object"}:
             return False
         try:
             return bool(check_obstacle())
@@ -83,7 +84,7 @@ class LanguageController:
                 active_intent_name=intent.name,
                 active_intent_parameters={
                     **intent.parameters,
-                    **({"target_object": intent.target} if intent.name == "follow_person" else {}),
+                    **({"target_object": intent.target} if intent.name in FOLLOW_INTENTS and intent.target else {}),
                 },
                 last_camera_position=None,
                 last_object_position=None,
@@ -144,7 +145,7 @@ class LanguageController:
                 active_intent_name=intent.name,
                 active_intent_parameters={
                     **intent.parameters,
-                    **({"target_object": intent.target} if intent.name == "follow_person" else {}),
+                    **({"target_object": intent.target} if intent.name in FOLLOW_INTENTS and intent.target else {}),
                 },
                 last_camera_position=None,
                 last_object_position=None,

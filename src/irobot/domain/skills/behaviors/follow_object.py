@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 
@@ -9,10 +10,10 @@ from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
 
 
 class FollowObjectSkill(TargetTrackingMixin, Skill):
-    """Suit une cible visuelle en conservant une distance cible pendant une durée donnée."""
+    """Suit une cible jusqu'à un arrêt, ou pendant une durée explicitement demandée."""
 
     name = "follow_object"
-    description = "Suit une cible visuelle à distance constante pendant une durée donnée"
+    description = "Suit une cible visuelle à distance constante jusqu'à un arrêt"
 
     CONTROL_LOOP_PERIOD_S = 0.02
     DEFAULT_TARGET = "yellow"
@@ -84,21 +85,27 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             try:
                 self._stop_robot(context)
             except Exception:
-                pass
+                logging.getLogger(__name__).exception("Impossible d'arreter le robot apres le suivi")
 
     def _run(self, context: SkillContext) -> SkillResult:
         params = dict(context.state.get("active_intent_parameters") or {})
         settings = self.settings
+        if not callable(getattr(context.perception, "detect", None)):
+            raise RuntimeError("Le suivi nécessite une perception visuelle active")
         if not params.get("target_object"):
             params["target_object"] = self.DEFAULT_TARGET
             context.state["active_intent_parameters"] = params
 
-        stand_off_cm = min(
-            max(self._to_float(params.get("stand_off_cm"), self.DEFAULT_STAND_OFF_CM), float(settings.min_stand_off_cm)),
+        approach_follow = context.state.get("active_intent_name") in {"follow_person", "follow_red_ball"}
+        default_stand_off_cm = 20.0 if approach_follow else self.DEFAULT_STAND_OFF_CM
+        default_tolerance_cm = 10.0 if approach_follow else self.DEFAULT_TOLERANCE_CM
+        stand_off_cm = default_stand_off_cm if params.get("stand_off_cm") is None else min(
+            max(self._to_float(params.get("stand_off_cm"), default_stand_off_cm), float(settings.min_stand_off_cm)),
             float(settings.max_stand_off_cm),
         )
-        tolerance_cm = max(0.0, self._to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_TOLERANCE_CM))
-        duration_s = min(
+        tolerance_cm = max(0.0, self._to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
+        continuous = params.get("duration_s") is None
+        duration_s = None if continuous else min(
             max(0.0, self._to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
             float(settings.max_follow_duration_sec),
         )
@@ -119,7 +126,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         def set_state(phase: str, **extra) -> None:
             context.state["follow_target_state"] = {"phase": phase, "iterations": iterations, **extra}
 
-        while now() - started_at < duration_s:
+        while duration_s is None or now() - started_at < duration_s:
             iterations += 1
 
             emergency = self._is_emergency_stop_requested(context)
@@ -144,7 +151,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                     continue
                 if search_started_at is None:
                     search_started_at = current
-                if current - search_started_at >= search_timeout_s:
+                if not continuous and current - search_started_at >= search_timeout_s:
                     set_state("lost_target", searched_for_s=round(current - search_started_at, 3))
                     return self._result(
                         context,
@@ -179,7 +186,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 )
                 context.state["motion"] = "follow_object"
                 set_state("approaching", distance_cm=distance_cm)
-            elif distance_cm is not None and distance_cm < stand_off_cm - tolerance_cm:
+            elif not approach_follow and distance_cm is not None and distance_cm < stand_off_cm - tolerance_cm:
                 self._pulse_motion(
                     context, "backward",
                     self._step(stand_off_cm - distance_cm, self.BACKWARD_MIN_S, self.BACKWARD_MAX_S, backward=True),
@@ -194,6 +201,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
         self._stop_robot(context)
         context.state["motion"] = "stop"
+        assert duration_s is not None
         return self._result(
             context,
             "success",

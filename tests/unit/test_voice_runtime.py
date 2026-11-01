@@ -483,7 +483,7 @@ def test_effective_mission_timeout_is_sum_of_steps():
     assert runtime._effective_mission_timeout([Intent(name="stop")]) == runtime.settings.mission_timeout_seconds
 
 
-@pytest.mark.parametrize("name", ["search_and_approach_object", "follow_red_ball"])
+@pytest.mark.parametrize("name", ["search_and_approach_object"])
 @pytest.mark.parametrize(
     ("params", "expected"),
     [
@@ -504,7 +504,7 @@ def test_approach_timeout_preserves_larger_base():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
     runtime.settings = RuntimeSettings(step_timeout_seconds=60)
 
-    for name in ("search_and_approach_object", "follow_red_ball", "stop", "move_forward", "turn_right"):
+    for name in ("search_and_approach_object", "stop", "move_forward", "turn_right"):
         assert runtime._effective_step_timeout(Intent(name=name)) == 60.0
 
 

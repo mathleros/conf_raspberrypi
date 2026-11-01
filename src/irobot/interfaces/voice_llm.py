@@ -228,8 +228,3 @@ def warm_up_llm_async() -> threading.Thread:
     thread.start()
     return thread
 
-
-def ask_llm_for_intent_plan(text: str) -> list[Intent]:
-    """Compatibilité : retourne uniquement la liste d'intents planifiées."""
-    intents, _ = ask_llm_for_intent_plan_with_trace(text)
-    return intents

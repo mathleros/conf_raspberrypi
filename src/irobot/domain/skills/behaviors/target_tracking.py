@@ -6,6 +6,9 @@ from typing import Any
 from irobot.domain.skills.base_skill import SkillContext
 
 
+FOLLOW_INTENTS = frozenset({"follow_person", "follow_red_ball", "follow_object"})
+
+
 class TargetTrackingMixin:
     """Briques communes aux behaviors de suivi visuel (détection, sécurité, balayage)."""
 

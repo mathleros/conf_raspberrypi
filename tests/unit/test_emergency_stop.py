@@ -31,7 +31,8 @@ def test_controller_event_and_underlying_detector():
     assert controller.is_emergency_stop_requested() is True
 
 
-def test_stop_from_other_thread_interrupts_follow_object():
+@pytest.mark.parametrize("params", [{}, {"duration_s": 300}])
+def test_stop_from_other_thread_interrupts_follow_object(params):
     world = World(distance_cm=100.0)
     controller = RobotController(world)
     started = threading.Event()
@@ -41,7 +42,7 @@ def test_stop_from_other_thread_interrupts_follow_object():
         started.set()
         time.sleep(0.0005)
 
-    context = SkillContext(robot=controller, perception=world, state={"active_intent_parameters": {"duration_s": 300}})
+    context = SkillContext(robot=controller, perception=world, state={"active_intent_parameters": params})
     skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=world.time, sleep_fn=sleep)
 
     def stopper():

@@ -74,12 +74,12 @@ def test_cache_within_50ms_then_refresh(monkeypatch):
 
 
 def test_check_obstacle_shares_cache_and_none_is_not_cached(monkeypatch):
-    sensor, clock = _Sensor([None, 10.0]), _Clock()
+    sensor, clock = _Sensor([None, 3.0]), _Clock()
     car = _car(monkeypatch, sensor, clock)
 
-    assert car.check_obstacle() is True  # 10 cm < 20 cm, après un retry sur None
+    assert car.check_obstacle() is True  # 3 cm < 5 cm, après un retry sur None
     assert sensor.calls == 2
-    assert car.read_distance_cm() == 10.0  # servi par le cache
+    assert car.read_distance_cm() == 3.0  # servi par le cache
     assert sensor.calls == 2
 
 

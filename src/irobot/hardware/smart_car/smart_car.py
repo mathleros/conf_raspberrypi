@@ -58,7 +58,7 @@ class SmartCar2WD:
         in4=DEFAULT_PINS["in4"],
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
-        obstacle_threshold_cm: float = 20.0,
+        obstacle_threshold_cm: float = 5.0,
         sensor_trigger_pin: int = 17,
         sensor_echo_pin: int = 27,
         require_obstacle_sensor: bool = False,
@@ -184,10 +184,6 @@ class SmartCar2WD:
             return distance_cm
 
     def check_obstacle(self) -> bool:
-        return False
-
-    # Méthode de vérification d'obstacle désactivée (toujours False)
-    def check_obstacle__disable(self) -> bool:
         """Retourne True si un objet est détecté à moins de l seuil configuré."""
         if self.distance_sensor is None and not self.require_obstacle_sensor:
             return False

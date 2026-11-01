@@ -15,13 +15,8 @@ class SkillPlanner:
     """
 
     INTENT_TO_SKILLS: dict[str, list[str]] = {
-        "follow_person": ["approach_target"],
-        "follow_red_ball": [
-            "detect_object",
-            "approach_target",
-            "detect_obstacle",
-            "stop_motion",
-        ],
+        "follow_person": ["follow_object"],
+        "follow_red_ball": ["follow_object"],
         "search_and_approach_object": [
             "detect_object",
             "approach_target",

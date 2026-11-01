@@ -184,6 +184,10 @@ class SmartCar2WD:
             return distance_cm
 
     def check_obstacle(self) -> bool:
+        return False
+
+    # Méthode de vérification d'obstacle désactivée (toujours False)
+    def check_obstacle__disable(self) -> bool:
         """Retourne True si un objet est détecté à moins de l seuil configuré."""
         if self.distance_sensor is None and not self.require_obstacle_sensor:
             return False

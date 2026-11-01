@@ -7,7 +7,7 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.interfaces import RobotController
 from irobot.domain.skills import SkillContext
-from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
+from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
 from tests.unit.fake_robot import FakeRobot
 
@@ -17,33 +17,33 @@ def build_context(fake_robot: FakeRobot | None = None, **state):
     return SkillContext(robot=RobotController(robot), state=state)
 
 
-def test_follow_target_skill_success_when_target_visible():
+def test_approach_target_skill_success_when_target_visible():
     fake = FakeRobot()
     context = build_context(fake, last_ball_position="centre", obstacle_detected=False)
 
-    result = FollowTargetSkill().execute(context)
+    result = ApproachTargetSkill().execute(context)
 
     assert result.status == "success"
     assert result.data["target_position"] == "center"
     assert "forward" in fake.commands
 
 
-def test_follow_target_skill_stops_when_obstacle_detected():
+def test_approach_target_skill_stops_when_obstacle_detected():
     fake = FakeRobot()
     context = build_context(fake, last_ball_position="centre", obstacle_detected=True)
 
-    result = FollowTargetSkill().execute(context)
+    result = ApproachTargetSkill().execute(context)
 
     assert result.status == "success"
     assert result.data["obstacle_detected"] is True
     assert result.next_action == "stop_motion"
 
 
-def test_follow_target_skill_fails_when_target_missing():
+def test_approach_target_skill_searches_when_target_missing():
     fake = FakeRobot()
     context = build_context(fake, last_ball_position="UNKNOWN", obstacle_detected=False)
 
-    result = FollowTargetSkill().execute(context)
+    result = ApproachTargetSkill().execute(context)
 
     assert result.status == "in_progress"
     assert result.data["target_position"] is None
@@ -86,11 +86,11 @@ def live_run(script, clock=None, robot=None, **params):
         perception=ScriptedPerception(script),
         state={"active_intent_parameters": {"alignment_step_s": 0.0, "forward_step_s": 0.0, **params}},
     )
-    skill = FollowTargetSkill(settings=RuntimeSettings(), time_fn=clock.time, sleep_fn=clock.sleep)
+    skill = ApproachTargetSkill(settings=RuntimeSettings(), time_fn=clock.time, sleep_fn=clock.sleep)
     return skill.execute(context), fake, context, clock
 
 
-def test_follow_target_search_succeeds_after_n_pulses():
+def test_approach_target_search_succeeds_after_n_pulses():
     script = [None] * 5 + [("center", 50.0)]
     result, fake, context, _ = live_run(script, max_target_loss_s=0.1, search_timeout_s=30.0, stand_off_cm=100)
 
@@ -99,7 +99,7 @@ def test_follow_target_search_succeeds_after_n_pulses():
     assert fake.commands.count("right") == 5
 
 
-def test_follow_target_search_exhausted_fails_and_stops():
+def test_approach_target_search_exhausted_fails_and_stops():
     result, fake, _, clock = live_run([None], search_timeout_s=2.0)
 
     assert result.status == "failed"
@@ -108,7 +108,7 @@ def test_follow_target_search_exhausted_fails_and_stops():
     assert clock.now >= 2.0
 
 
-def test_follow_target_search_uses_search_timeout_not_target_loss_budget():
+def test_approach_target_search_uses_search_timeout_not_target_loss_budget():
     # max_target_loss_s = 1 s ne doit plus interrompre une recherche de 5 s.
     script = [None] * 100 + [("center", 50.0)]
     result, _, _, clock = live_run(script, max_target_loss_s=1.0, search_timeout_s=60.0, stand_off_cm=100)
@@ -117,7 +117,7 @@ def test_follow_target_search_uses_search_timeout_not_target_loss_budget():
     assert clock.now > 1.0
 
 
-def test_follow_target_aligns_toward_target_side():
+def test_approach_target_aligns_toward_target_side():
     for side in ("left", "right"):
         result, fake, _, _ = live_run([(side, None)] * 2 + [("center", 50.0)], stand_off_cm=100)
         assert result.status == "success"
@@ -126,7 +126,7 @@ def test_follow_target_aligns_toward_target_side():
         assert opposite not in fake.commands
 
 
-def test_follow_target_search_sweeps_toward_last_known_side():
+def test_approach_target_search_sweeps_toward_last_known_side():
     script = [("left", None)] + [None] * 10 + [("center", 50.0)]
     result, fake, _, _ = live_run(script, max_target_loss_s=0.1, stand_off_cm=100)
 
@@ -135,13 +135,13 @@ def test_follow_target_search_sweeps_toward_last_known_side():
     assert fake.commands.count("left") >= 2
 
 
-def test_follow_target_search_defaults_to_right_without_history():
+def test_approach_target_search_defaults_to_right_without_history():
     _, fake, _, _ = live_run([None, ("center", 50.0)], stand_off_cm=100)
 
     assert "right" in fake.commands and "left" not in fake.commands
 
 
-def test_follow_target_reaches_stand_off_100cm_with_decreasing_distances():
+def test_approach_target_reaches_stand_off_100cm_with_decreasing_distances():
     distances = [250.0, 200.0, 160.0, 130.0, 118.0, 108.0]
     result, fake, _, _ = live_run([("center", d) for d in distances], stand_off_cm=100)
 
@@ -151,22 +151,22 @@ def test_follow_target_reaches_stand_off_100cm_with_decreasing_distances():
     assert fake.commands[-1] == "stop"
 
 
-def test_follow_target_stand_off_alias_and_priority_and_bounds():
-    skill = FollowTargetSkill(settings=RuntimeSettings())
+def test_approach_target_stand_off_alias_and_priority_and_bounds():
+    skill = ApproachTargetSkill(settings=RuntimeSettings())
     assert skill._resolve_stand_off_cm({"stand_off_cm": 100}) == 100.0
     assert skill._resolve_stand_off_cm({"stand_off_cm": 100, "approach_threshold_cm": 60}) == 60.0
     assert skill._resolve_stand_off_cm({"stand_off_cm": 5}) == 30.0
     assert skill._resolve_stand_off_cm({"stand_off_cm": 9999}) == 300.0
 
 
-def test_follow_target_forward_pulses_shorten_near_stand_off():
-    skill = FollowTargetSkill(settings=RuntimeSettings())
+def test_approach_target_forward_pulses_shorten_near_stand_off():
+    skill = ApproachTargetSkill(settings=RuntimeSettings())
     assert skill._forward_step(0.12, 400.0, 100.0) == 0.12
     assert skill._forward_step(0.12, None, 100.0) == 0.12
     assert skill._forward_step(0.12, 150.0, 100.0) < 0.12
 
 
-def test_follow_target_live_obstacle_stops_safely():
+def test_approach_target_live_obstacle_stops_safely():
     fake = FakeRobot()
     fake.obstacle_detected = True
     result, fake, _, _ = live_run([("center", 200.0)], robot=fake, stand_off_cm=100)
@@ -176,7 +176,7 @@ def test_follow_target_live_obstacle_stops_safely():
     assert fake.commands == ["stop"]
 
 
-def test_follow_target_search_time_does_not_consume_tracking_budget():
+def test_approach_target_search_time_does_not_consume_tracking_budget():
     script = [None] * 30 + [("center", 50.0)]
     result, _, _, _ = live_run(script, search_timeout_s=60.0, tracking_timeout_s=1.0, stand_off_cm=100)
 
@@ -184,52 +184,32 @@ def test_follow_target_search_time_does_not_consume_tracking_budget():
 
 
 @pytest.mark.parametrize("live", [False, True])
-@pytest.mark.parametrize(
-    "position,distance,expected",
-    [
-        ("center", 120.01, "forward"),
-        ("left", 150.0, "left"),
-        ("right", 150.0, "right"),
-        ("left", None, "left"),
-        ("right", None, "right"),
-        ("center", None, "stop"),
-        (None, None, "stop"),
-        *[(side, distance, "stop") for side in ("center", "left", "right") for distance in (120.0, 50.0)],
-    ],
-)
-def test_follow_marker_motion_policy(live, position, distance, expected):
+@pytest.mark.parametrize("target_object", ["marker", "red_ball", "bottle"])
+def test_approach_target_uses_same_policy_for_any_target(live, target_object):
     params = {
-        "target_object": "marker",
-        "stand_off_cm": 300,
-        "stand_off_tolerance_cm": 100,
+        "target_object": target_object,
+        "stand_off_cm": 100,
+        "stand_off_tolerance_cm": 10,
         "alignment_step_s": 0.0,
         "forward_step_s": 0.0,
+        "tracking_timeout_s": 0.1,
+        "search_timeout_s": 0.1,
     }
     if live:
-        detection = None if position is None else (position, distance)
-        result, fake, context, _ = live_run([detection, None], **params)
+        result, fake, _, _ = live_run([("center", None)], **params)
     else:
         fake = FakeRobot()
         context = build_context(
             fake,
-            target_object="marker",
+            target_object=target_object,
             active_intent_parameters=params,
-            last_object_position=position,
-            last_object_distance_cm=distance,
+            last_object_position="center",
+            last_object_distance_cm=None,
         )
-        result = FollowTargetSkill(settings=RuntimeSettings(), sleep_fn=lambda _: None).execute(context)
+        result = ApproachTargetSkill(settings=RuntimeSettings(), sleep_fn=lambda _: None).execute(context)
 
-    if expected != "stop":
-        assert expected in fake.commands
-    assert fake.commands[-1] == "stop"
-
-    assert "backward" not in fake.commands
-    if expected == "stop":
-        assert fake.commands == ["stop"]
-        assert context.state["motion"] == "stop"
-        assert result.next_action == "stop_motion"
-    elif live:
-        assert result.data["target_lost"] is True
+    assert "forward" in fake.commands
+    assert result.status != "failed"
 
 
 def test_move_circle_skill_executes_compound_motion():

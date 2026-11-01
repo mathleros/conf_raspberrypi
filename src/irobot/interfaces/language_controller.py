@@ -53,7 +53,7 @@ class LanguageController:
         check_obstacle = getattr(context.robot, "check_obstacle", None)
         if check_obstacle is None:
             return False
-        if skill_name not in {"move_forward", "turn_left", "turn_right", "follow_target"}:
+        if skill_name not in {"move_forward", "turn_left", "turn_right", "approach_target"}:
             return False
         try:
             return bool(check_obstacle())

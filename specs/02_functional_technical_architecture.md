@@ -85,7 +85,7 @@ Sortie attendue :
 }
 ```
 
-Contrat livré : `search_and_approach_object` planifie `detect_object -> follow_target -> detect_obstacle -> stop_motion` ; `follow_object` planifie la skill homonyme de maintien de distance. `search_timeout_s` est optionnel sur les intents objet. Les paramètres sont normalisés et bornés avant exécution ; voir [l'inventaire](01_skills_inventory.md#contrat-runtime-livré-2026-10-29).
+Contrat livré : `search_and_approach_object` planifie `detect_object -> approach_target -> detect_obstacle -> stop_motion` ; `follow_object` planifie la skill homonyme de maintien de distance. `search_timeout_s` est optionnel sur les intents objet. Les paramètres sont normalisés et bornés avant exécution ; voir [l'inventaire](01_skills_inventory.md#contrat-runtime-livré-2026-10-29).
 
 La caméra fournit une distance visuelle lissée à partir du diamètre apparent de la balle, avec fusion ultrason optionnelle dans le thread appelant (jamais depuis le thread caméra). L'écoute continue reste active pendant la mission : « stop » lève l'événement d'urgence de `RobotController`. Urgence/obstacle -> arrêt moteur et mission `aborted`, sans retry ni étape suivante. Les skills contrôlent les moteurs uniquement via `RobotController`.
 
@@ -220,7 +220,7 @@ Cette structure permet au planificateur de décider de la suite sans dépendre d
 
 - `src/irobot/skills/` (nouveau module) :
   - `base_skill.py`
-  - `follow_target.py`
+  - `approach_target.py`
   - `move_circle.py`
   - `obstacle_avoidance.py`
   - `align_to_target.py`
@@ -305,7 +305,7 @@ Ces skills sont simples, courtes et directement reliées aux actionneurs.
 ### C. Behaviors / tâches composites
 
 Des tâches d'ordres plus haut niveau, construites à partir de primitives :
-- `follow_target`
+- `approach_target`
 - `follow_object`
 - `align_to_target`
 - `approach_target`

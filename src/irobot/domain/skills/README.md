@@ -26,7 +26,7 @@ Les skills n'accèdent pas directement aux GPIO ; elles passent par
 - `DetectObstacleSkill`
 
 ### Behaviors composites
-- `FollowTargetSkill`
+- `ApproachTargetSkill`
 - `MoveCircleSkill`
 
 ## Note importante sur `MoveCircleSkill`

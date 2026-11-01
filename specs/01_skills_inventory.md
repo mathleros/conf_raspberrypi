@@ -6,11 +6,11 @@ Les sections suivantes conservent le cadrage historique ; le contrat implément�
 
 | Intent validé | Skills du planner | Paramètres |
 |---|---|---|
-| `search_and_approach_object` | `detect_object`, `follow_target`, `detect_obstacle`, `stop_motion` | cible `red`/`yellow`, `stand_off_cm`, `search_timeout_s` |
+| `search_and_approach_object` | `detect_object`, `approach_target`, `detect_obstacle`, `stop_motion` | cible `red`/`yellow`, `stand_off_cm`, `search_timeout_s` |
 | `follow_object` | `follow_object` | cible `red`/`yellow`, `stand_off_cm`, `duration_s`, `search_timeout_s` |
-| `follow_red_ball` (compatibilité) | `detect_object`, `follow_target`, `detect_obstacle`, `stop_motion` | cible `red_ball` ou absente |
+| `follow_red_ball` (compatibilité) | `detect_object`, `approach_target`, `detect_obstacle`, `stop_motion` | cible `red_ball` ou absente |
 
-`follow_target` assure recherche, alignement et approche jusqu'à la distance de consigne ; `follow_object` maintient ensuite cette distance par impulsions avant/arrière et rotations, pendant la durée demandée. La perte de cible provoque un arrêt puis un balayage ; l'épuisement du budget de recherche échoue avec `target_lost=True`. Urgence/obstacle arrête la skill et le runtime classe la mission `aborted`, sans retry ni poursuite du plan.
+`approach_target` assure recherche, alignement et approche jusqu'à la distance de consigne, quel que soit le type de cible ; `follow_object` maintient ensuite cette distance par impulsions avant/arrière et rotations, pendant la durée demandée. La perte de cible provoque un arrêt puis un balayage ; l'épuisement du budget de recherche échoue avec `target_lost=True`. Urgence/obstacle arrête la skill et le runtime classe la mission `aborted`, sans retry ni poursuite du plan.
 
 Bornes du TOML livré : `stand_off_cm` 30–300 cm (`min_stand_off_cm`/`max_stand_off_cm`), `duration_s` 1–600 s (`max_follow_duration_sec`), `search_timeout_s` 1–120 s (défaut `search_timeout_seconds=25`). La durée de suivi inclut la recherche ; tolérance de suivi par défaut 15 cm. `timeout_margin_seconds=10` intervient dans le budget d'étape avec durée explicite.
 
@@ -162,10 +162,9 @@ Elles sont simples, courtes et déterministes, et servent de briques de base pou
 
 Ce sont des séquences de skills primitives couplées à de la perception, par exemple :
 
-- `follow_target`
+- `approach_target`
 - `follow_object` (suivi à distance constante pendant `duration_s`)
 - `align_to_target`
-- `approach_target`
 - `avoid_obstacle`
 - `move_circle`
 

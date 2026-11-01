@@ -26,7 +26,7 @@ def test_intent_parser_and_planner_follow_person():
         assert validator.validate(intent)
 
     controller = LanguageController(robot=FakeRobot())
-    assert [skill.name for skill in controller.planner.plan("follow_person")] == ["follow_target"]
+    assert [skill.name for skill in controller.planner.plan("follow_person")] == ["approach_target"]
 
 
 def test_intent_parser_stop():
@@ -81,7 +81,7 @@ def test_language_controller_handles_search_and_approach_object_command():
 
     assert result["status"] == "accepted"
     assert result["plan"][0] == "detect_object"
-    assert "follow_target" in result["plan"]
+    assert "approach_target" in result["plan"]
 
 
 def test_language_controller_prioritizes_obstacle_stop():

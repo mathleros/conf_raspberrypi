@@ -20,7 +20,7 @@ src/irobot/
 │       │   ├── detect_object.py
 │       │   └── detect_obstacle.py
 │       └── behaviors/
-│           ├── follow_target.py
+│           ├── approach_target.py
 │           └── move_circle.py
 ├── interfaces/
 ├── hardware/

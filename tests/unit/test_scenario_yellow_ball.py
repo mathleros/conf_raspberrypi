@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.skills import FollowObjectSkill, FollowTargetSkill
+from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
@@ -126,7 +126,7 @@ def run_scenario(tmp_path: Path, **world_kwargs):
     settings = RuntimeSettings()
     spans: dict[str, list[tuple[float, float, object]]] = {}
     registry = SkillRegistry.default()
-    registry.register(_timed(FollowTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep), world, spans))
+    registry.register(_timed(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep), world, spans))
     registry.register(_timed(FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep), world, spans))
     runtime = VoiceRuntime(
         robot=controller,
@@ -174,8 +174,8 @@ def test_full_mission_search_approach_and_follow_five_minutes(tmp_path):
     assert any(cmd == "right" for t, cmd in world.timed_commands if t < APPEAR_AT_S)
 
     # 2. Centrage puis approche jusqu'au stand-off.
-    approach_end = spans["follow_target"][-1][1]
-    approach_result = spans["follow_target"][-1][2]
+    approach_end = spans["approach_target"][-1][1]
+    approach_result = spans["approach_target"][-1][2]
     assert approach_result.status == "success"
     assert approach_result.data["close_enough"] is True
     assert abs(approach_result.data["distance_cm"] - STAND_OFF_CM) <= TOLERANCE_CM
@@ -214,7 +214,7 @@ def test_ball_never_found_ends_incomplete_without_following(tmp_path):
     assert result["mission"]["phase"] == "failed"
     assert [s["intent"].name for s in result["steps"]] == ["search_and_approach_object"]
     assert "follow_object" not in spans
-    searches = spans["follow_target"]
+    searches = spans["approach_target"]
     assert searches and all(r.status == "failed" and r.data["target_lost"] is True for _, _, r in searches)
     search_timeout = RuntimeSettings().search_timeout_seconds
     assert all(end - start >= search_timeout for start, end, _ in searches)

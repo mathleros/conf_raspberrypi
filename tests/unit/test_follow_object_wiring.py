@@ -7,7 +7,7 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.skills import FollowObjectSkill, FollowTargetSkill
+from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces.intent_parser import (
     Intent,
     IntentParser,
@@ -236,7 +236,7 @@ def test_full_plan_runs_through_voice_runtime(tmp_path):
     world = World(distance_cm=180.0)
     settings = RuntimeSettings()
     registry = SkillRegistry.default()
-    registry.register(FollowTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
+    registry.register(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     registry.register(FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     runtime = VoiceRuntime(robot=world, perception=world, registry=registry, use_llm=False, trace_dir=str(tmp_path))
 
@@ -245,7 +245,7 @@ def test_full_plan_runs_through_voice_runtime(tmp_path):
     assert result["status"] == "accepted", result
     steps = result["steps"]
     assert [s["intent"].name for s in steps] == ["search_and_approach_object", "follow_object"]
-    assert "follow_target" in steps[0]["plan"]
+    assert "approach_target" in steps[0]["plan"]
     assert steps[1]["plan"] == ["follow_object"]
     assert steps[1]["intent"].parameters["duration_s"] == 300.0
     assert set(world.targets) == {"yellow"}

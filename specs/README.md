@@ -76,10 +76,9 @@ Le cadrage a été ajusté pour aligner la hiérarchie des skills sur le besoin 
 - `read_distance`
 
 #### C. Behaviors composites
-- `follow_target`
+- `approach_target`
 - `follow_object`
 - `align_to_target`
-- `approach_target`
 - `move_circle`
 - `avoid_obstacle`
 

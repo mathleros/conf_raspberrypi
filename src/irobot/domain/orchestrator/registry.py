@@ -6,7 +6,7 @@ from irobot.domain.skills import (
     DetectObstacleSkill,
     DetectObjectSkill,
     FollowObjectSkill,
-    FollowTargetSkill,
+    ApproachTargetSkill,
     MoveBackwardSkill,
     MoveCircleSkill,
     MoveForwardSkill,
@@ -71,7 +71,7 @@ class SkillRegistry:
                 StopMotionSkill(),
                 DetectObjectSkill(),
                 DetectObstacleSkill(),
-                FollowTargetSkill(),
+                ApproachTargetSkill(),
                 FollowObjectSkill(),
                 MoveCircleSkill(),
             ]

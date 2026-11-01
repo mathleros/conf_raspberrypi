@@ -8,7 +8,7 @@ import pytest
 
 from irobot.config.settings import LLMSettings, RuntimeSettings, load_llm_settings
 from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.skills import FollowObjectSkill, FollowTargetSkill
+from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces import voice_runtime as vr
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
@@ -25,7 +25,7 @@ def test_voice_runtime_handles_follow_red_ball_command():
 
     assert result["status"] == "accepted"
     assert "detect_object" in result["plan"]
-    assert "follow_target" in result["plan"]
+    assert "approach_target" in result["plan"]
     assert len(result["results"]) > 0
 
 
@@ -198,7 +198,7 @@ def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
 
     assert result["status"] == "accepted"
     assert result["steps"][0]["intent"].name == "search_and_approach_object"
-    assert "follow_target" in result["steps"][0]["plan"]
+    assert "approach_target" in result["steps"][0]["plan"]
 
 
 def test_voice_runtime_uses_parser_fallback_when_llm_plan_invalid(monkeypatch):
@@ -716,7 +716,7 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     world = World(distance_cm=180.0)
     settings = RuntimeSettings()
     registry = SkillRegistry.default()
-    registry.register(FollowTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
+    registry.register(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     registry.register(FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     runtime = VoiceRuntime(robot=world, perception=world, registry=registry, use_llm=True, trace_dir=str(tmp_path))
 

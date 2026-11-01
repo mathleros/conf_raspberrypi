@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from irobot.domain.skills.behaviors.follow_target import FollowTargetSkill
+from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.interfaces.intent_parser import Intent
 from irobot.interfaces.plan_guards import (
     is_pure_stop,
@@ -52,10 +52,10 @@ class VoiceExecutionMixin(VoiceRuntimeState):
         base = float(self.settings.step_timeout_seconds)
         params = intent.parameters or {}
         if intent.name in {"search_and_approach_object", "follow_red_ball", "follow_person"}:
-            tracking_s = FollowTargetSkill._to_float(
-                params.get("tracking_timeout_s"), FollowTargetSkill.DEFAULT_MAX_TRACKING_S
+            tracking_s = ApproachTargetSkill._to_float(
+                params.get("tracking_timeout_s"), ApproachTargetSkill.DEFAULT_MAX_TRACKING_S
             )
-            search_s = FollowTargetSkill._to_float(
+            search_s = ApproachTargetSkill._to_float(
                 params.get("search_timeout_s"), float(self.settings.search_timeout_seconds)
             )
             return max(

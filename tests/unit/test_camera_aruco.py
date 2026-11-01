@@ -4,10 +4,8 @@ import pytest
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
-from irobot.interfaces.human_perception_contracts import (
-    ArucoFrameDetection, ObservationDisposition,
-)
 
+from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
 
 def _frame(center_x=240, width=80, image_width=480, marker_id=1):
     dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)

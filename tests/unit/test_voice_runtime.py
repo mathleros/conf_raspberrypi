@@ -1218,7 +1218,7 @@ def test_emergency_listener_checks_pure_stop_before_parser(monkeypatch):
     assert runtime._is_stop_phrase("halte")
     assert calls == []
     assert runtime._is_stop_phrase("stop maintenant")
-    assert calls == ["stop maintenant"]
+    assert calls == []
     assert not runtime._is_stop_phrase("avance")
 
 

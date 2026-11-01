@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
@@ -9,8 +11,6 @@ from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
-from irobot.interfaces.protection import MissionPermit, ProtectionFault
-from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.plan_guards import follow_request_refusal
 
 
@@ -58,16 +58,13 @@ class LanguageController:
         try:
             return bool(check_obstacle())
         except Exception:
-            if isinstance(self.robot, RobotController) and self.robot.protection_present:
-                raise
-            return False
+            logging.getLogger(__name__).exception("Echec du capteur d'obstacle")
+            return True
 
     def handle_text(self, text: str):
         refusal = follow_request_refusal(text)
         if refusal:
             return {"status": "rejected", "reason": refusal}
-        if isinstance(self.robot, RobotController) and self.robot.protection_present:
-            return self.handle_intent(self.parser.parse(text))
         intent = self.parser.parse(text)
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
@@ -123,41 +120,11 @@ class LanguageController:
             "results": results,
         }
 
-    def handle_intent(self, intent: Intent, *, permit: MissionPermit | None = None):
+    def handle_intent(self, intent: Intent):
         refusal = follow_request_refusal(intent.raw_text)
         if refusal:
             return {"intent": intent, "status": "rejected", "reason": refusal}
-        protected = isinstance(self.robot, RobotController) and self.robot.protection_present
-        if not protected:
-            return self._handle_intent(intent, self.robot)
-        if intent.name == "stop":
-            self.robot.request_emergency_stop()
-            self.robot.supervise(events=("stop",))
-            return {"intent": intent, "status": "stopped", "causes": self.robot.causes}
-        if not self.validator.validate(intent):
-            return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
-        owned = permit is None
-        try:
-            if owned:
-                permit = self.robot.admit()
-            result = self._handle_intent(intent, self.robot.bind(permit))
-            self.robot.supervise()
-            if not self.robot.valid_result(permit):
-                return {"intent": intent, "status": "aborted",
-                        "reason": "protection_fault", "causes": self.robot.causes}
-            if result.get("status") == "aborted":
-                self.robot.stop()
-            return result
-        except ProtectionFault as exc:
-            self.robot.suspend(str(exc))
-            return {"intent": intent, "status": "aborted", "reason": "protection_fault",
-                    "causes": (str(exc),)}
-        except Exception:
-            self.robot.priority_one("language_exception")
-            raise
-        finally:
-            if owned and permit is not None:
-                self.robot.finish(permit)
+        return self._handle_intent(intent, self.robot)
 
     def _handle_intent(self, intent: Intent, robot):
         if not self.validator.validate(intent):
@@ -203,16 +170,6 @@ class LanguageController:
                 }
             context.state["active_skill"] = skill.name
             results.append(executor.run(skill))
-            if isinstance(self.robot, RobotController) and self.robot.protection_present:
-                self.robot.supervise()
-                if self.robot.reservation is not None and self.robot.reservation.phase != "active":
-                    return {"intent": intent, "status": "aborted", "reason": "protection_fault",
-                            "causes": self.robot.causes, "results": results}
-                if results[-1].status not in {"success", "in_progress"}:
-                    return {"intent": intent, "status": "aborted",
-                            "reason": "skill_failed", "results": results}
-                if results[-1].status == "in_progress":
-                    break
         return {
             "intent": intent,
             "status": "accepted",

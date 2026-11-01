@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 import threading
 import time
@@ -13,7 +14,6 @@ import requests
 from irobot.config.settings import load_runtime_settings
 from irobot.interfaces.intent_parser import Intent
 from irobot.interfaces.plan_guards import is_pure_stop, fold, follow_request_refusal
-from irobot.interfaces.protection import AdmissionRequest
 from irobot.interfaces import voice_llm
 from irobot.interfaces.voice_llm import LLMWarmup, warm_up_llm, warm_up_llm_async
 from irobot.interfaces.voice_llm_transport import (
@@ -24,10 +24,8 @@ from irobot.interfaces.voice_llm_transport import (
     llm_warmup_wait_seconds,
     llm_response_format_mode,
 )
-from irobot.interfaces.voice_constants import HUMAN_RESUME_COMMANDS
 from irobot.interfaces.voice_plan import VoicePlanMixin
 from irobot.interfaces.voice_execution import VoiceExecutionMixin
-from irobot.interfaces.voice_protection import VoiceProtectionMixin
 
 
 def ask_llm_for_intent(text: str) -> Intent:
@@ -64,8 +62,8 @@ def build_hardware_runtime() -> dict[str, Any]:
     return build(settings=settings)
 
 
-class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
-    """Microphone/text -> validated intents -> supervised skill execution."""
+class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
+    """Microphone/text -> validated intents -> interruptible skill execution."""
 
     def _ask_intent(self, text: str) -> Intent:
         return ask_llm_for_intent(text)
@@ -74,6 +72,8 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
         return ask_llm_for_intent_plan_with_trace(text)
 
     def _emergency_stop_requested(self) -> bool:
+        if self._emergency_event.is_set():
+            return True
         detector = getattr(self.robot, "is_emergency_stop_requested", None)
         if not callable(detector):
             return False
@@ -98,9 +98,6 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
         return self.parser.parse(text)
 
     def _safe_stop(self) -> None:
-        if self._protected():
-            self.robot.stop()
-            return
         stop = getattr(self.robot, "stop", None)
         if not callable(stop):
             return
@@ -110,8 +107,6 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
             logging.getLogger(__name__).exception("Impossible d'arreter le robot")
 
     def handle_text(self, text: str):
-        if self._protected():
-            return self.handle_text_as_plan(text)
         refusal = follow_request_refusal(text)
         if refusal:
             return {"status": "rejected", "reason": refusal}
@@ -119,6 +114,9 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
         return self.controller.handle_intent(intent)
+
+    def handle_text_as_plan(self, text: str):
+        return self._handle_text_as_plan(text)
 
     def listen_once(self):
         device = resolve_input_device(self.input_device)
@@ -133,36 +131,33 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
     def _call_robot(self, method: str) -> None:
         func = getattr(self.robot, method, None)
         if callable(func):
-            if self._protected():
-                func()
-                return
             try:
                 func()
             except Exception:
                 logging.getLogger(__name__).exception("Echec de la commande robot %s", method)
 
     def _clear_emergency_stop(self) -> None:
+        self._emergency_event.clear()
         self._call_robot("clear_emergency_stop")
 
     def _request_emergency_stop(self) -> None:
+        self._emergency_event.set()
         if callable(getattr(self.robot, "request_emergency_stop", None)):
             self._call_robot("request_emergency_stop")
         else:
             self._safe_stop()
 
     def mission_running(self) -> bool:
-        return ((self._protected() and self.robot.reservation is not None)
-                or (self._worker is not None and self._worker.is_alive()))
+        return self._worker is not None and self._worker.is_alive()
 
     def _is_stop_phrase(self, text: str) -> bool:
-        return is_pure_stop(text) or self.parser.parse(text).name == "stop"
+        return is_pure_stop(text) or re.search(
+            r"\b(?:stop|arrete|arret|halte|halt|pause)\b", fold(text),
+        ) is not None
 
-    def _mission_worker(self, text: str, admission_request: AdmissionRequest | None = None) -> None:
+    def _mission_worker(self, text: str) -> None:
         try:
-            self.last_result = (
-                self.handle_text_as_plan(text, admission_request=admission_request)
-                if admission_request is not None else self.handle_text_as_plan(text)
-            )
+            self.last_result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {self.last_result}", flush=True)
         except Exception as exc:
             self.last_result = {"status": "failed", "error": str(exc)}
@@ -171,35 +166,31 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
 
     def handle_transcript(self, text: str):
         """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
-        admission_request = self.robot.capture_admission_request() if self._protected() else None
-        if self._protected():
-            if is_pure_stop(text) or " ".join(fold(text).split()) in HUMAN_RESUME_COMMANDS:
-                return self.handle_text_as_plan(text)
-            if not self._worker_owns_supervision():
-                self.supervise_once()
+        if self._is_stop_phrase(text):
+            try:
+                if self.robot is not None:
+                    self.robot.stop()
+            finally:
+                self._request_emergency_stop()
+                self.mission.abort("emergency stop")
+            print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
+            return None
         refusal = follow_request_refusal(text)
         if refusal:
             return {"status": "rejected", "reason": refusal}
         if self.mission_running():
-            if self._is_stop_phrase(text):
-                print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
-                self._request_emergency_stop()
-            else:
-                print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
+            print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
             return None
 
         # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
         self._clear_emergency_stop()
         if not self.threaded:
-            self.last_result = (
-                self.handle_text_as_plan(text, admission_request=admission_request)
-                if admission_request is not None else self.handle_text_as_plan(text)
-            )
+            self.last_result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {self.last_result}", flush=True)
             return self.last_result
         self._worker = threading.Thread(
             target=self._mission_worker,
-            args=(text, admission_request) if admission_request is not None else (text,),
+            args=(text,),
             name="mission-worker", daemon=True,
         )
         self._worker.start()
@@ -221,8 +212,6 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin, VoiceProtectionMixin):
         if worker is not None and worker.is_alive() and worker is not threading.current_thread():
             worker.join(timeout=2.0)
         self._safe_stop()
-        if self._protected():
-            self.supervise_once(events=("stop",))
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""

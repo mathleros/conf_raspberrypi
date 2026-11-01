@@ -20,8 +20,7 @@ from irobot.hardware.camera.distance_estimator import (
     estimate_distance_cm,
     fuse_with_ultrasound,
 )
-from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder
-from irobot.interfaces.human_perception_contracts import ObservationDisposition
+from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder, ObservationDisposition
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
 logger = logging.getLogger(__name__)

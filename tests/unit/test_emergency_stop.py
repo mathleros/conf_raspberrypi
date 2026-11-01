@@ -3,6 +3,8 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
+
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
@@ -118,5 +120,173 @@ def test_close_stops_robot_and_joins_worker():
 def test_sync_path_runs_inline():
     runtime = VoiceRuntime(robot=RobotController(FakeRobot()), use_llm=False, threaded=False)
     result = runtime.handle_transcript("stop maintenant")
-    assert result["status"] == "accepted"
+    assert result is None
+    assert runtime.mission.state.phase == "aborted"
+    assert runtime.robot.is_emergency_stop_requested()
     assert not runtime.mission_running()
+
+
+@pytest.mark.parametrize("text", [
+    "STOP !", "arrête-toi", "halte maintenant", "pause",
+    "avance puis stop et recule", "suis un chat mais arrête",
+])
+@pytest.mark.parametrize("threaded", [False, True])
+def test_stop_is_immediate_even_without_a_mission(tmp_path, monkeypatch, text, threaded):
+    fake = FakeRobot()
+    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path), threaded=threaded)
+    calls = []
+    original_request = runtime._request_emergency_stop
+
+    def request():
+        calls.append("request")
+        original_request()
+
+    monkeypatch.setattr(runtime, "_request_emergency_stop", request)
+    monkeypatch.setattr(runtime.parser, "parse", lambda _: pytest.fail("parser called"))
+    monkeypatch.setattr(runtime, "_ask_plan", lambda _: pytest.fail("LLM called"))
+    assert runtime.handle_transcript(text) is None
+    assert calls == ["request"]
+    assert fake.commands[0] == "stop"
+    assert runtime._emergency_stop_requested()
+    assert runtime.mission.state.phase == "aborted"
+    assert runtime._worker is None
+
+
+def test_stop_during_llm_planning_prevents_all_motion(tmp_path, monkeypatch):
+    from irobot.interfaces.intent_parser import Intent
+
+    fake = FakeRobot()
+    runtime = VoiceRuntime(robot=RobotController(fake), trace_dir=str(tmp_path))
+    entered, release = threading.Event(), threading.Event()
+
+    def plan(_):
+        entered.set()
+        assert release.wait(2)
+        return [Intent(name="move_forward", parameters={"duration": 1})], {"source": "llm_plan"}
+
+    monkeypatch.setattr(runtime, "_ask_plan", plan)
+    try:
+        runtime.handle_transcript("avance")
+        assert entered.wait(2)
+        start = time.monotonic()
+        runtime.handle_transcript("stop puis recule")
+        assert time.monotonic() - start < 0.1
+        assert fake.commands[-1] == "stop"
+    finally:
+        release.set()
+        runtime.close()
+    assert runtime.last_result["status"] == "aborted"
+    assert runtime.last_result["steps"] == []
+    assert "forward" not in fake.commands
+    assert not runtime.mission_running()
+
+
+def test_stop_does_not_wait_for_blocked_ultrasound(tmp_path):
+    fake = FakeRobot()
+    controller = RobotController(fake)
+    runtime = VoiceRuntime(robot=controller, use_llm=False, trace_dir=str(tmp_path))
+    entered, release = threading.Event(), threading.Event()
+
+    def obstacle():
+        entered.set()
+        assert release.wait(2)
+        return False
+
+    fake.check_obstacle = obstacle
+    try:
+        runtime.handle_transcript("avance pendant cinq secondes puis recule")
+        assert entered.wait(2)
+        start = time.monotonic()
+        runtime.handle_transcript("halte")
+        assert time.monotonic() - start < 0.1
+        assert fake.commands[-1] == "stop"
+    finally:
+        release.set()
+        runtime.close()
+    assert not runtime.mission_running()
+    assert runtime.last_result["status"] == "aborted"
+    assert "forward" not in fake.commands
+    assert "backward" not in fake.commands
+
+
+def test_motion_cannot_restart_after_stop_during_initial_sensor_read():
+    fake = FakeRobot()
+    controller = RobotController(fake)
+
+    def obstacle():
+        controller.request_emergency_stop()
+        return False
+
+    fake.check_obstacle = obstacle
+    assert controller.forward_for(5) == "emergency_stop"
+    assert "forward" not in fake.commands
+    assert fake.commands[-1] == "stop"
+
+
+def test_stop_cancels_timed_motion_and_remaining_steps(tmp_path):
+    fake = FakeRobot()
+    now = 0.0
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds
+        runtime.handle_transcript("pause")
+
+    controller = RobotController(fake, time_fn=lambda: now, sleep_fn=sleep)
+    runtime = VoiceRuntime(
+        robot=controller, use_llm=False, threaded=False, trace_dir=str(tmp_path),
+    )
+    result = runtime.handle_transcript("avance pendant cinq secondes puis recule")
+    assert result["status"] == "aborted"
+    assert result["mission"]["phase"] == "aborted"
+    assert len(result["steps"]) == 1
+    assert result["steps"][0]["attempt"] == 1
+    assert now <= controller.CONTROL_LOOP_PERIOD_S
+    assert fake.commands.count("forward") == 1
+    assert "backward" not in fake.commands
+    assert fake.commands[-1] == "stop"
+
+
+@pytest.mark.parametrize("duration", [-1, float("inf"), float("nan"), True])
+def test_invalid_duration_stops_and_raises(duration):
+    fake = FakeRobot()
+    with pytest.raises(ValueError, match="duration"):
+        RobotController(fake).forward_for(duration)
+    assert fake.commands == ["stop"]
+
+
+def test_stop_failure_still_requests_cancellation(tmp_path, monkeypatch):
+    fake = FakeRobot()
+    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path))
+    calls = []
+
+    def stop():
+        calls.append("stop")
+        raise OSError("driver stop failed")
+
+    def request():
+        calls.append("request")
+        runtime._emergency_event.set()
+
+    monkeypatch.setattr(fake, "stop", stop)
+    monkeypatch.setattr(runtime, "_request_emergency_stop", request)
+    with pytest.raises(OSError, match="driver stop failed"):
+        runtime.handle_transcript("stop")
+    assert calls == ["stop", "request"]
+    assert runtime._emergency_stop_requested()
+    assert runtime.mission.state.phase == "aborted"
+
+
+@pytest.mark.parametrize("mode", ["error", "unavailable"])
+def test_ultrasound_failure_is_logged_and_prevents_motion(caplog, mode):
+    fake = FakeRobot()
+
+    def obstacle():
+        if mode == "error":
+            raise OSError("sensor failed")
+        return None
+
+    fake.check_obstacle = obstacle
+    assert RobotController(fake).forward_for(5) == "obstacle"
+    assert fake.commands == ["stop"]
+    assert caplog.records

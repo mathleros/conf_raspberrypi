@@ -2,10 +2,32 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
+from math import isfinite
+from typing import Protocol
+
 from irobot.config.settings import MarkerIdentity
-from irobot.interfaces.human_perception_contracts import (
-    ArucoDetectorBackend, ArucoFrameDetection, ObservationDisposition, finite_number,
-)
+
+
+class ObservationDisposition(str, Enum):
+    VALID = "valid"
+    ABSENT = "absent"
+    AMBIGUOUS = "ambiguous"
+    REJECTED = "rejected"
+    FAULT = "fault"
+
+
+@dataclass(frozen=True, slots=True)
+class ArucoFrameDetection:
+    disposition: ObservationDisposition
+    identity: MarkerIdentity | None = None
+    corners_px: tuple[tuple[float, float], ...] | None = None
+    reason: str | None = None
+
+
+class ArucoDetectorBackend(Protocol):
+    def detectMarkers(self, image: object) -> tuple[object, object, object]: ...
 
 
 class OpenCVArucoMarkerDecoder:
@@ -119,7 +141,9 @@ class OpenCVArucoMarkerDecoder:
             if not isinstance(point, list) or len(point) != 2:
                 return None
             x, y = point
-            if not finite_number(x) or not finite_number(y):
+            if (isinstance(x, bool) or not isinstance(x, (int, float))
+                    or isinstance(y, bool) or not isinstance(y, (int, float))
+                    or not isfinite(x) or not isfinite(y)):
                 return None
             parsed.append((float(x), float(y)))
         return tuple(parsed)

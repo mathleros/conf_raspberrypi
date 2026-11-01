@@ -80,18 +80,15 @@ class VoiceExecutionMixin(VoiceRuntimeState):
         attempt = 0
         last_result: dict[str, Any] | None = None
         while attempt <= max_retries:
+            if self._emergency_stop_requested():
+                return {"intent": intent, "status": "aborted", "reason": "emergency stop"}
             step_started = time.time()
-            if self._active_permit is not None:
-                result = self.controller.handle_intent(intent, permit=self._active_permit)
-            else:
-                result = self.controller.handle_intent(intent)
+            result = self.controller.handle_intent(intent)
             duration = time.time() - step_started
             result["attempt"] = attempt + 1
             result["step_duration_seconds"] = round(duration, 4)
             self._trace_step_result(trace_path, intent, result, duration, attempt + 1)
 
-            if self._protected() and intent.name == "stop":
-                return result
             if self._abort_on_safety_stop(intent, result, trace_path):
                 return result
 
@@ -100,7 +97,7 @@ class VoiceExecutionMixin(VoiceRuntimeState):
                 result["reason"] = "step timeout"
                 return result
 
-            if result.get("status") == "aborted" or result.get("reason") == "protection_fault":
+            if result.get("status") == "aborted":
                 return result
 
             if result.get("status") == "accepted" and not self._step_has_failure(result) and not self._step_in_progress(result):
@@ -146,6 +143,12 @@ class VoiceExecutionMixin(VoiceRuntimeState):
         self._write_trace_event(trace_path, {"event": "input", "text": text})
         self.mission.reset()
         intents, plan_trace, warmup_status = self._collect_plan(text)
+        if self._emergency_stop_requested():
+            self.mission.abort("emergency stop")
+            return {
+                "input": text, "status": "aborted", "reason": "emergency stop",
+                "steps": [], "trace_path": str(trace_path), "mission": self.mission.as_dict(),
+            }
         refusal = self._plan_refusal(intents, plan_trace)
         if refusal is not None:
             return {"status": "rejected", "reason": refusal, "steps": []}

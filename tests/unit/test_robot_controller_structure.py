@@ -6,15 +6,11 @@ from types import SimpleNamespace
 import unittest
 
 from irobot.interfaces import RobotController
-from irobot.interfaces.mission_robot import MissionRobot
-from irobot.interfaces.protection import MissionPermit
-from irobot.interfaces.robot_controller import MissionRobot as PublicMissionRobot
 
 
 INTERFACES = Path(__file__).resolve().parents[2] / "src/irobot/interfaces"
 CONTROLLER_FILES = (
-    "robot_controller.py", "robot_admission.py", "robot_supervision.py",
-    "robot_motion.py", "mission_robot.py",
+    "robot_controller.py", "robot_motion.py",
 )
 
 
@@ -44,27 +40,18 @@ class RobotControllerStructureTests(unittest.TestCase):
                     with self.subTest(module=name, line=node.lineno):
                         self.assertFalse(any(module.startswith(forbidden) for module in imports))
 
-    def test_mission_capability_keeps_public_import_and_controller_hooks(self):
+    def test_controller_delegates_to_injected_driver(self):
         calls = []
         controller = RobotController(SimpleNamespace(
             speed=0.5, stop=lambda: calls.append("stop"),
+            forward=lambda: calls.append("forward"),
+            custom=lambda: calls.append("custom"),
         ))
-        controller.supervise = lambda *args, **kwargs: calls.append((args, kwargs))
-        permit = MissionPermit(1, 2, "synthetic", controller._generation)
-        robot = controller.bind(permit)
-        self.assertIs(PublicMissionRobot, MissionRobot)
-        self.assertIs(type(robot), MissionRobot)
-        self.assertEqual(robot.speed, 0.5)
-        for name in ("forward", "backward", "left", "right"):
-            getattr(robot, name)()
-            self.assertEqual(calls[-1], ((permit, name), {}))
-        robot.set_speed(0.4)
-        self.assertEqual(calls[-1], ((permit, "set_speed", 0.4), {}))
-        robot.set_speed(0)
-        self.assertEqual(calls[-1], "stop")
-        for name in ("robot", "_robot", "__dict__", "arbitrary_driver_method"):
-            with self.subTest(attribute=name), self.assertRaises(AttributeError):
-                getattr(robot, name)
+        self.assertEqual(controller.speed, 0.5)
+        controller.forward()
+        controller.custom()
+        controller.stop()
+        self.assertEqual(calls, ["forward", "custom", "stop"])
 
     def test_timed_motion_keeps_clock_period_and_final_stop(self):
         calls = []

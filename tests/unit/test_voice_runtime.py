@@ -1389,6 +1389,35 @@ def test_text_mode_failed_warmup_still_processes_command(fake_llm, monkeypatch, 
     assert "Préchauffage en échec" in capsys.readouterr().out
 
 
+def test_main_cleans_hardware_if_runtime_construction_fails(monkeypatch):
+    calls = []
+
+    class Robot:
+        def stop(self):
+            calls.append("stop")
+
+        def cleanup(self):
+            calls.append("robot cleanup")
+
+    class Camera:
+        def close(self):
+            calls.append("camera close")
+
+    def fail_runtime_construction(**kwargs):
+        raise RuntimeError("runtime construction failed")
+
+    monkeypatch.setattr(vr, "build_hardware_runtime", lambda: {
+        "robot": Robot(), "camera": Camera(), "sensor": None,
+    })
+    monkeypatch.setattr(vr, "VoiceRuntime", fail_runtime_construction)
+    monkeypatch.setattr("sys.argv", ["voice-runtime", "--no-llm"])
+
+    with pytest.raises(SystemExit):
+        vr.main()
+
+    assert calls == ["stop", "robot cleanup", "camera close"]
+
+
 def test_text_mode_warmup_wait_timeout_still_processes_command(fake_llm, monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_WARMUP_WAIT_SECONDS", "0.05")
     llm = _SlowWarmupLLM(delay=0.5)

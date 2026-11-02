@@ -30,6 +30,7 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "deg_per_second": 180.0,
         "drive_speed": 0.5,
         "turn_speed": 0.5,
+        "obstacle_threshold_cm": 5.0,
         "step_timeout_seconds": 6.0,
         "mission_timeout_seconds": 45.0,
         "max_step_retries": 2,
@@ -53,7 +54,6 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "camera_face_grace_frames": 10,
         "human_max_age_seconds": 0.2,
         "human_announcement_timeout_seconds": 2.0,
-        "protection_presence": "absent",
     }
     assert {name: getattr(loaded, name) for name in expected} == expected
     assert Path(loaded.camera_face_model_path).resolve().is_file()
@@ -79,6 +79,7 @@ def test_runtime_loader_rejects_unknown_top_level_and_section_keys(tmp_path, mon
         ("[camera]\nclahe_enabled = 1\n", "camera_clahe_enabled"),
         ('[camera]\nfocal_px = "680"\n', "camera_focal_px"),
         ("[limits]\nmax_plan_steps = 1.5\n", "limits.max_plan_steps"),
+        ("[runtime]\nobstacle_threshold_cm = -1.0\n", "obstacle_threshold_cm"),
         ("[human_follow]\nmax_age_seconds = true\n", "human_follow.max_age_seconds"),
         ("[camera]\nfocal_px = nan\n", "camera_focal_px"),
     ],
@@ -114,6 +115,7 @@ def test_load_runtime_settings_from_toml(tmp_path, monkeypatch):
 cm_per_second = 30.0
 deg_per_second = 150.0
 drive_speed = 0.7
+obstacle_threshold_cm = 7.5
 step_timeout_seconds = 3.5
 mission_timeout_seconds = 20.0
 max_step_retries = 1
@@ -134,6 +136,7 @@ max_duration_sec = 8.0
     assert loaded.backward_cm_per_second is None
     assert loaded.deg_per_second == 150.0
     assert loaded.drive_speed == 0.7
+    assert loaded.obstacle_threshold_cm == 7.5
     assert loaded.step_timeout_seconds == 3.5
     assert loaded.mission_timeout_seconds == 20.0
     assert loaded.max_step_retries == 1

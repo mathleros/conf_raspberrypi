@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import threading
 import time
+from collections.abc import Callable
 
 try:
     from gpiozero import DigitalInputDevice, DigitalOutputDevice
@@ -26,50 +28,72 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 class HC_SR04:
     """Mesure la distance à l'objet le plus proche devant le capteur."""
 
+    CACHE_TTL_S = 0.05
+
     def __init__(
         self,
         trigger_pin: int = 17,
         echo_pin: int = 27,
         max_distance_cm: float = 400.0,
+        *,
+        time_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
         self.trigger = DigitalOutputDevice(trigger_pin)
         self.echo = DigitalInputDevice(echo_pin, pull_up=False)
         self.max_distance_cm = max_distance_cm
+        self._time_fn = time_fn
+        self._sleep_fn = sleep_fn
+        self._read_lock = threading.Lock()
+        self._last_distance_cm: float | None = None
+        self._last_distance_at: float | None = None
         self._closed = False
 
     def _trigger_pulse(self) -> None:
         self.trigger.on()
-        time.sleep(0.00001)
+        self._sleep_fn(0.00001)
         self.trigger.off()
 
     def _wait_for_level(self, expected: int, timeout_s: float = 0.05) -> bool:
-        deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline:
+        deadline = self._time_fn() + timeout_s
+        while self._time_fn() < deadline:
             if self.echo.value == expected:
                 return True
-            time.sleep(0.00001)
+            self._sleep_fn(0.00001)
         return False
 
     def read_distance_cm(self) -> float | None:
-        """Retourne la distance en cm, ou None si aucun objet n'est détecté."""
-        self._trigger_pulse()
+        """Retourne une mesure récente en cache, sinon mesure la distance en cm."""
+        with self._read_lock:
+            now = self._time_fn()
+            if (
+                self._last_distance_cm is not None
+                and self._last_distance_at is not None
+                and 0.0 <= now - self._last_distance_at < self.CACHE_TTL_S
+            ):
+                return self._last_distance_cm
 
-        if not self._wait_for_level(1):
-            return None
-        start = time.monotonic()
+            self._last_distance_cm = None
+            self._last_distance_at = None
+            self._trigger_pulse()
+            if not self._wait_for_level(1):
+                return None
 
-        if not self._wait_for_level(0):
-            return None
-        end = time.monotonic()
+            start = self._time_fn()
+            if not self._wait_for_level(0):
+                return None
 
-        elapsed = end - start
-        if elapsed <= 0:
-            return None
+            elapsed = self._time_fn() - start
+            if elapsed <= 0:
+                return None
 
-        distance_cm = (elapsed * 34300.0) / 2.0
-        if distance_cm > self.max_distance_cm:
-            return None
-        return distance_cm
+            distance_cm = (elapsed * 34300.0) / 2.0
+            if distance_cm > self.max_distance_cm:
+                return None
+
+            self._last_distance_cm = distance_cm
+            self._last_distance_at = self._time_fn()
+            return distance_cm
 
     def cleanup(self) -> None:
         if self._closed:

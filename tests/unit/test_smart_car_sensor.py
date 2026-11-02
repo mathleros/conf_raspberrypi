@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib
+import sys
 import threading
+from types import SimpleNamespace
+
+import pytest
 
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.smart_car import smart_car as sc
-from irobot.interfaces.robot_controller import RobotController
 
 
 class _Pin:
@@ -59,20 +63,63 @@ class _Clock:
 def _car(monkeypatch, sensor, clock):
     monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
     monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
-    return sc.SmartCar2WD(distance_sensor=sensor, time_fn=clock, sleep_fn=clock.sleep)
+    return sc.SmartCar2WD(distance_sensor=sensor, sleep_fn=clock.sleep)
+
+
+def _hc_sr04(monkeypatch, clock):
+    monkeypatch.setitem(
+        sys.modules,
+        "gpiozero",
+        SimpleNamespace(DigitalOutputDevice=_Pin, DigitalInputDevice=_Pin),
+    )
+    module = importlib.import_module("irobot.hardware.sensors.hc_sr04")
+    return module.HC_SR04(time_fn=clock, sleep_fn=clock.sleep)
+
+
+def _mock_sensor_reads(sensor, clock, distances):
+    pending = []
+    sensor._trigger_pulse = lambda: None
+
+    def wait_for_level(expected, timeout_s=0.05):
+        if expected == 1:
+            distance = next(distances)
+            if distance is None:
+                return False
+            pending.append(distance)
+            return True
+        clock.now += pending.pop() * 2 / 34300
+        return True
+
+    sensor._wait_for_level = wait_for_level
 
 
 def test_drive_speed_is_configured_by_constructor(monkeypatch):
-    monkeypatch.setattr(sc, "load_runtime_settings", lambda: RuntimeSettings(drive_speed=0.65))
+    monkeypatch.setattr(
+        sc, "load_runtime_settings",
+        lambda: RuntimeSettings(drive_speed=0.65, obstacle_threshold_cm=8.0),
+    )
     car = _car(monkeypatch, None, _Clock())
     assert car.speed == 0.65
+    assert car.obstacle_threshold_cm == 8.0
 
     custom_car = sc.SmartCar2WD(
-        time_fn=_Clock(),
         sleep_fn=lambda _: None,
         drive_speed=0.7,
+        obstacle_threshold_cm=12.0,
     )
     assert custom_car.speed == 0.7
+    assert custom_car.obstacle_threshold_cm == 12.0
+
+
+def test_smart_car_cli_threshold_defaults_to_runtime_settings(monkeypatch):
+    monkeypatch.setattr(
+        sc, "load_runtime_settings",
+        lambda: RuntimeSettings(obstacle_threshold_cm=9.0),
+    )
+
+    args = sc.build_parser().parse_args(["forward"])
+
+    assert args.obstacle_threshold_cm == 9.0
 
 
 def test_cleanup_releases_injected_sensor_once(monkeypatch):
@@ -103,52 +150,69 @@ def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
     assert sensor.cleanup_calls == 1
 
 
-def test_cache_within_50ms_then_refresh(monkeypatch):
-    sensor, clock = _Sensor([100.0, 80.0]), _Clock()
-    car = _car(monkeypatch, sensor, clock)
+def test_sensor_cache_within_50ms_then_refresh(monkeypatch):
+    clock = _Clock()
+    sensor = _hc_sr04(monkeypatch, clock)
+    _mock_sensor_reads(sensor, clock, iter([100.0, 80.0]))
 
-    assert car.read_distance_cm() == 100.0
+    assert sensor.read_distance_cm() == 100.0
     clock.now += 0.049
-    assert car.read_distance_cm() == 100.0
-    assert sensor.calls == 1
+    assert sensor.read_distance_cm() == 100.0
     clock.now += 0.002
-    assert car.read_distance_cm() == 80.0
-    assert sensor.calls == 2
+    assert sensor.read_distance_cm() == pytest.approx(80.0)
 
 
-def test_check_obstacle_shares_cache_and_none_is_not_cached(monkeypatch):
+def test_check_obstacle_retries_missing_sensor_reading(monkeypatch):
     sensor, clock = _Sensor([None, 3.0]), _Clock()
     car = _car(monkeypatch, sensor, clock)
 
     assert car.check_obstacle() is True  # 3 cm < 5 cm, après un retry sur None
     assert sensor.calls == 2
-    assert car.read_distance_cm() == 3.0  # servi par le cache
-    assert sensor.calls == 2
 
 
-def test_no_sensor_returns_none(monkeypatch):
+def test_no_sensor_obstacle_policy(monkeypatch):
     car = _car(monkeypatch, None, _Clock())
-    assert car.read_distance_cm() is None
-    assert RobotController(car).read_distance_cm() is None
+    assert car.check_obstacle() is False
+    car.require_obstacle_sensor = True
+    assert car.check_obstacle() is True
 
 
-def test_concurrent_reads_are_serialized(monkeypatch):
-    sensor, clock = _Sensor([]), _Clock()
-    car = _car(monkeypatch, sensor, clock)
-    car._time_fn = lambda: 0.0
-    car._last_distance_at = None
-    held = []
-    original = sensor.read_distance_cm
+def test_sensor_concurrent_reads_are_serialized(monkeypatch):
+    clock = _Clock()
+    sensor = _hc_sr04(monkeypatch, clock)
+    started = threading.Event()
+    release = threading.Event()
+    calls = []
 
-    def slow_read():
-        held.append(car._sensor_lock.locked())
-        return original()
+    sensor._trigger_pulse = lambda: None
 
-    sensor.read_distance_cm = slow_read
-    threads = [threading.Thread(target=car.read_distance_cm) for _ in range(4)]
+    def wait_for_level(expected, timeout_s=0.05):
+        if expected == 1:
+            calls.append(sensor._read_lock.locked())
+            started.set()
+            assert release.wait(2)
+            return True
+        clock.now += 42.0 * 2 / 34300
+        return True
+
+    sensor._wait_for_level = wait_for_level
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(sensor.read_distance_cm())) for _ in range(4)]
     for t in threads:
         t.start()
+    assert started.wait(1)
+    release.set()
     for t in threads:
         t.join()
-    assert all(held) and sensor.max_active == 1
-    assert sensor.calls == 1  # les autres threads sont servis par le cache
+    assert calls == [True]
+    assert results == [42.0] * 4
+
+
+def test_sensor_does_not_cache_missing_measurements(monkeypatch):
+    clock = _Clock()
+    sensor = _hc_sr04(monkeypatch, clock)
+    _mock_sensor_reads(sensor, clock, iter([None, 30.0]))
+
+    assert sensor.read_distance_cm() is None
+    clock.now += 0.001
+    assert sensor.read_distance_cm() == 30.0

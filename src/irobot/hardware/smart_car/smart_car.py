@@ -17,7 +17,6 @@ Notes de câblage :
 
 import argparse
 from contextlib import ExitStack
-import threading
 import time
 from typing import Any
 
@@ -52,7 +51,6 @@ class SmartCar2WD:
     }
 
     SENSOR_READ_ATTEMPTS = 5
-    SENSOR_CACHE_TTL_S = 0.05
 
     def __init__(
         self,
@@ -63,13 +61,11 @@ class SmartCar2WD:
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
         distance_sensor: Any | None = None,
-        obstacle_threshold_cm: float = 5.0,
+        obstacle_threshold_cm: float | None = None,
         require_obstacle_sensor: bool = False,
-        time_fn=time.monotonic,
         sleep_fn=time.sleep,
         drive_speed: float | None = None,
     ):
-        self._time_fn = time_fn
         self._sleep_fn = sleep_fn
         self.pins = {
             "in1": DigitalOutputDevice(in1),
@@ -81,15 +77,14 @@ class SmartCar2WD:
         self.enb = PWMOutputDevice(enb, frequency=100)
         self._closed = False
 
-        if drive_speed is None:
-            drive_speed = load_runtime_settings().drive_speed
+        if drive_speed is None or obstacle_threshold_cm is None:
+            settings = load_runtime_settings()
+            if drive_speed is None:
+                drive_speed = settings.drive_speed
+            if obstacle_threshold_cm is None:
+                obstacle_threshold_cm = settings.obstacle_threshold_cm
         self.speed = self.clamp_speed(drive_speed)
         self.stop()
-
-        # Un seul lecteur à la fois sur le HC-SR04 (TRIG/ECHO chronométrés à la main).
-        self._sensor_lock = threading.Lock()
-        self._last_distance_cm: float | None = None
-        self._last_distance_at: float | None = None
 
         self.obstacle_threshold_cm = obstacle_threshold_cm
         self.require_obstacle_sensor = bool(require_obstacle_sensor)
@@ -167,28 +162,6 @@ class SmartCar2WD:
                 if self.distance_sensor is not None:
                     cleanup.callback(self.distance_sensor.cleanup)
 
-    def read_distance_cm(self) -> float | None:
-        """Lit le HC-SR04 sous verrou ; réutilise une mesure valide de moins de 50 ms."""
-        if self.distance_sensor is None:
-            return None
-        with self._sensor_lock:
-            now = self._time_fn()
-            if (
-                self._last_distance_cm is not None
-                and self._last_distance_at is not None
-                and 0.0 <= now - self._last_distance_at < self.SENSOR_CACHE_TTL_S
-            ):
-                return self._last_distance_cm
-
-            distance_cm = self.distance_sensor.read_distance_cm()
-            if distance_cm is None:
-                self._last_distance_cm = None
-                self._last_distance_at = None
-                return None
-            self._last_distance_cm = distance_cm
-            self._last_distance_at = self._time_fn()
-            return distance_cm
-
     def check_obstacle(self) -> bool:
         """Retourne True si un objet est détecté à moins de l seuil configuré."""
         if self.distance_sensor is None and not self.require_obstacle_sensor:
@@ -199,7 +172,7 @@ class SmartCar2WD:
         # Le HC-SR04 renvoie souvent des mesures manquantes : on réessaie avant de conclure.
         for _ in range(self.SENSOR_READ_ATTEMPTS):
             try:
-                distance_cm = self.read_distance_cm()
+                distance_cm = self.distance_sensor.read_distance_cm()
             except Exception:
                 return True
             if distance_cm is not None:
@@ -210,6 +183,7 @@ class SmartCar2WD:
 
 def build_parser() -> argparse.ArgumentParser:
     """Crée le parser de ligne de commande."""
+    settings = load_runtime_settings()
     parser = argparse.ArgumentParser(
         description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via un pont H-bridge L298N."
     )
@@ -233,7 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--obstacle-threshold-cm",
         type=float,
-        default=20.0,
+        default=settings.obstacle_threshold_cm,
         help="Arrête la voiture si le capteur HC-SR04 détecte un objet à moins de X cm.",
     )
     parser.add_argument(

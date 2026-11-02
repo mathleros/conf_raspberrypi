@@ -44,8 +44,6 @@ class VoiceRuntimeState:
         self.input_device = input_device
         self.use_llm = use_llm
         self.settings = load_runtime_settings()
-        if self.settings.protection_presence == "present":
-            raise ValueError("Declared protection is unsupported by the simplified runtime")
         self._emergency_event = threading.Event()
         self.trace_dir = Path(trace_dir) if trace_dir else Path.cwd() / "target" / "logs"
         self.trace_dir.mkdir(parents=True, exist_ok=True)

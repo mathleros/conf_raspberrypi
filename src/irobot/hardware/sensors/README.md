@@ -7,8 +7,9 @@ et ECHO sur GPIO 27 par défaut.
 
 La classe `HC_SR04` expose `read_distance_cm()`, qui renvoie la distance en
 centimètres ou `None` si aucune mesure valide n'est reçue dans la portée
-configurée (400 cm par défaut). Appelez `cleanup()` pour libérer les GPIO ; le
-contexte d'utilisation via `try/finally` garantit leur fermeture.
+configurée (400 cm par défaut). Les lectures sont sérialisées et une mesure
+valide est réutilisée pendant 50 ms. Appelez `cleanup()` pour libérer les GPIO ;
+le contexte d'utilisation via `try/finally` garantit leur fermeture.
 
 ## Broches GPIO utilisées
 

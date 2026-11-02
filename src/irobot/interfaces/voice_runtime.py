@@ -43,11 +43,15 @@ def resolve_input_device(device: str) -> str:
 
 def build_hardware_runtime() -> dict[str, Any]:
     settings = load_runtime_settings()
-    if settings.protection_presence == "present":
-        raise RuntimeError("Protection declared present: no qualified real P5 adapter; live assembly refused")
     from irobot.hardware.runtime_factory import build_hardware_runtime as build
 
     return build(settings=settings)
+
+
+def close_hardware_runtime(hardware: dict[str, Any]) -> None:
+    from irobot.hardware.runtime_factory import close_hardware_runtime as close
+
+    close(hardware)
 
 
 class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
@@ -177,17 +181,16 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
-        self._abort_mission()
         try:
-            if self.perception is not None and hasattr(self.perception, "close"):
-                self.perception.close()
-        finally:
-            if self.robot is not None:
-                cleanup = getattr(self.robot, "cleanup", None)
-                if callable(cleanup):
-                    cleanup()
-                elif hasattr(self.robot, "stop"):
-                    self.robot.stop()
+            self._abort_mission()
+        except Exception:
+            logging.getLogger(__name__).exception("Impossible d'interrompre la mission avant la fermeture")
+            try:
+                close_hardware_runtime({"robot": self.robot, "camera": self.perception})
+            except Exception:
+                logging.getLogger(__name__).exception("Échec de la fermeture des ressources après interruption")
+            raise
+        close_hardware_runtime({"robot": self.robot, "camera": self.perception})
 
 
 def _parse_args() -> argparse.Namespace:
@@ -221,6 +224,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
     runtime = None
+    hardware = None
     try:
         warmup = LLMWarmup().start() if not args.no_llm else None
         hardware = build_hardware_runtime()
@@ -250,6 +254,8 @@ def main() -> None:
     finally:
         if runtime is not None:
             runtime.close()
+        elif hardware is not None:
+            close_hardware_runtime(hardware)
 
 
 if __name__ == "__main__":

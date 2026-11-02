@@ -55,6 +55,7 @@ class RuntimeSettings:
     deg_per_second: float = 180.0
     drive_speed: float = 0.5
     turn_speed: float = 0.5
+    obstacle_threshold_cm: float = 5.0
     step_timeout_seconds: float = 6.0
     mission_timeout_seconds: float = 45.0
     max_step_retries: int = 2
@@ -80,12 +81,13 @@ class RuntimeSettings:
         Path(__file__).resolve().parents[3] / "assets" / "vision" / "face_detection_yunet_2023mar.onnx"
     )
     backward_cm_per_second: float | None = None
-    protection_presence: str = "absent"
     human_marker_identity: MarkerIdentity | None = None
     human_max_age_seconds: float = 0.2
     human_announcement_timeout_seconds: float = 2.0
 
     def __post_init__(self) -> None:
+        if self.obstacle_threshold_cm < 0:
+            raise ValueError("obstacle_threshold_cm must be non-negative")
         for name in ("camera_face_width_cm", "camera_face_score_threshold"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -173,6 +175,7 @@ def _string(table: Mapping[str, object], key: str, default: str, error_name: str
 def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
     table = _table(raw, "runtime", {
         "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "turn_speed",
+        "obstacle_threshold_cm",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds",
     })
@@ -186,6 +189,9 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         deg_per_second=_float(table, "deg_per_second", current.deg_per_second, "runtime.deg_per_second"),
         drive_speed=_float(table, "drive_speed", current.drive_speed, "runtime.drive_speed"),
         turn_speed=_float(table, "turn_speed", current.turn_speed, "runtime.turn_speed"),
+        obstacle_threshold_cm=_float(
+            table, "obstacle_threshold_cm", current.obstacle_threshold_cm, "runtime.obstacle_threshold_cm",
+        ),
         step_timeout_seconds=_float(table, "step_timeout_seconds", current.step_timeout_seconds, "runtime.step_timeout_seconds"),
         mission_timeout_seconds=_float(table, "mission_timeout_seconds", current.mission_timeout_seconds, "runtime.mission_timeout_seconds"),
         max_step_retries=_int(table, "max_step_retries", current.max_step_retries, "runtime.max_step_retries"),
@@ -241,10 +247,6 @@ def _load_camera_section(
 
 def _load_optional_sections(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
     human_follow = _table(raw, "human_follow", {"max_age_seconds", "announcement_timeout_seconds"})
-    protection = _table(raw, "protection", {"presence"})
-    presence = _string(protection, "presence", current.protection_presence, "protection.presence")
-    if presence not in {"absent", "present"}:
-        raise ValueError("Invalid protection.presence; expected absent or present")
     return replace(
         current,
         human_marker_identity=MarkerIdentity.from_mapping(raw.get("human_marker")),
@@ -255,7 +257,6 @@ def _load_optional_sections(raw: Mapping[str, object], current: RuntimeSettings)
             human_follow, "announcement_timeout_seconds", current.human_announcement_timeout_seconds,
             "human_follow.announcement_timeout_seconds",
         ),
-        protection_presence=presence,
     )
 
 
@@ -267,7 +268,7 @@ def load_runtime_settings() -> RuntimeSettings:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, Mapping):
         raise ValueError("Configuration TOML must contain a table")
-    allowed_sections = {"runtime", "limits", "camera", "human_follow", "protection", "human_marker"}
+    allowed_sections = {"runtime", "limits", "camera", "human_follow", "human_marker"}
     unknown = set(raw) - allowed_sections
     if unknown:
         raise ValueError(f"Unknown top-level key(s): {', '.join(sorted(unknown))}")

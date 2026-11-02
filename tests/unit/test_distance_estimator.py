@@ -11,13 +11,11 @@ from irobot.hardware.camera import color_detector
 from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
 from irobot.hardware.camera.distance_estimator import (
     ExponentialSmoother,
-    distance_reader_from_robot,
     estimate_distance_cm,
     focal_from_known_distance,
     fuse_with_ultrasound,
 )
 from irobot.interfaces.perception_pipeline import ObjectDetection
-from tests.unit.fake_robot import FakeRobot
 
 
 def test_estimate_distance_known_values():
@@ -60,14 +58,6 @@ def test_fusion_concordant_divergent_and_missing():
     assert fuse_with_ultrasound(None, 100.0) is None
 
 
-def test_distance_reader_from_robot():
-    robot = FakeRobot()
-    robot.ultrasound_cm = 42.0
-    reader = distance_reader_from_robot(robot)
-    assert reader is not None and reader() == 42.0
-    assert distance_reader_from_robot(object()) is None
-
-
 def _pipeline(**kwargs) -> CameraLivePerceptionPipeline:
     kwargs.setdefault("fusion_enabled", True)
     return CameraLivePerceptionPipeline(autostart=False, ball_diameter_cm=6.5, focal_px=600.0, **kwargs)
@@ -98,19 +88,18 @@ def test_pipeline_no_distance_for_object():
 
 
 def test_detect_fusion_concordant_divergent_absent_disabled():
-    robot = FakeRobot()
-    reader = distance_reader_from_robot(robot)
+    ultrasound_cm = [110.0]
+    reader = lambda: ultrasound_cm[0]
 
     def detect(**kwargs):
         pipe = _pipeline(**kwargs)
         _publish(pipe, _ball(kwargs.pop("position", "center")))
         return pipe.detect()
 
-    robot.ultrasound_cm = 110.0
     assert detect(distance_reader=reader).distance_cm == 110.0
-    robot.ultrasound_cm = 200.0
+    ultrasound_cm[0] = 200.0
     assert detect(distance_reader=reader).distance_cm == pytest.approx(100.0)
-    robot.ultrasound_cm = 110.0
+    ultrasound_cm[0] = 110.0
     assert detect(distance_reader=None).distance_cm == pytest.approx(100.0)
     assert detect(distance_reader=reader, fusion_enabled=False).distance_cm == pytest.approx(100.0)
 

@@ -120,9 +120,3 @@ def fuse_with_ultrasound(
 
 
 DistanceReader = Callable[[], float | None]
-
-
-def distance_reader_from_robot(robot: object) -> DistanceReader | None:
-    """Retourne `robot.read_distance_cm` s'il existe, sinon None (capteur absent)."""
-    reader = getattr(robot, "read_distance_cm", None)
-    return reader if callable(reader) else None

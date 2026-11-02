@@ -149,15 +149,15 @@ def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
         def __init__(self):
             self.cleanup_calls = 0
 
+        def read_distance_cm(self):
+            return 25.0
+
         def cleanup(self):
             self.cleanup_calls += 1
 
     class Car:
         def __init__(self, *, distance_sensor, **kwargs):
             self.distance_sensor = distance_sensor
-
-        def read_distance_cm(self):
-            return 25.0
 
         def cleanup(self):
             self.distance_sensor.cleanup()
@@ -170,26 +170,96 @@ def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
         "irobot.hardware.sensors.hc_sr04",
         SimpleNamespace(HC_SR04=lambda: sensor),
     )
+    camera_kwargs = {}
+
+    def create_camera(**kwargs):
+        camera_kwargs.update(kwargs)
+        return object()
+
     monkeypatch.setitem(
         sys.modules,
         "irobot.hardware.camera.camera_live_pipeline",
-        SimpleNamespace(CameraLivePerceptionPipeline=lambda **kwargs: object()),
+        SimpleNamespace(CameraLivePerceptionPipeline=create_camera),
     )
 
     hardware = runtime_factory.build_hardware_runtime(settings=RuntimeSettings())
 
     assert hardware["sensor"] is sensor
-    assert hardware["robot"].read_distance_cm() == 25.0
+    assert hardware["sensor"].read_distance_cm() == 25.0
+    assert not hasattr(hardware["robot"], "read_distance_cm")
+    assert camera_kwargs["distance_reader"]() == 25.0
+    assert camera_kwargs["distance_reader"].__self__ is sensor
     hardware["robot"].cleanup()
     assert sensor.cleanup_calls == 1
 
 
-def test_hardware_factory_refuses_unqualified_protection(monkeypatch):
+def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
+    from irobot.hardware.smart_car import smart_car
+
+    calls = []
+
+    class Sensor:
+        def read_distance_cm(self):
+            return None
+
+        def cleanup(self):
+            calls.append("sensor cleanup")
+
+    class Car:
+        def __init__(self, *, distance_sensor, **kwargs):
+            self.distance_sensor = distance_sensor
+
+        def stop(self):
+            calls.append("robot stop")
+
+        def cleanup(self):
+            calls.append("robot cleanup")
+            self.distance_sensor.cleanup()
+
+    def fail_camera(**kwargs):
+        raise RuntimeError("camera init failed")
+
     monkeypatch.setattr(runtime_factory.sys, "platform", "linux")
-    with pytest.raises(RuntimeError, match="no qualified real P5 adapter"):
-        runtime_factory.build_hardware_runtime(
-            settings=RuntimeSettings(protection_presence="present"),
-        )
+    monkeypatch.setattr(smart_car, "SmartCar2WD", Car)
+    monkeypatch.setitem(
+        sys.modules,
+        "irobot.hardware.sensors.hc_sr04",
+        SimpleNamespace(HC_SR04=Sensor),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "irobot.hardware.camera.camera_live_pipeline",
+        SimpleNamespace(CameraLivePerceptionPipeline=fail_camera),
+    )
+
+    with pytest.raises(RuntimeError, match="camera init failed"):
+        runtime_factory.build_hardware_runtime(settings=RuntimeSettings())
+
+    assert calls == ["robot stop", "robot cleanup", "sensor cleanup"]
+
+
+def test_hardware_runtime_cleanup_attempts_every_resource():
+    calls = []
+
+    class Robot:
+        def stop(self):
+            calls.append("stop")
+            raise RuntimeError("stop failed")
+
+        def cleanup(self):
+            calls.append("robot cleanup")
+            raise RuntimeError("robot cleanup failed")
+
+    class Camera:
+        def close(self):
+            calls.append("camera close")
+            raise RuntimeError("camera close failed")
+
+    with pytest.raises(ExceptionGroup) as error:
+        runtime_factory.close_hardware_runtime({"robot": Robot(), "camera": Camera()})
+
+    assert len(error.value.exceptions) == 3
+    assert calls == ["stop", "robot cleanup", "camera close"]
 
 
 def test_llm_interpretation_accepts_an_injected_transport():

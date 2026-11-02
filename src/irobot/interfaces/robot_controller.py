@@ -80,16 +80,6 @@ class RobotController:
             return True
         return bool(obstacle)
 
-    def read_distance_cm(self) -> float | None:
-        reader = getattr(self._robot, "read_distance_cm", None)
-        if not callable(reader):
-            return None
-        try:
-            return reader()
-        except Exception:
-            logging.getLogger(__name__).exception("Echec de la lecture ultrason")
-            return None
-
     def request_emergency_stop(self) -> None:
         self._emergency_event.set()
         self.stop()

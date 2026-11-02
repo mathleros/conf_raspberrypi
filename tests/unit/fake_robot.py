@@ -20,7 +20,6 @@ class FakeRobot:
         self.time_fn = time_fn
         self.speed = 0.5
         self.obstacle_detected = False
-        self.ultrasound_cm: float | None = None
 
     def _record(self, command: str) -> None:
         self.commands.append(command)
@@ -47,6 +46,3 @@ class FakeRobot:
 
     def check_obstacle(self) -> bool:
         return self.obstacle_detected
-
-    def read_distance_cm(self) -> float | None:
-        return self.ultrasound_cm

@@ -85,7 +85,8 @@ y compris « approche-toi de moi » avec ou sans LLM.
 Les arrêts vocaux, les obstacles, la validation et les erreurs matérielles restent
 prioritaires ; une erreur de suivi n'est pas relancée automatiquement.
 Les traces `step_result` incluent le statut, le message et les données des skills.
-Une protection déclarée `present` reste refusée, faute d'adaptateur qualifié.
+Le runtime n'intègre pas d'adaptateur P5 qualifié ; toute protection matérielle
+doit fonctionner indépendamment du logiciel.
 
 La distance ArUco du runtime et du diagnostic utilise la même fonction
 [estimate_marker_distance_cm](hardware/camera/distance_estimator.py) : pose

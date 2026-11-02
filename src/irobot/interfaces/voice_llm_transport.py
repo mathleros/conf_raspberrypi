@@ -9,7 +9,7 @@ import time
 from typing import Any, Protocol
 import requests
 
-from irobot.config.settings import load_llm_settings
+from irobot.config.llm_settings import load_llm_settings
 from irobot.interfaces.plan_guards import build_formats
 
 

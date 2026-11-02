@@ -65,7 +65,7 @@ PY
 ```
 
 Le chemin `face_model_path` de la section `[camera]` de
-[runtime_calibration.toml](../config/runtime_calibration.toml) est relatif à ce
+[runtime_settings.toml](../src/irobot/config/runtime_settings.toml) est relatif à ce
 fichier TOML, ou absolu. Une absence du modèle ou une erreur OpenCV est signalée,
 sans téléchargement automatique ni repli silencieux. Le contrôle ci-dessus
 ne qualifie ni la caméra Picamera2 sur le Pi, ni la précision des distances,

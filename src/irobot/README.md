@@ -27,6 +27,15 @@ src/irobot/
 └── ...
 ```
 
+## Configuration
+
+La calibration du runtime est chargée depuis
+[config/runtime_settings.toml](config/runtime_settings.toml). Les sections,
+clés et types TOML sont vérifiés au chargement ; une clé inconnue ou une valeur
+mal typée déclenche une erreur explicite. Les paramètres du client LLM sont
+séparés dans `config/llm_settings.py` et proviennent des variables `LLM_*`.
+Les imports historiques depuis `config/settings.py` restent compatibles.
+
 ## Règle de conception
 
 - `skills/primitives` : actions atomiques du robot
@@ -97,7 +106,7 @@ et `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
 au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
 appliqué uniquement au canal de luminosité L de LAB, avant toute détection.
 
-Dans [runtime_calibration.toml](../../config/runtime_calibration.toml), section
+Dans [runtime_settings.toml](config/runtime_settings.toml), section
 `[camera]`, la correction est activée avec `exposure_value = 1.0` EV,
 `clahe_enabled = true`, `clahe_clip_limit = 3.0` et une grille fixe 8×8.
 La compensation d'exposition est transmise à Picamera2 après configuration et
@@ -134,7 +143,7 @@ Taille : 232 589 octets ; SHA-256 :
 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`.
 Il est livré avec le projet, sans téléchargement automatique au démarrage.
 
-La section `[camera]` de [runtime_calibration.toml](../../config/runtime_calibration.toml)
+La section `[camera]` de [runtime_settings.toml](config/runtime_settings.toml)
 configure `face_model_path` (relatif au TOML ou absolu), `face_width_cm = 15.0`,
 `face_score_threshold = 0.45` et `face_grace_frames = 10`.
 La distance indicative vaut `focal_px × face_width_cm / largeur_du_visage_px`,

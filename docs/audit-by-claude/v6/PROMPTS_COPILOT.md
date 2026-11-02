@@ -32,7 +32,7 @@
 ## Prompt 0 — Préambule (à coller une fois, en début de session)
 
 ```
-Contexte : projet Python `irobot` (src/irobot, tests/, config/runtime_calibration.toml) pour un robot Raspberry Pi. Lis REFERENCE_IROBOT.md et PROJECT_CONTEXT.md avant toute modification.
+Contexte : projet Python `irobot` (src/irobot, tests/, src/irobot/config/runtime_settings.toml) pour un robot Raspberry Pi. Lis REFERENCE_IROBOT.md et PROJECT_CONTEXT.md avant toute modification.
 
 Objectif global : permettre la commande vocale « cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min ». Je te donnerai les étapes une par une.
 
@@ -68,7 +68,7 @@ Tests à ajouter (tests/unit/test_voice_runtime.py) : durée par défaut inject�
 ## Prompt 2 — Réglages et timeouts
 
 ```
-Étape 2/10 — Réglages. Fichiers : src/irobot/config/settings.py, config/runtime_calibration.toml, src/irobot/interfaces/voice_runtime.py, tests/unit/test_runtime_settings.py.
+Étape 2/10 — Réglages. Fichiers : src/irobot/config/settings.py, src/irobot/config/runtime_settings.toml, src/irobot/interfaces/voice_runtime.py, tests/unit/test_runtime_settings.py.
 
 Contexte : step_timeout_seconds=6 est vérifié APRÈS l'exécution et marque "aborted" une étape réussie mais longue ; mission_timeout_seconds=45 et max_duration_sec=12 empêchent un suivi de 5 min.
 
@@ -78,7 +78,7 @@ Contexte : step_timeout_seconds=6 est vérifié APRÈS l'exécution et marque "a
    - min_stand_off_cm = 30.0 ; max_stand_off_cm = 300.0
    - search_timeout_seconds = 25.0  (temps max de recherche d'une cible)
    - timeout_margin_seconds = 10.0
-   Mets les mêmes clés dans config/runtime_calibration.toml. Unifie aussi le défaut cm_per_second de settings.py avec la valeur du TOML (65.0) ; signale tout test impacté.
+   Mets les mêmes clés dans src/irobot/config/runtime_settings.toml. Unifie aussi le défaut cm_per_second de settings.py avec la valeur du TOML (65.0) ; signale tout test impacté.
 2. Dans voice_runtime.py, calcule un timeout effectif par étape : `max(step_timeout_seconds, duration_s + search_timeout_seconds + timeout_margin_seconds)` quand l'intent porte `parameters["duration_s"]` (sinon le timeout actuel). Utilise-le dans `_execute_intent_with_retry`.
 3. Calcule un timeout de mission effectif : `max(mission_timeout_seconds, somme des timeouts effectifs des étapes)`.
 4. Pas de retry quand l'étape s'est terminée par un statut "aborted" ou par dépassement de timeout (aujourd'hui seuls "failed"/"in_progress" sont retentés ; garde ce comportement).
@@ -91,7 +91,7 @@ Tests : chargement TOML des nouvelles clés, valeurs par défaut sans fichier, c
 ## Prompt 3 — Estimation de distance de la balle
 
 ```
-Étape 3/10 — Perception : distance. Fichiers : src/irobot/hardware/camera/color_detector.py, camera_live_pipeline.py, src/irobot/interfaces/perception_pipeline.py, config/runtime_calibration.toml.
+Étape 3/10 — Perception : distance. Fichiers : src/irobot/hardware/camera/color_detector.py, camera_live_pipeline.py, src/irobot/interfaces/perception_pipeline.py, src/irobot/config/runtime_settings.toml.
 
 Contexte : CameraLivePerceptionPipeline renvoie toujours ObjectDetection.distance_cm = None. La frame est tournée de 90° (cv2.rotate) avant la détection ; la caméra capture en 640x480.
 
@@ -99,7 +99,7 @@ Contexte : CameraLivePerceptionPipeline renvoie toujours ObjectDetection.distanc
 1. Lis color_detector.py et indique (en commentaire de PR) quelles infos géométriques sont disponibles pour chaque candidat (rayon, bbox, aire). Si elles ne sont pas remontées jusqu'à `choose_best_result`, fais-les remonter sans casser l'API publique existante (les chaînes "BALL_YELLOW_A_GAUCHE" doivent rester inchangées pour les tests existants ; ajoute une variante qui renvoie aussi les métriques).
 2. Ajoute `diameter_px: float | None = None` à ObjectDetection. Calcule-le de façon invariante à la rotation (diamètre du cercle équivalent via cv2.minEnclosingCircle ou sqrt(4*aire/pi)), PAS la largeur de bbox.
 3. Crée src/irobot/hardware/camera/distance_estimator.py avec une fonction pure `estimate_distance_cm(diameter_px, ball_diameter_cm, focal_px) -> float | None` (modèle sténopé : d = focal_px * ball_diameter_cm / diameter_px ; None si diameter_px <= 0).
-4. Ajoute une section [camera] dans runtime_calibration.toml : ball_diameter_cm (défaut 6.5), focal_px (défaut 600.0, à calibrer), et expose-les dans RuntimeSettings.
+4. Ajoute une section [camera] dans runtime_settings.toml : ball_diameter_cm (défaut 6.5), focal_px (défaut 600.0, à calibrer), et expose-les dans RuntimeSettings.
 5. Dans CameraLivePerceptionPipeline, renseigne `distance_cm` via estimate_distance_cm. Applique un lissage (moyenne glissante sur les 3-5 dernières mesures, ou filtre exponentiel alpha=0.4) pour limiter le bruit.
 6. Fusion optionnelle avec le capteur HC-SR04 : si le robot expose `read_distance_cm()` et que la balle est au centre, et que la mesure ultrason est dans ±25 % de l'estimation visuelle, retourne la mesure ultrason ; sinon garde l'estimation visuelle. Cette fusion doit être injectable (paramètre du constructeur) et désactivable.
 7. Ajoute un petit script CLI `calibrate-distance` (entrée dans pyproject.toml, sous irobot.hardware.camera) qui affiche en direct diameter_px et distance estimée, et un mode `--known-distance-cm 100` qui affiche le focal_px à reporter dans le TOML.
@@ -157,7 +157,7 @@ Tests (horloge simulée, perception simulée qui déplace la balle) : maintien �
 ## Prompt 6 — Câblage : intents, parseur, validation, planner, runtime
 
 ```
-Étape 6/10 — Câblage de follow_object. Fichiers : src/irobot/interfaces/intent_parser.py, src/irobot/domain/orchestrator/planner.py, src/irobot/interfaces/voice_runtime.py, src/irobot/interfaces/language_controller.py, config/runtime_calibration.toml.
+Étape 6/10 — Câblage de follow_object. Fichiers : src/irobot/interfaces/intent_parser.py, src/irobot/domain/orchestrator/planner.py, src/irobot/interfaces/voice_runtime.py, src/irobot/interfaces/language_controller.py, src/irobot/config/runtime_settings.toml.
 
 À faire :
 1. IntentValidator.ALLOWED_INTENTS : ajoute "follow_object". Règle de validation : target ∈ {"red","yellow", None} ; sinon rejeté.

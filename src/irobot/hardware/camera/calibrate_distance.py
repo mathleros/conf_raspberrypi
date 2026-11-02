@@ -6,7 +6,7 @@ Usage :
 
 Avec --known-distance-cm, place la balle à cette distance (mesurée) ; le script
 moyenne plusieurs mesures et affiche le `focal_px` à reporter dans
-config/runtime_calibration.toml, section [camera].
+src/irobot/config/runtime_settings.toml, section [camera].
 """
 
 from __future__ import annotations

@@ -27,7 +27,7 @@
 - Objectif logiciel finalisé : commande « cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min » (étapes 1→10 terminées sans matériel ; validation physique Pi restante).
 - Étape 3 perception distance : `color_detector.detect_colored_objects(..., is_rgb=False)` expose par candidat `bbox`, `area`, `diameter_px` (= sqrt(4·aire/π), invariant à la rotation) ; `choose_best_result_with_metrics` renvoie `(verdict, candidat)`, `choose_best_result` est inchangé (chaînes `BALL_YELLOW_A_GAUCHE`).
 - Étape 3 : `hardware/camera/distance_estimator.py` (`estimate_distance_cm` modèle sténopé, `focal_from_known_distance`, `ExponentialSmoother` alpha 0.4, `fuse_with_ultrasound` ±25 %). `ObjectDetection` gagne `diameter_px` et `distance_visual_cm`.
-- Étape 3 : `[camera]` dans `runtime_calibration.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
+- Étape 3 : `[camera]` dans `runtime_settings.toml` (`ball_diameter_cm=6.5`, `focal_px=600.0` à calibrer, `ultrasonic_fusion=false`) -> `RuntimeSettings.camera_*`. CLI `calibrate-distance [--known-distance-cm 100]` (affiche le `focal_px` à reporter).
 - Étape 3b fusion sans conflit GPIO : `SmartCar2WD.read_distance_cm()` et `check_obstacle()` partagent un `threading.Lock` + cache 50 ms (`time_fn`/`sleep_fn` injectables) ; `RobotController.read_distance_cm()` (None si absent/erreur). Le thread caméra ne calcule que l'estimation visuelle ; la fusion ultrason se fait dans `CameraLivePerceptionPipeline.detect()` (thread appelant), seulement si `ultrasonic_fusion=true`, balle au centre ; lecteur en erreur/None -> estimation visuelle. `voice_runtime.build_hardware_runtime` branche `distance_reader=robot.read_distance_cm`.
 - Correctif : la pipeline caméra appelait `detect_colored_objects(is_rgb=True)` (paramètre inexistant, `TypeError` avalé -> détection toujours None) ; `picamera2` et `HC_SR04` sont des imports tolérants hors Pi.
 - Étape 4 recherche/approche (`ApproachTargetSkill`, `approach_target.py`) : deux phases SEARCH (cible jamais vue/perdue) et TRACK (visible), identiques pour les balles, marqueurs et autres objets. En SEARCH le budget est `search_timeout_s` (défaut `settings.search_timeout_seconds`), puis `failed` + `data["target_lost"]=True` + arrêt ; `max_target_loss_s` n'est plus qu'une courte attente robot arrêté en TRACK avant de repasser en SEARCH ; `tracking_timeout_s` ne compte pas le temps de SEARCH.
@@ -68,7 +68,7 @@
 - Toute garde déterministe portée depuis `scripts/scenarios/eval_prompt_plan.py` reste identique au script (test d'égalité) : modifier les deux ensemble.
 - LLM : petit modèle (1,5B) -> entrée normalisée côté Python, prompt court et statique, sortie JSON minimale ; le parseur local reste le filet de sécurité.
 - Priorité sécurité : obstacle > mouvement (arrêt prioritaire).
-- Calibration paramétrable par fichier : `config/runtime_calibration.toml`.
+- Paramètres du runtime configurables par fichier : `src/irobot/config/runtime_settings.toml`.
 - Distance balle : estimation visuelle (diamètre apparent, frame 640x480 tournée de 90°) lissée ; ultrason optionnel, jamais lu depuis le thread caméra (HC-SR04 chronométré à la main : lectures concurrentes non sûres).
 - Organisation dépôt maintenue : `scripts/install`, `scripts/test`, `tests`, `specs/backlog`.
 

@@ -24,9 +24,18 @@ def _frame(center_x=240, width=80, image_width=480, marker_id=1):
     return cv2.cvtColor(grayscale, cv2.COLOR_GRAY2RGB)
 
 
+def _runtime_settings(**kwargs):
+    return RuntimeSettings(
+        camera_focal_px=600.0,
+        camera_clahe_enabled=False,
+        camera_exposure_value=0.0,
+        **kwargs,
+    )
+
+
 @pytest.fixture
 def pipeline(monkeypatch):
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", _runtime_settings)
     return camera_live_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
     )
@@ -81,7 +90,7 @@ def test_configured_identity(monkeypatch):
     identity = MarkerIdentity("aruco", "DICT_4X4_50", "2")
     monkeypatch.setattr(
         camera_live_pipeline, "load_runtime_settings",
-        lambda: RuntimeSettings(human_marker_identity=identity),
+        lambda: _runtime_settings(human_marker_identity=identity),
     )
     pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
@@ -184,7 +193,7 @@ def live_pipeline(monkeypatch):
             pass
 
     monkeypatch.setattr(camera_live_pipeline, "Picamera2", Camera)
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", _runtime_settings)
     pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(poll_interval_s=0)
     original_wait = pipeline._frame_condition.wait_for
 

@@ -8,7 +8,7 @@
 
 ## 0. Couverture de l'analyse
 
-**Lu en détail** : `README.md`, `PROJECT_CONTEXT.md`, `pyproject.toml`, `config/runtime_calibration.toml`, `settings.py`, tout `domain/` (orchestrator + skills), tout `interfaces/` (`intent_parser`, `language_controller`, `robot_controller`, `voice_runtime`, `perception_pipeline`), `camera_live_pipeline.py`, squelette de `smart_car.py`, `specs/03_llm_model_strategy.md`, `docs/audit-v5`, `install_llm.sh` (paramètres), liste des tests.
+**Lu en détail** : `README.md`, `PROJECT_CONTEXT.md`, `pyproject.toml`, `src/irobot/config/runtime_settings.toml`, `settings.py`, tout `domain/` (orchestrator + skills), tout `interfaces/` (`intent_parser`, `language_controller`, `robot_controller`, `voice_runtime`, `perception_pipeline`), `camera_live_pipeline.py`, squelette de `smart_car.py`, `specs/03_llm_model_strategy.md`, `docs/audit-v5`, `install_llm.sh` (paramètres), liste des tests.
 
 **Survolé seulement** : `color_detector.py` (~380 lignes), `hc_sr04.py`, `audio_utils.py`, `voice_assistant.py` (legacy), `simulated_perception.py`, scripts d'install/test, `specs/01`, `specs/02`, backlog, audits v1–v4, tests hardware.
 
@@ -40,7 +40,7 @@ Stack : Python ≥ 3.12 (`.python-version` = 3.13), `uv`, `opencv-python`, `requ
 
 ```
 src/irobot/
-├── config/settings.py              RuntimeSettings + lecture de config/runtime_calibration.toml
+├── config/settings.py              RuntimeSettings + lecture de config/runtime_settings.toml
 ├── domain/
 │   ├── orchestrator/
 │   │   ├── planner.py              INTENT_TO_SKILLS (mapping déterministe intent → skills)
@@ -191,7 +191,7 @@ Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, �
 
 ## 8. Calibration et réglages
 
-`config/runtime_calibration.toml` (prioritaire sur les défauts du code) :
+`config/runtime_settings.toml` (prioritaire sur les défauts du code) :
 
 | Clé | TOML | Défaut `settings.py` | Défaut `calibration_helpers.py` |
 |---|---|---|---|

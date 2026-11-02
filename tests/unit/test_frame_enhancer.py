@@ -15,7 +15,7 @@ def _settings(**kwargs):
 
 def test_disabled_enhancer_returns_original_frame():
     frame = np.full((40, 60, 3), 30, np.uint8)
-    assert FrameEnhancer(RuntimeSettings()).apply(frame) is frame
+    assert FrameEnhancer(RuntimeSettings(camera_clahe_enabled=False)).apply(frame) is frame
 
 
 def test_clahe_changes_only_lab_luminance_and_preserves_rgb(monkeypatch):
@@ -75,7 +75,10 @@ def test_dark_foreground_luminance_improves():
 def test_runtime_detects_backlit_and_normal_balls(monkeypatch, color, level):
     frame = np.full((480, 640, 3), 240, np.uint8)
     cv2.circle(frame, (320, 240), 25, (level, 0, 0) if color == "red" else (level, level, 0), -1)
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    monkeypatch.setattr(
+        camera_live_pipeline, "load_runtime_settings",
+        lambda: RuntimeSettings(camera_clahe_enabled=False, camera_exposure_value=0.0),
+    )
     uncorrected = camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False)
     baseline = uncorrected._process_frame(frame, target=color)
     if level < 80:
@@ -100,7 +103,10 @@ def test_runtime_detects_same_aruco_id_after_enhancement(monkeypatch, foreground
     image = np.full((640, 480), background, np.uint8)
     image[280:360, 200:280] = marker
     frame = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
+    monkeypatch.setattr(
+        camera_live_pipeline, "load_runtime_settings",
+        lambda: RuntimeSettings(camera_clahe_enabled=False, camera_exposure_value=0.0),
+    )
     baseline = camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False)._process_frame(
         frame, target="marker",
     )
@@ -130,7 +136,7 @@ def test_exposure_applied_to_supported_camera():
 
 
 def test_zero_exposure_leaves_camera_untouched():
-    configure_exposure(SimpleNamespace(), RuntimeSettings())
+    configure_exposure(SimpleNamespace(), RuntimeSettings(camera_exposure_value=0.0))
 
 
 def test_unsupported_exposure_is_logged(caplog):

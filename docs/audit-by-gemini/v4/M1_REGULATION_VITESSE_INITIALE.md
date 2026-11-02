@@ -9,9 +9,9 @@
 ## 1. Description du Problème
 
 Dans `SmartCar2WD`, la vitesse initiale par défaut est fixée à `1.0` (100 % de puissance PWM).  
-Sur une base 2WD alimentée en 6V-7.4V, 100 % de PWM propulse le robot à plus de 45-50 cm/s avec un à-coup au démarrage, alors que le fichier `runtime_calibration.toml` est configuré sur une hypothèse de `25.0 cm/s` :
+Sur une base 2WD alimentée en 6V-7.4V, 100 % de PWM propulse le robot à plus de 45-50 cm/s avec un à-coup au démarrage, Alors que le fichier `runtime_settings.toml` est configuré sur une hypothèse de `25.0 cm/s` :
 ```toml
-# config/runtime_calibration.toml
+# src/irobot/config/runtime_settings.toml
 [runtime]
 cm_per_second = 25.0
 ```

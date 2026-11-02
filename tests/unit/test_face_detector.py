@@ -25,7 +25,11 @@ def yunet(tmp_path, monkeypatch):
     model = tmp_path / "model.onnx"
     model.touch()
     settings = RuntimeSettings(
-        camera_face_model_path=str(model), camera_face_grace_frames=2,
+        camera_face_model_path=str(model),
+        camera_face_grace_frames=2,
+        camera_focal_px=600.0,
+        camera_clahe_enabled=False,
+        camera_exposure_value=0.0,
     )
 
     class Net:

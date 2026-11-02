@@ -7,7 +7,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from irobot.config.settings import load_llm_settings
+from irobot.config.llm_settings import load_llm_settings
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.plan_guards import (
     grounding_check,
@@ -227,4 +227,3 @@ def warm_up_llm_async() -> threading.Thread:
     thread = threading.Thread(target=warm_up_llm, name="llm-warmup", daemon=True)
     thread.start()
     return thread
-

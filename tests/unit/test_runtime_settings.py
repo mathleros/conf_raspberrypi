@@ -5,20 +5,108 @@ from pathlib import Path
 import pytest
 
 from irobot.config import settings
+from irobot.config.llm_settings import LLMSettings as SeparateLLMSettings
+from irobot.config.llm_settings import load_llm_settings as load_separate_llm_settings
 
 
 def test_load_runtime_settings_defaults_when_file_missing(monkeypatch):
-    monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_calibration.toml"))
+    monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 
     loaded = settings.load_runtime_settings()
 
-    assert loaded.cm_per_second > 0
-    assert loaded.deg_per_second > 0
-    assert loaded.max_plan_steps >= 1
+    assert loaded == settings.RuntimeSettings()
+
+
+def test_load_runtime_settings_uses_packaged_calibration():
+    settings_path = Path(settings.__file__).resolve()
+    calibration_path = settings_path.with_name("runtime_settings.toml")
+    loaded = settings.load_runtime_settings()
+
+    assert settings._config_file().resolve() == calibration_path
+    assert calibration_path.is_file()
+    expected = {
+        "cm_per_second": 33.0,
+        "backward_cm_per_second": 25.0,
+        "deg_per_second": 180.0,
+        "turn_speed": 0.5,
+        "step_timeout_seconds": 6.0,
+        "mission_timeout_seconds": 45.0,
+        "max_step_retries": 2,
+        "max_plan_steps": 20,
+        "max_distance_cm": 300.0,
+        "max_angle_deg": 360.0,
+        "max_duration_sec": 12.0,
+        "max_follow_duration_sec": 600.0,
+        "min_stand_off_cm": 30.0,
+        "max_stand_off_cm": 300.0,
+        "search_timeout_seconds": 25.0,
+        "timeout_margin_seconds": 10.0,
+        "camera_ball_diameter_cm": 6.0,
+        "camera_focal_px": 680.0,
+        "camera_ultrasonic_fusion": False,
+        "camera_clahe_enabled": True,
+        "camera_clahe_clip_limit": 3.0,
+        "camera_exposure_value": 1.0,
+        "camera_face_width_cm": 15.0,
+        "camera_face_score_threshold": 0.45,
+        "camera_face_grace_frames": 10,
+        "human_max_age_seconds": 0.2,
+        "human_announcement_timeout_seconds": 2.0,
+        "protection_presence": "absent",
+    }
+    assert {name: getattr(loaded, name) for name in expected} == expected
+    assert Path(loaded.camera_face_model_path).resolve().is_file()
+
+
+def test_runtime_loader_rejects_unknown_top_level_and_section_keys(tmp_path, monkeypatch):
+    cfg = tmp_path / "runtime_settings.toml"
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    cfg.write_text("[runtime]\ncm_per_sec = 33.0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"Unknown key\(s\) in \[runtime\].*cm_per_sec"):
+        settings.load_runtime_settings()
+
+    cfg.write_text("unexpected = true\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Unknown top-level key.*unexpected"):
+        settings.load_runtime_settings()
+
+
+@pytest.mark.parametrize(
+    ("toml", "error"),
+    [
+        ('[camera]\nultrasonic_fusion = "false"\n', "camera_ultrasonic_fusion"),
+        ("[camera]\nclahe_enabled = 1\n", "camera_clahe_enabled"),
+        ('[camera]\nfocal_px = "680"\n', "camera_focal_px"),
+        ("[limits]\nmax_plan_steps = 1.5\n", "limits.max_plan_steps"),
+        ("[human_follow]\nmax_age_seconds = true\n", "human_follow.max_age_seconds"),
+        ("[camera]\nfocal_px = nan\n", "camera_focal_px"),
+    ],
+)
+def test_runtime_loader_rejects_wrong_toml_types(tmp_path, monkeypatch, toml, error):
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text(toml, encoding="utf-8")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    with pytest.raises(ValueError, match=error):
+        settings.load_runtime_settings()
+
+
+def test_runtime_loader_requires_sections_to_be_tables(tmp_path, monkeypatch):
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text('camera = "off"\n', encoding="utf-8")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    with pytest.raises(ValueError, match="camera must be a TOML table"):
+        settings.load_runtime_settings()
+
+
+def test_llm_settings_have_dedicated_module_and_compatibility_exports():
+    assert settings.LLMSettings is SeparateLLMSettings
+    assert settings.load_llm_settings is load_separate_llm_settings
 
 
 def test_load_runtime_settings_from_toml(tmp_path, monkeypatch):
-    cfg = tmp_path / "runtime_calibration.toml"
+    cfg = tmp_path / "runtime_settings.toml"
     cfg.write_text(
         """
 [runtime]
@@ -53,7 +141,7 @@ max_duration_sec = 8.0
 
 
 def test_runtime_settings_new_defaults_without_file(monkeypatch):
-    monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_calibration.toml"))
+    monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 
     loaded = settings.load_runtime_settings()
 
@@ -88,7 +176,7 @@ def test_load_runtime_settings_reads_new_keys(monkeypatch, tmp_path):
 
 
 def test_empty_toml_matches_dataclass_defaults(tmp_path, monkeypatch):
-    cfg = tmp_path / "runtime_calibration.toml"
+    cfg = tmp_path / "runtime_settings.toml"
     cfg.write_text("", encoding="utf-8")
     monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     monkey_default = settings.RuntimeSettings()
@@ -120,10 +208,10 @@ def test_backlight_settings_from_toml(tmp_path, monkeypatch):
     assert loaded.camera_exposure_value == 1.5
 
 
-def test_backlight_defaults_preserve_uncorrected_frames():
+def test_backlight_defaults_match_packaged_calibration():
     defaults = settings.RuntimeSettings()
-    assert defaults.camera_clahe_enabled is False
-    assert defaults.camera_exposure_value == 0.0
+    assert defaults.camera_clahe_enabled is True
+    assert defaults.camera_exposure_value == 1.0
 
 
 @pytest.mark.parametrize("key,value", [
@@ -151,7 +239,7 @@ def test_invalid_backlight_settings_are_rejected(tmp_path, monkeypatch, key, val
 
 
 def test_face_settings_and_relative_model_path(tmp_path, monkeypatch):
-    cfg = tmp_path / "runtime_calibration.toml"
+    cfg = tmp_path / "runtime_settings.toml"
     cfg.write_text(
         '[camera]\nface_model_path = "models/yunet.onnx"\nface_width_cm = 12.0\n'
         "face_score_threshold = 0.8\nface_grace_frames = 4\n",
@@ -166,7 +254,7 @@ def test_face_settings_and_relative_model_path(tmp_path, monkeypatch):
 
 def test_absolute_face_model_path_preserved(tmp_path, monkeypatch):
     model = tmp_path / "yunet.onnx"
-    cfg = tmp_path / "runtime_calibration.toml"
+    cfg = tmp_path / "runtime_settings.toml"
     cfg.write_text(f'[camera]\nface_model_path = "{model}"\n')
     monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     assert settings.load_runtime_settings().camera_face_model_path == str(model)
@@ -184,7 +272,7 @@ def test_absolute_face_model_path_preserved(tmp_path, monkeypatch):
     ("face_model_path", "false"),
 ])
 def test_invalid_face_settings_rejected(tmp_path, monkeypatch, key, value):
-    cfg = tmp_path / "runtime_calibration.toml"
+    cfg = tmp_path / "runtime_settings.toml"
     cfg.write_text(f"[camera]\n{key} = {value}\n")
     monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     with pytest.raises(ValueError, match=f"camera_{key}"):

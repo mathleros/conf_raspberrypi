@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
-import os
 from pathlib import Path
 import tomllib
 
-DEFAULT_SPEED = 0.5
-DEFAULT_TIMEOUT_SECONDS = 2.0
+from irobot.config.llm_settings import LLMSettings, load_llm_settings
+
+__all__ = [
+    "LLMSettings",
+    "MarkerIdentity",
+    "RuntimeSettings",
+    "load_llm_settings",
+    "load_runtime_settings",
+]
 
 
 @dataclass(frozen=True)
@@ -45,8 +51,8 @@ class MarkerIdentity:
 
 @dataclass(frozen=True)
 class RuntimeSettings:
-    cm_per_second: float = 25.0
-    deg_per_second: float = 360.0
+    cm_per_second: float = 33.0
+    deg_per_second: float = 180.0
     turn_speed: float = 0.5
     step_timeout_seconds: float = 6.0
     mission_timeout_seconds: float = 45.0
@@ -60,12 +66,12 @@ class RuntimeSettings:
     max_stand_off_cm: float = 300.0
     search_timeout_seconds: float = 25.0
     timeout_margin_seconds: float = 10.0
-    camera_ball_diameter_cm: float = 6.5
-    camera_focal_px: float = 600.0
+    camera_ball_diameter_cm: float = 6.0
+    camera_focal_px: float = 680.0
     camera_ultrasonic_fusion: bool = False
-    camera_clahe_enabled: bool = False
+    camera_clahe_enabled: bool = True
     camera_clahe_clip_limit: float = 3.0
-    camera_exposure_value: float = 0.0
+    camera_exposure_value: float = 1.0
     camera_face_width_cm: float = 15.0
     camera_face_score_threshold: float = 0.45
     camera_face_grace_frames: int = 10
@@ -115,39 +121,140 @@ class RuntimeSettings:
                 raise ValueError(f"{name} must be a finite positive number")
 
 
-@dataclass(frozen=True)
-class LLMSettings:
-    """Réglages du client LLM local (llama-server), surchargeables par variables d'environnement."""
-
-    model: str = "qwen2.5-1.5b"
-    connect_timeout_seconds: float = 1.0
-    read_timeout_seconds: float = 10.0
-    max_tokens_plan: int = 120
+def _config_file() -> Path:
+    return Path(__file__).with_name("runtime_settings.toml")
 
 
-def _env_positive(environ: Mapping[str, str], key: str, default: float, cast=float):
+def _table(raw: Mapping[str, object], name: str, allowed: set[str]) -> Mapping[str, object]:
+    value = raw.get(name, {})
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be a TOML table")
+    unknown = set(value) - allowed
+    if unknown:
+        raise ValueError(f"Unknown key(s) in [{name}]: {', '.join(sorted(unknown))}")
+    return value
+
+
+def _float(table: Mapping[str, object], key: str, default: float, error_name: str) -> float:
+    value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{error_name} must be a finite number")
     try:
-        value = cast(environ[key])
-    except (KeyError, TypeError, ValueError):
-        return default
-    return value if value > 0 else default
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite:
+        raise ValueError(f"{error_name} must be a finite number")
+    return float(value)
 
 
-def load_llm_settings(environ: Mapping[str, str] | None = None) -> LLMSettings:
-    """Lit LLM_MODEL, LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS,
-    LLM_MAX_TOKENS_PLAN ; valeur absente ou invalide -> défaut."""
-    env = os.environ if environ is None else environ
-    defaults = LLMSettings()
-    return LLMSettings(
-        model=(env.get("LLM_MODEL") or "").strip() or defaults.model,
-        connect_timeout_seconds=_env_positive(env, "LLM_CONNECT_TIMEOUT_SECONDS", defaults.connect_timeout_seconds),
-        read_timeout_seconds=_env_positive(env, "LLM_READ_TIMEOUT_SECONDS", defaults.read_timeout_seconds),
-        max_tokens_plan=_env_positive(env, "LLM_MAX_TOKENS_PLAN", defaults.max_tokens_plan, int),
+def _int(table: Mapping[str, object], key: str, default: int, error_name: str) -> int:
+    value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{error_name} must be an integer")
+    return value
+
+
+def _bool(table: Mapping[str, object], key: str, default: bool, error_name: str) -> bool:
+    value = table.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"{error_name} must be a boolean")
+    return value
+
+
+def _string(table: Mapping[str, object], key: str, default: str, error_name: str) -> str:
+    value = table.get(key, default)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{error_name} must be a non-empty string")
+    return value
+
+
+def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
+    table = _table(raw, "runtime", {
+        "cm_per_second", "backward_cm_per_second", "deg_per_second", "turn_speed",
+        "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
+        "search_timeout_seconds", "timeout_margin_seconds",
+    })
+    backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
+    if backward is not None:
+        backward = _float(table, "backward_cm_per_second", current.cm_per_second, "runtime.backward_cm_per_second")
+    return replace(
+        current,
+        cm_per_second=_float(table, "cm_per_second", current.cm_per_second, "runtime.cm_per_second"),
+        backward_cm_per_second=backward,
+        deg_per_second=_float(table, "deg_per_second", current.deg_per_second, "runtime.deg_per_second"),
+        turn_speed=_float(table, "turn_speed", current.turn_speed, "runtime.turn_speed"),
+        step_timeout_seconds=_float(table, "step_timeout_seconds", current.step_timeout_seconds, "runtime.step_timeout_seconds"),
+        mission_timeout_seconds=_float(table, "mission_timeout_seconds", current.mission_timeout_seconds, "runtime.mission_timeout_seconds"),
+        max_step_retries=_int(table, "max_step_retries", current.max_step_retries, "runtime.max_step_retries"),
+        search_timeout_seconds=_float(table, "search_timeout_seconds", current.search_timeout_seconds, "runtime.search_timeout_seconds"),
+        timeout_margin_seconds=_float(table, "timeout_margin_seconds", current.timeout_margin_seconds, "runtime.timeout_margin_seconds"),
     )
 
 
-def _config_file() -> Path:
-    return Path(__file__).resolve().parents[3] / "config" / "runtime_calibration.toml"
+def _load_limits_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
+    table = _table(raw, "limits", {
+        "max_plan_steps", "max_distance_cm", "max_angle_deg", "max_duration_sec",
+        "max_follow_duration_sec", "min_stand_off_cm", "max_stand_off_cm",
+    })
+    return replace(
+        current,
+        max_plan_steps=_int(table, "max_plan_steps", current.max_plan_steps, "limits.max_plan_steps"),
+        max_distance_cm=_float(table, "max_distance_cm", current.max_distance_cm, "limits.max_distance_cm"),
+        max_angle_deg=_float(table, "max_angle_deg", current.max_angle_deg, "limits.max_angle_deg"),
+        max_duration_sec=_float(table, "max_duration_sec", current.max_duration_sec, "limits.max_duration_sec"),
+        max_follow_duration_sec=_float(table, "max_follow_duration_sec", current.max_follow_duration_sec, "limits.max_follow_duration_sec"),
+        min_stand_off_cm=_float(table, "min_stand_off_cm", current.min_stand_off_cm, "limits.min_stand_off_cm"),
+        max_stand_off_cm=_float(table, "max_stand_off_cm", current.max_stand_off_cm, "limits.max_stand_off_cm"),
+    )
+
+
+def _load_camera_section(
+    raw: Mapping[str, object], current: RuntimeSettings, config_path: Path,
+) -> RuntimeSettings:
+    table = _table(raw, "camera", {
+        "ball_diameter_cm", "focal_px", "ultrasonic_fusion", "exposure_value",
+        "clahe_enabled", "clahe_clip_limit", "face_model_path", "face_width_cm",
+        "face_score_threshold", "face_grace_frames",
+    })
+    model_path = Path(_string(
+        table, "face_model_path", current.camera_face_model_path, "camera_face_model_path",
+    ))
+    if not model_path.is_absolute():
+        model_path = config_path.parent / model_path
+    return replace(
+        current,
+        camera_ball_diameter_cm=_float(table, "ball_diameter_cm", current.camera_ball_diameter_cm, "camera_ball_diameter_cm"),
+        camera_focal_px=_float(table, "focal_px", current.camera_focal_px, "camera_focal_px"),
+        camera_ultrasonic_fusion=_bool(table, "ultrasonic_fusion", current.camera_ultrasonic_fusion, "camera_ultrasonic_fusion"),
+        camera_clahe_enabled=_bool(table, "clahe_enabled", current.camera_clahe_enabled, "camera_clahe_enabled"),
+        camera_clahe_clip_limit=_float(table, "clahe_clip_limit", current.camera_clahe_clip_limit, "camera_clahe_clip_limit"),
+        camera_exposure_value=_float(table, "exposure_value", current.camera_exposure_value, "camera_exposure_value"),
+        camera_face_width_cm=_float(table, "face_width_cm", current.camera_face_width_cm, "camera_face_width_cm"),
+        camera_face_score_threshold=_float(table, "face_score_threshold", current.camera_face_score_threshold, "camera_face_score_threshold"),
+        camera_face_grace_frames=_int(table, "face_grace_frames", current.camera_face_grace_frames, "camera_face_grace_frames"),
+        camera_face_model_path=str(model_path),
+    )
+
+
+def _load_optional_sections(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
+    human_follow = _table(raw, "human_follow", {"max_age_seconds", "announcement_timeout_seconds"})
+    protection = _table(raw, "protection", {"presence"})
+    presence = _string(protection, "presence", current.protection_presence, "protection.presence")
+    if presence not in {"absent", "present"}:
+        raise ValueError("Invalid protection.presence; expected absent or present")
+    return replace(
+        current,
+        human_marker_identity=MarkerIdentity.from_mapping(raw.get("human_marker")),
+        human_max_age_seconds=_float(
+            human_follow, "max_age_seconds", current.human_max_age_seconds, "human_follow.max_age_seconds",
+        ),
+        human_announcement_timeout_seconds=_float(
+            human_follow, "announcement_timeout_seconds", current.human_announcement_timeout_seconds,
+            "human_follow.announcement_timeout_seconds",
+        ),
+        protection_presence=presence,
+    )
 
 
 def load_runtime_settings() -> RuntimeSettings:
@@ -156,64 +263,15 @@ def load_runtime_settings() -> RuntimeSettings:
         return RuntimeSettings()
 
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    runtime = raw.get("runtime", {})
-    limits = raw.get("limits", {})
-    camera = raw.get("camera", {})
-    human_follow = raw.get("human_follow", {})
-    if not isinstance(human_follow, Mapping) or set(human_follow) - {
-        "max_age_seconds", "announcement_timeout_seconds",
-    }:
-        raise ValueError(
-            "human_follow must be a table containing only "
-            "max_age_seconds and announcement_timeout_seconds"
-        )
-    defaults = RuntimeSettings()
-    face_model_path = camera.get("face_model_path", defaults.camera_face_model_path)
-    if not isinstance(face_model_path, str) or not face_model_path.strip():
-        raise ValueError("camera_face_model_path must be a non-empty path string")
-    model_path = Path(face_model_path)
-    if not model_path.is_absolute():
-        model_path = path.parent / model_path
-    marker_identity = MarkerIdentity.from_mapping(raw.get("human_marker"))
-    presence = raw.get("protection", {}).get("presence", "absent")
-    if presence not in {"absent", "present"}:
-        raise ValueError("Invalid protection.presence; expected absent or present")
+    if not isinstance(raw, Mapping):
+        raise ValueError("Configuration TOML must contain a table")
+    allowed_sections = {"runtime", "limits", "camera", "human_follow", "protection", "human_marker"}
+    unknown = set(raw) - allowed_sections
+    if unknown:
+        raise ValueError(f"Unknown top-level key(s): {', '.join(sorted(unknown))}")
 
-    return RuntimeSettings(
-        protection_presence=presence,
-        cm_per_second=float(runtime.get("cm_per_second", 25.0)),
-        backward_cm_per_second=(
-            float(runtime["backward_cm_per_second"]) if "backward_cm_per_second" in runtime else None
-        ),
-        deg_per_second=float(runtime.get("deg_per_second", 360.0)),
-        turn_speed=float(runtime.get("turn_speed", 0.5)),
-        step_timeout_seconds=float(runtime.get("step_timeout_seconds", 6.0)),
-        mission_timeout_seconds=float(runtime.get("mission_timeout_seconds", 45.0)),
-        max_step_retries=int(runtime.get("max_step_retries", 2)),
-        max_plan_steps=int(limits.get("max_plan_steps", 20)),
-        max_distance_cm=float(limits.get("max_distance_cm", 300.0)),
-        max_angle_deg=float(limits.get("max_angle_deg", 360.0)),
-        max_duration_sec=float(limits.get("max_duration_sec", 12.0)),
-        max_follow_duration_sec=float(limits.get("max_follow_duration_sec", 600.0)),
-        min_stand_off_cm=float(limits.get("min_stand_off_cm", 30.0)),
-        max_stand_off_cm=float(limits.get("max_stand_off_cm", 300.0)),
-        search_timeout_seconds=float(runtime.get("search_timeout_seconds", 25.0)),
-        timeout_margin_seconds=float(runtime.get("timeout_margin_seconds", 10.0)),
-        camera_ball_diameter_cm=float(camera.get("ball_diameter_cm", 6.5)),
-        camera_focal_px=float(camera.get("focal_px", 600.0)),
-        camera_ultrasonic_fusion=bool(camera.get("ultrasonic_fusion", False)),
-        camera_clahe_enabled=camera.get("clahe_enabled", defaults.camera_clahe_enabled),
-        camera_clahe_clip_limit=camera.get("clahe_clip_limit", defaults.camera_clahe_clip_limit),
-        camera_exposure_value=camera.get("exposure_value", defaults.camera_exposure_value),
-        camera_face_width_cm=camera.get("face_width_cm", defaults.camera_face_width_cm),
-        camera_face_score_threshold=camera.get("face_score_threshold", defaults.camera_face_score_threshold),
-        camera_face_grace_frames=camera.get("face_grace_frames", defaults.camera_face_grace_frames),
-        camera_face_model_path=str(model_path),
-        human_marker_identity=marker_identity,
-        human_max_age_seconds=human_follow.get(
-            "max_age_seconds", defaults.human_max_age_seconds,
-        ),
-        human_announcement_timeout_seconds=human_follow.get(
-            "announcement_timeout_seconds", defaults.human_announcement_timeout_seconds,
-        ),
-    )
+    settings = RuntimeSettings()
+    settings = _load_runtime_section(raw, settings)
+    settings = _load_limits_section(raw, settings)
+    settings = _load_camera_section(raw, settings, path)
+    return _load_optional_sections(raw, settings)

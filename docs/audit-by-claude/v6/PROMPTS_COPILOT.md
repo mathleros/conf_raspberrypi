@@ -198,12 +198,12 @@ Tests : le stop demandé depuis un autre thread interrompt un follow_object en c
 
 ## Prompt 8 — Prompt LLM (Qwen2.5-1.5B) + prétraitement + appel serveur
 
-Avant de donner ce prompt à Copilot : mets `eval_prompt_plan.py` dans `scripts/test/` du dépôt (Copilot s'en inspire pour le prétraitement) et lance-le sur ton Mac, puis sur le Pi, pour valider le prompt système et mesurer la latence.
+Avant de donner ce prompt à Copilot : mets `eval_prompt_plan.py` dans `scripts/scenarios/` du dépôt (Copilot s'en inspire pour le prétraitement) et lance-le sur ton Mac, puis sur le Pi, pour valider le prompt système et mesurer la latence.
 
 **À jouer AVANT le 8b.** Le 8b s'appuie sur ce que le 8 met en place (prétraitement des nombres, nouveau prompt système, modèle configurable) et le complète (schéma JSON, timeout 8 s, gardes). Le test `eval_prompt_plan.py` envoie directement les requêtes au serveur : il ne vérifie pas que le code du dépôt a été modifié. Si Copilot constate que certains points sont déjà faits (modèle configurable, migration de la config), il les saute. Les points 4 (`response_format`, `max_tokens`) et 8 (`steps` vide) sont repris et améliorés par le 8b : applique-les quand même, le 8b les remplacera.
 
 ```
-Étape 8/10 — LLM local : migration vers Qwen2.5-1.5B-Instruct + prompt + prétraitement. Fichiers : src/irobot/interfaces/voice_runtime.py, src/irobot/config/settings.py, scripts/install_llm.sh (et l'unité systemd), README.md, PROJECT_CONTEXT.md, specs/03_llm_model_strategy.md, tests/unit/test_voice_runtime.py. Référence : scripts/test/eval_prompt_plan.py (fonctions fr_numbers_to_digits et preprocess, prompt système).
+Étape 8/10 — LLM local : migration vers Qwen2.5-1.5B-Instruct + prompt + prétraitement. Fichiers : src/irobot/interfaces/voice_runtime.py, src/irobot/config/settings.py, scripts/install_llm.sh (et l'unité systemd), README.md, PROJECT_CONTEXT.md, specs/03_llm_model_strategy.md, tests/unit/test_voice_runtime.py. Référence : scripts/scenarios/eval_prompt_plan.py (fonctions fr_numbers_to_digits et preprocess, prompt système).
 
 Contraintes : modèle 1,5B quantisé sur Raspberry Pi 5, appel non streamé, timeout de lecture 4 s. Un petit modèle suit mal les consignes longues et convertit mal les nombres en lettres : on lui donne donc une entrée DÉJÀ normalisée, un prompt court et statique, et une sortie JSON minimale. Le repli local reste le filet de sécurité.
 
@@ -235,7 +235,7 @@ Mesures (81 appels chacun, schéma JSON) :
 - **Latence :** le plan du use case prend 4,7–5,3 s, donc dépasse le timeout de 4 s.
 
 ```
-Étape 8b/10 — Gardes déterministes autour du LLM (suppose le prompt 8 appliqué : text_normalizer.py, nouveau SYSTEM_PROMPT_PLAN, LLM_MODEL configurable). Fichiers : src/irobot/interfaces/voice_runtime.py, nouveau src/irobot/interfaces/plan_guards.py, tests/unit/test_plan_guards.py, tests/unit/test_voice_runtime.py. Référence : scripts/test/eval_prompt_plan.py (fonctions fold, is_pure_stop, grounding_check, constantes STOP_WORDS, INTENT_LEXICON, ALLOWED_PARAMS, PLAN_SCHEMA, build_formats). Ne modifie PAS SYSTEM_PROMPT_PLAN.
+Étape 8b/10 — Gardes déterministes autour du LLM (suppose le prompt 8 appliqué : text_normalizer.py, nouveau SYSTEM_PROMPT_PLAN, LLM_MODEL configurable). Fichiers : src/irobot/interfaces/voice_runtime.py, nouveau src/irobot/interfaces/plan_guards.py, tests/unit/test_plan_guards.py, tests/unit/test_voice_runtime.py. Référence : scripts/scenarios/eval_prompt_plan.py (fonctions fold, is_pure_stop, grounding_check, constantes STOP_WORDS, INTENT_LEXICON, ALLOWED_PARAMS, PLAN_SCHEMA, build_formats). Ne modifie PAS SYSTEM_PROMPT_PLAN.
 
 Principe : le LLM propose, le lexique dispose. Un petit LLM range parfois une phrase hors périmètre dans l'intent le plus proche ; aucune commande ne doit déclencher un mouvement si la phrase ne la justifie pas.
 
@@ -299,7 +299,7 @@ Vérifie dans chaque cas que `robot.stop()` a bien été appelé en dernier et q
 Étape 10/10 — Finalisation.
 1. Mets à jour PROJECT_CONTEXT.md (section « Réalisé et validé » + « Restant ») : nouvelles intents (follow_object), paramètres (stand_off_cm, duration_s, search_timeout_s), estimation de distance, arrêt d'urgence, nouvelles clés du TOML. Mets à jour README.md (commandes `calibrate-distance`, exemple de commande vocale).
 2. Mets à jour specs/ si un fichier décrit la liste des intents/skills.
-3. Ajoute scripts/test/run_runtime_standard_scenarios_mac.sh un scénario « balle jaune » (mock de perception).
+3. Ajoute scripts/scenarios/run_runtime_standard_scenarios_mac.sh un scénario « balle jaune » (mock de perception).
 4. Lance `pytest` et résume les échecs éventuels.
 5. /cp
 ```
@@ -311,11 +311,11 @@ Vérifie dans chaque cas que `robot.stop()` a bien été appelé en dernier et q
 À donner dans un nouveau chat, une fois le use case validé sur le Pi. Ne change aucun comportement du robot : uniquement des scripts et de la documentation.
 
 ```
-Étape 11 — Nettoyage et cohérence après la migration vers Qwen2.5-1.5B. Fichiers : scripts/install_llm.sh, scripts/install_llm_mac_portable.sh, scripts/test/run_llm_runtime_mac.sh, tests d'intégration LLM (tests/integration/), README.md, PROJECT_CONTEXT.md, REFERENCE_IROBOT.md, specs/03_llm_model_strategy.md. Aucun changement de code dans src/.
+Étape 11 — Nettoyage et cohérence après la migration vers Qwen2.5-1.5B. Fichiers : scripts/install_llm.sh, scripts/install_llm_mac_portable.sh, scripts/scenarios/run_llm_runtime_mac.sh, tests d'intégration LLM (tests/integration/), README.md, PROJECT_CONTEXT.md, REFERENCE_IROBOT.md, specs/03_llm_model_strategy.md. Aucun changement de code dans src/.
 
 1. scripts/install_llm.sh :
    - PROJECT_DIR pointe aujourd'hui vers scripts/install : corrige-le pour qu'il désigne la racine du dépôt (parent de scripts/), de façon robuste quel que soit le répertoire d'où le script est lancé, de sorte que `uv sync` s'exécute au bon endroit.
-   - Le message final cite encore `voice-assistant` : remplace par `uv run voice-runtime` et ajoute la commande de test `python3 scripts/test/eval_prompt_plan.py --schema`.
+   - Le message final cite encore `voice-assistant` : remplace par `uv run voice-runtime` et ajoute la commande de test `python3 scripts/scenarios/eval_prompt_plan.py --schema`.
    - Rends configurables par variables d'environnement, avec ces défauts : LLM_CTX_SIZE=2048, LLM_THREADS=$(nproc), LLM_PARALLEL=1, et passe-les à llama-server (--ctx-size, --threads, --parallel). Ne change pas le nom de l'unité systemd (ministral.service) : ajoute plutôt un commentaire expliquant que ce nom est conservé pour compatibilité.
 2. Scripts Mac (install_llm_mac_portable.sh, run_llm_runtime_mac.sh) : remplace Ministral-3-3B par Qwen2.5-1.5B-Instruct (GGUF Q4_K_M) avec le même nom de fichier/URL que scripts/install_llm.sh (variables MODEL_FILE / MODEL_URL partagées si possible), aligne --ctx-size sur LLM_CTX_SIZE (défaut 2048 au lieu de 4096) et ajoute --parallel 1. Le but : tester sur Mac le même modèle que sur le Pi.
 3. Test(s) d'intégration LLM : retire toute valeur codée en dur liée à Ministral ou à ctx-size 4096 ; lis le modèle et l'URL depuis les variables d'environnement (LLM_MODEL, LLM_URL) avec les défauts du runtime.

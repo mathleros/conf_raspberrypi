@@ -149,7 +149,7 @@ Appel : `requests.post(LLM_URL, json=payload, timeout=(connect, read))`, non str
 Le texte utilisateur est **prétraité** avant envoi (`text_normalizer.preprocess`) ; `raw_text` des Intent reste le texte d'origine, le texte prétraité est tracé sous `normalized_text`. Préchauffage du cache de prompt au démarrage (`warm_up_llm_async()`, thread daemon, sauf `--no-llm`).
 
 ### 6.1 `SYSTEM_PROMPT_PLAN` — plan multi-étapes (**chemin principal**)
-Identique au prompt de `scripts/test/eval_prompt_plan.py` (un test vérifie l'égalité). Court et statique : format `{"steps":[{"intent","target","parameters"}]}` (sans `confidence`, remplie à 0,8 côté code), liste des intents avec leurs paramètres (distances en cm, durées en s, angles en degrés), valeurs par défaut (avance/recule → `duration` 1 ; tourne → `angle` 90), `jaune`→`"yellow"`, `rouge`→`"red"`, consigne hors liste → `{"steps":[]}`, 5 exemples (dont le cas d'usage et « fais un salto arrière »). `max_tokens` = 120.
+Identique au prompt de `scripts/scenarios/eval_prompt_plan.py` (un test vérifie l'égalité). Court et statique : format `{"steps":[{"intent","target","parameters"}]}` (sans `confidence`, remplie à 0,8 côté code), liste des intents avec leurs paramètres (distances en cm, durées en s, angles en degrés), valeurs par défaut (avance/recule → `duration` 1 ; tourne → `angle` 90), `jaune`→`"yellow"`, `rouge`→`"red"`, consigne hors liste → `{"steps":[]}`, 5 exemples (dont le cas d'usage et « fais un salto arrière »). `max_tokens` = 120.
 
 ### 6.2 `SYSTEM_PROMPT` — intent unique (chemin `handle_text`, secondaire)
 Même liste d'intents, sortie `{"intent","target","parameters","confidence"}`, « une seule action », hors liste → `intent: "unknown"`, un seul exemple. `max_tokens` = 96. Sur ce chemin, `unknown` entraîne encore un repli sur le parseur local.
@@ -269,7 +269,7 @@ Appelle `left()` puis `forward()` : le second écrase le premier (commande moteu
 6. ✅ **Consignes non supportées** : `{"steps":[]}` → commande rejetée (étape 8). Reste à rappeler qu'aucune vitesse n'est pilotable.
 7. **3 à 6 exemples courts** (few-shot) couvrant : commande simple, commande composée, distance en mètres, angle, « tourne jusqu'à voir X », retour au point de départ, consigne hors périmètre.
 8. ✅ **Brièveté** : prompt système court et statique, sortie minimale, `max_tokens` 160 (plan) / 96 (intent), `temperature` 0 (étape 8).
-9. **Jeu d'évaluation** : réutiliser `scripts/test/run_runtime_standard_scenarios_mac.sh` + `replay_runtime_trace_mac.sh` et les traces JSONL pour comparer plusieurs versions de prompt (taux de JSON valide, intents corrects, temps de réponse).
+9. **Jeu d'évaluation** : réutiliser `scripts/scenarios/run_runtime_standard_scenarios_mac.sh` + `replay_runtime_trace_mac.sh` et les traces JSONL pour comparer plusieurs versions de prompt (taux de JSON valide, intents corrects, temps de réponse).
 
 ---
 
@@ -278,14 +278,14 @@ Appelle `left()` puis `forward()` : le second écrase le premier (commande moteu
 ```bash
 uv sync --project .
 uv run pytest -q tests/unit tests/integration        # ~186 tests (tests/hardware : Pi seulement)
-bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
-bash scripts/test/run_llm_runtime_mac.sh --stop
-bash scripts/test/run_mission_mac.sh
-bash scripts/test/replay_runtime_trace_mac.sh
+bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+bash scripts/scenarios/run_llm_runtime_mac.sh --stop
+bash scripts/scenarios/run_mission_mac.sh
+bash scripts/scenarios/replay_runtime_trace_mac.sh
 uv run voice-runtime [--once] [--no-llm] [--input-device auto|bluetooth|wm8960|default]
 uv run smart-car forward --duration 1
 sudo systemctl start llm.service && curl http://127.0.0.1:8080/v1/models   # sur le Pi
-python3 scripts/test/eval_prompt_plan.py --repeat 3                               # évaluation du prompt (serveur lancé)
+python3 scripts/scenarios/eval_prompt_plan.py --repeat 3                               # évaluation du prompt (serveur lancé)
 ```
 
 Fichiers de contexte à garder cohérents : `PROJECT_CONTEXT.md` (document vivant, règle de maintenance §16), `.github/copilot-instructions.md` (mode concis : diffs seulement, 1 question max, `/cp` = commit conventionnel + push).

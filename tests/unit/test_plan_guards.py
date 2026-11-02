@@ -10,7 +10,7 @@ from irobot.interfaces.text_normalizer import preprocess
 
 
 def _load_eval_script():
-    path = Path(__file__).resolve().parents[2] / "scripts" / "test" / "eval_prompt_plan.py"
+    path = Path(__file__).resolve().parents[2] / "scripts" / "scenarios" / "eval_prompt_plan.py"
     spec = importlib.util.spec_from_file_location("eval_prompt_plan_guards", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

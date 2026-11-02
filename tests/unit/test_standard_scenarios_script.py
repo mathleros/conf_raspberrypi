@@ -13,7 +13,7 @@ import pytest
 @pytest.mark.parametrize("runner_fails", [False, True])
 def test_standard_scenarios_yellow_ball_report(tmp_path, runner_fails):
     root = Path(__file__).resolve().parents[2]
-    script = Path("scripts/test/run_runtime_standard_scenarios_mac.sh")
+    script = Path("scripts/scenarios/run_runtime_standard_scenarios_mac.sh")
     (tmp_path / script.parent).mkdir(parents=True)
     shutil.copy2(root / script, tmp_path / script)
     for folder in ("src", "tests"):

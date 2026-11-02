@@ -13,7 +13,7 @@
 * **Isolation stricte de l'IA (Safety by Design) :** Le LLM n'accède jamais directement aux actionneurs ou aux broches GPIO. Le flux suit une chaîne d'exécution déterministe et vérifiable :  
   `Voix/Texte → IntentParser → IntentValidator → SkillPlanner → SkillExecutor → RobotController → Hardware`.
 * **Excellente testabilité hors-matériel :** L'interface `RobotController` (`src/irobot/interfaces/robot_controller.py`) combinée à l'émulateur `FakeRobot` (`tests/unit/fake_robot.py`) permet d'exécuter 100 % de la logique de planification et de validation sur machine de développement (macOS/CI) sans dépendance matérielle.
-* **Traçabilité native complète :** L'enregistrement des traces en JSONL (`VoiceRuntime._write_trace_event`) et le script de replay dédié (`scripts/test/replay_runtime_trace_mac.sh`) constituent un atout majeur pour l'analyse post-mission et la reproductibilité des incidents.
+* **Traçabilité native complète :** L'enregistrement des traces en JSONL (`VoiceRuntime._write_trace_event`) et le script de replay dédié (`scripts/scenarios/replay_runtime_trace_mac.sh`) constituent un atout majeur pour l'analyse post-mission et la reproductibilité des incidents.
 
 ### Faiblesses et incohérences structurelles
 * **Incohérence majeure de packaging dans `pyproject.toml` :**

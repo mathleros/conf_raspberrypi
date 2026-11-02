@@ -1,6 +1,6 @@
 """Gardes déterministes autour du LLM planificateur : le LLM propose, le lexique dispose.
 
-Porté depuis `scripts/test/eval_prompt_plan.py` (comportement identique, vérifié par un test) :
+Porté depuis `scripts/scenarios/eval_prompt_plan.py` (comportement identique, vérifié par un test) :
 - `is_pure_stop` : phrase d'arrêt pure traitée localement, sans LLM ;
 - `grounding_check` : chaque intent et chaque nombre du plan doivent être justifiés par la phrase ;
 - `PLAN_SCHEMA` / `build_formats` : sortie contrainte par schéma JSON, avec replis.

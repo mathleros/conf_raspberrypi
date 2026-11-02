@@ -5,7 +5,7 @@ Ce dossier contient les scripts d'installation et de validation du projet `irobo
 ## Structure du dossier
 
 - `scripts/install/` : scripts système et de configuration (GPIO, Bluetooth, LLM, audio, etc.)
-- `scripts/test/` : scripts de validation locale, de runtime, de démonstration ou de test fonctionnel sans matériel réel
+- `scripts/scenarios/` : scripts de validation locale, de runtime, de démonstration ou de test fonctionnel sans matériel réel
 
 ## Vue d'ensemble
 
@@ -40,8 +40,8 @@ uv sync --project .
 
 Aucun installateur supplémentaire n'est nécessaire : `opencv-python`, déclaré
 dans [pyproject.toml](../pyproject.toml), fournit YuNet et CLAHE. Le modèle
-[face_detection_yunet_2023mar.onnx](../config/face_detection_yunet_2023mar.onnx)
-et sa [licence MIT](../config/face_detection_yunet_LICENSE.txt) sont livrés dans
+[face_detection_yunet_2023mar.onnx](../assets/vision/face_detection_yunet_2023mar.onnx)
+et sa [licence MIT](../assets/vision/face_detection_yunet_LICENSE.txt) sont livrés dans
 le dépôt : conserver ces deux fichiers lors d'une copie vers le Pi.
 
 `install_llm.sh` synchronise déjà les dépendances Python. Le script
@@ -152,27 +152,27 @@ Le point d’entrée unique est :
 
 ```bash
 cd ~/Dev/conf_raspberrypi
-bash scripts/test/run_llm_runtime_mac.sh
+bash scripts/scenarios/run_llm_runtime_mac.sh
 ```
 
 Optionnellement, avec une instruction précise :
 
 ```bash
-bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 ```
 
 La taille du contexte est configurable (4096 tokens par défaut), et le serveur peut être arrêté avec :
 
 ```bash
-bash scripts/test/run_llm_runtime_mac.sh --ctx-size 8192 --text "va vers la balle rouge"
-bash scripts/test/run_llm_runtime_mac.sh --stop
+bash scripts/scenarios/run_llm_runtime_mac.sh --ctx-size 8192 --text "va vers la balle rouge"
+bash scripts/scenarios/run_llm_runtime_mac.sh --stop
 ```
 
 Le résultat contient un champ `trace_path` pointant vers un fichier JSONL dans `target/logs/`.
 Tu peux ensuite rejouer la trace :
 
 ```bash
-bash scripts/test/replay_runtime_trace_mac.sh target/logs/runtime_trace_YYYYMMDDTHHMMSSZ.jsonl
+bash scripts/scenarios/replay_runtime_trace_mac.sh target/logs/runtime_trace_YYYYMMDDTHHMMSSZ.jsonl
 ```
 
 ## Variables et commandes utiles

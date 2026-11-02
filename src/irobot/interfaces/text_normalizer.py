@@ -1,6 +1,6 @@
 """Prétraitement déterministe des transcriptions vocales avant interprétation.
 
-Porté depuis `scripts/test/eval_prompt_plan.py` ; `preprocess` gère en plus les durées et
+Porté depuis `scripts/scenarios/eval_prompt_plan.py` ; `preprocess` gère en plus les durées et
 distances composées (« 1 minute 30 secondes », « 1 mètre 50 »). Un petit LLM convertit mal les
 nombres en lettres, on lui envoie donc un texte déjà normalisé (nombres en chiffres,
 minutes -> secondes, mètres -> centimètres).

@@ -67,13 +67,13 @@ Un modèle de 1,5B suit mal les consignes longues et convertit mal les nombres �
 ## 3.3 bis Stratégie retenue (étape 8)
 
 - **Prétraitement déterministe** (`interfaces/text_normalizer.py`, `preprocess`) : nombres en lettres -> chiffres, « N minutes » -> N×60 secondes, « N mètres » -> N×100 centimètres ; le LLM reçoit un texte déjà normalisé. Le parseur local réutilise la même conversion de nombres.
-- **Prompt court et statique** (`SYSTEM_PROMPT_PLAN`, identique à `scripts/test/eval_prompt_plan.py`) placé en tête, texte utilisateur en dernier : le préfixe reste en cache (`cache_prompt: true`, préchauffage au démarrage du runtime).
+- **Prompt court et statique** (`SYSTEM_PROMPT_PLAN`, identique à `scripts/scenarios/eval_prompt_plan.py`) placé en tête, texte utilisateur en dernier : le préfixe reste en cache (`cache_prompt: true`, préchauffage au démarrage du runtime).
 - **Sortie JSON minimale** : `{"steps":[{"intent","target","parameters"}]}`, `confidence` remplie côté code (0,8), distances en cm sans `unit`. Le runtime utilise exclusivement ce format plan. `response_format` `json_schema` strict (`PLAN_SCHEMA`), puis sur HTTP 400 `json_object`+schéma, `json_object`, sans ; le premier format accepté est mémorisé. `temperature` 0, `max_tokens` 120.
 - **Gardes déterministes** (`interfaces/plan_guards.py`, étape 8b, portées de `eval_prompt_plan.py`) : phrase d'arrêt pure (`is_pure_stop`) -> plan `[stop]` local sans LLM (source `local_stop`) ; `grounding_check` sur le texte prétraité : intent non justifié par un mot de la phrase -> plan rejeté (`unsupported command`, source `llm_ungrounded`, sans repli ni mouvement), `stop` parasite et paramètres non gérés supprimés, nombre absent de la phrase supprimé (aucun chiffre) ou plan rejeté (chiffres présents).
 - **Hors périmètre explicite** : `{"steps":[]}` -> commande rejetée (`unsupported command`), aucun mouvement, pas de repli.
 - **Filet de sécurité** : timeout, erreur HTTP, JSON invalide ou `steps` absent -> parseur local `IntentParser`. Une étape malformée est ignorée seule.
 - Réglages par variables d'environnement : `LLM_MODEL`, `LLM_CONNECT_TIMEOUT_SECONDS` (1,0), `LLM_READ_TIMEOUT_SECONDS` (8,0), `LLM_MAX_TOKENS_PLAN` (120).
-- Mesure : `python3 scripts/test/eval_prompt_plan.py --repeat 3` (taux de plans corrects, latence, tokens/s).
+- Mesure : `python3 scripts/scenarios/eval_prompt_plan.py --repeat 3` (taux de plans corrects, latence, tokens/s).
 
 ## 3.4 Recommandation générale
 

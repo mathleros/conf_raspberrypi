@@ -239,13 +239,13 @@ Pour installer le LLM portable sur Mac et tester le pipeline sans microphone ni 
 ```bash
 cd /path/to/conf_raspberrypi
 bash scripts/install/install_llm_mac_portable.sh
-bash scripts/test/run_llm_runtime_mac.sh --text "va vers la balle rouge"
+bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 ```
 
 Pour lancer la validation complète du runtime Mac :
 
 ```bash
-bash scripts/test/run_llm_runtime_mac.sh
+bash scripts/scenarios/run_llm_runtime_mac.sh
 ```
 
 Cette commande démarre le serveur local et valide le pipeline texte -> `Intent` -> skills.
@@ -261,12 +261,12 @@ Fonctionnement du runtime (`voice_runtime.py`) :
 - le plan LLM est contrôlé lexicalement ; toute intention ou valeur numérique non justifiée par la phrase est rejetée ;
 - en cas de timeout, d'erreur HTTP, de JSON invalide ou de réponse incomplète, le parseur local prend le relais ; une liste d'étapes vide est rejetée.
 
-Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/test/eval_prompt_plan.py --repeat 3`.
+Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/scenarios/eval_prompt_plan.py --repeat 3`.
 
 Pour vérifier que le LLM retourne `target="marker"` pour « moi », sans commander les moteurs :
 
 ```bash
-uv run python scripts/test/eval_prompt_plan.py --only approche_moi,approche_moi_plan,suis_moi --schema --repeat 3
+uv run python scripts/scenarios/eval_prompt_plan.py --only approche_moi,approche_moi_plan,suis_moi --schema --repeat 3
 ```
 
 ## Commandes utiles
@@ -313,7 +313,7 @@ Paramètres objet :
 Validation Mac sans matériel :
 
 ```bash
-bash scripts/test/run_runtime_standard_scenarios_mac.sh
+bash scripts/scenarios/run_runtime_standard_scenarios_mac.sh
 uv run pytest -q tests/unit/test_scenario_yellow_ball.py
 ```
 
@@ -356,7 +356,7 @@ Le dépôt couvre plusieurs axes de test :
 
 Le dépôt suit une séparation claire entre :
 - `scripts/install/` : installation système / matériel / LLM / Bluetooth
-- `scripts/test/` : validation locale / runtime / démonstration
+- `scripts/scenarios/` : validation locale / runtime / démonstration
 - `tests/` : tests Python automatisés
 
 Cette séparation permet de ne pas mélanger :
@@ -367,7 +367,7 @@ Cette séparation permet de ne pas mélanger :
 ## Dépannage rapide
 
 - `cmake` manquant sur macOS : installer les Xcode Command Line Tools puis `cmake`
-- serveur LLM non dispo : `bash scripts/test/run_llm_runtime_mac.sh`
+- serveur LLM non dispo : `bash scripts/scenarios/run_llm_runtime_mac.sh`
 - `uv` absent : installer `uv` puis relancer `uv sync --project .`
 
 ## Licence et usage

@@ -1,4 +1,4 @@
-"""Live, non-recording diagnostic for ArUco, faces and red/yellow balls."""
+"""Runnable live diagnostic for ArUco, faces and red/yellow balls."""
 
 from __future__ import annotations
 

@@ -11,11 +11,11 @@ Modes disponibles :
 - robotique : sorties compactes comme `BALL_RED_CENTER`, `OBJECT_YELLOW_LEFT`, `NONE`
 
 Usage :
-    uv run balle-rouge
-    uv run balle-rouge --color red
-    uv run balle-rouge --color yellow
-    uv run balle-rouge --debug
-    uv run balle-rouge --robotic
+    uv run color-detector
+    uv run color-detector --color red
+    uv run color-detector --color yellow
+    uv run color-detector --debug
+    uv run color-detector --robotic
 
 Le mode robotique est pensé pour un usage embarqué : il retourne un verdict en
 une seule ligne sans logs de debug ni détails inutiles.

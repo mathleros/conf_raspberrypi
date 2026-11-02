@@ -61,7 +61,7 @@ Le point d'entrée public reste [interfaces/voice_runtime.py](interfaces/voice_r
 | `interfaces/voice_plan.py` | Normalisation, bornage, expansion et validation déterministes |
 | `interfaces/voice_execution.py` | Séquence de mission, retries, délais et traces d'exécution |
 | `hardware/audio/voice_input.py` | Capture ALSA, nettoyage du processus et transcription Vosk |
-| `hardware/voice_runtime_factory.py` | Assemblage moteur/capteur/caméra sur Raspberry Pi |
+| `hardware/runtime_factory.py` | Assemblage moteur/capteur/caméra sur Raspberry Pi |
 
 Les deux mixins de planification et d'exécution utilisent un unique état partagé.
 Les anciens modules de protection, d'admission et de suivi humain ne sont plus
@@ -101,8 +101,8 @@ et l'absence de fusion ultrason pour les marqueurs restent inchangés.
 ## Correction du contre-jour
 
 [frame_enhancer.py](hardware/camera/frame_enhancer.py) partage la correction entre
-le runtime, `camera-live`, `color-detector` / `balle-rouge`, `vision-detect-live`
-et `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
+le runtime, `camera-live`, `color-detector`, `vision-detect-live` et
+`calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
 au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
 appliqué uniquement au canal de luminosité L de LAB, avant toute détection.
 
@@ -165,14 +165,13 @@ Il s'agit de détection, pas de reconnaissance d'identité : plusieurs visages
 peuvent provoquer un changement de personne suivie. La distance varie avec la
 largeur réelle et l'orientation du visage et doit être vérifiée sur le Pi avant
 suivi moteur. Aucune image ni donnée biométrique n'est enregistrée par le wrapper.
-`SimulatedObjectPerception` accepte les mêmes cibles pour les essais Mac.
 Les contrôleurs de suivi existants acceptent la source `face` sans nouveau contrat.
 La commande vocale « suis-moi » et les cibles `marker`/`me` restent liées au
 marqueur ArUco : cette modification ne change pas le parseur ni les prompts LLM.
 
 ## Diagnostic vision
 
-`uv run vision-detect-live` lance [vision_diagnostic.py](interfaces/vision_diagnostic.py)
+`uv run vision-detect-live` lance [vision_diagnostic.py](tools/vision_diagnostic.py)
 sur la caméra 0 OV5647, avec affichage X11 et rotation habituelle de 90°.
 Il recherche simultanément l'ID ArUco `DICT_4X4_50 / 1`, le visage sélectionné
 par YuNet et la meilleure balle de chacune des couleurs rouge et jaune.
@@ -187,8 +186,7 @@ dernière boîte et ses anciennes mesures. Le diagnostic utilise les réglages
 caméra du TOML, ne commande aucun moteur et n'enregistre aucune image.
 Le modèle YuNet doit être disponible ; une erreur de détection n'est pas
 assimilée à une absence. Appuyer sur `q` ou Ctrl+C pour quitter.
-L'ancienne commande `marker-detect-live` reste un alias du diagnostic générique.
-Pour le lancement Python direct, utiliser `python -m irobot.interfaces.vision_diagnostic`.
+Pour le lancement Python direct, utiliser `python -m irobot.tools.vision_diagnostic`.
 
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement

@@ -12,7 +12,7 @@ import pytest
 
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.audio import voice_input
-from irobot.hardware import voice_runtime_factory
+from irobot.hardware import runtime_factory
 from irobot.interfaces import voice_llm, voice_runtime
 from irobot.interfaces.intent_parser import Intent
 
@@ -20,7 +20,7 @@ from irobot.interfaces.intent_parser import Intent
 PACKAGE = Path(__file__).resolve().parents[2] / "src" / "irobot"
 VOICE_FILES = sorted((PACKAGE / "interfaces").glob("voice*.py")) + [
     PACKAGE / "hardware" / "audio" / "voice_input.py",
-    PACKAGE / "hardware" / "voice_runtime_factory.py",
+    PACKAGE / "hardware" / "runtime_factory.py",
 ]
 
 
@@ -136,16 +136,16 @@ def test_transcription_reports_missing_vosk(monkeypatch):
 
 
 def test_hardware_factory_stays_offline_on_mac(monkeypatch):
-    monkeypatch.setattr(voice_runtime_factory.sys, "platform", "darwin")
-    assert voice_runtime_factory.build_hardware_runtime(settings=RuntimeSettings()) == {
-        "robot": None, "camera": None, "sensor": None, "perception": None,
+    monkeypatch.setattr(runtime_factory.sys, "platform", "darwin")
+    assert runtime_factory.build_hardware_runtime(settings=RuntimeSettings()) == {
+        "robot": None, "camera": None, "sensor": None,
     }
 
 
 def test_hardware_factory_refuses_unqualified_protection(monkeypatch):
-    monkeypatch.setattr(voice_runtime_factory.sys, "platform", "linux")
+    monkeypatch.setattr(runtime_factory.sys, "platform", "linux")
     with pytest.raises(RuntimeError, match="no qualified real P5 adapter"):
-        voice_runtime_factory.build_hardware_runtime(
+        runtime_factory.build_hardware_runtime(
             settings=RuntimeSettings(protection_presence="present"),
         )
 

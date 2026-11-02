@@ -67,7 +67,7 @@ src/irobot/
     └── audio/                      audio_utils (resolve_input_device), voice_assistant (legacy)
 ```
 
-Points d'entrée CLI (`pyproject.toml`) : `voice-runtime` (**principal**), `voice-assistant` (legacy), `smart-car`, `hc-sr04`, `camera-live`, `color-detector` (alias `balle-rouge`), `test`.
+Points d'entrée CLI (`pyproject.toml`) : `voice-runtime` (**principal**), `voice-assistant` (legacy), `smart-car`, `hc-sr04`, `camera-live`, `color-detector`, `test`.
 
 ---
 

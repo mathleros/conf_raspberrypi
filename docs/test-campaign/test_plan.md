@@ -179,7 +179,7 @@ from irobot.interfaces.voice_runtime import build_hardware_runtime
 
 hardware = build_hardware_runtime()
 try:
-    for name in ("robot", "sensor", "perception"):
+    for name in ("robot", "sensor", "camera"):
         if hardware[name] is None:
             raise RuntimeError(f"Matériel absent du runtime : {name}")
     distance = hardware["robot"].read_distance_cm()
@@ -188,7 +188,7 @@ try:
     deadline = time.monotonic() + 10
     detection = None
     while time.monotonic() < deadline:
-        detection = hardware["perception"].detect(target="yellow")
+        detection = hardware["camera"].detect(target="yellow")
         if detection is not None and detection.distance_cm is not None:
             break
         time.sleep(0.1)
@@ -197,8 +197,8 @@ try:
     print("HC-SR04 réel (cm) :", distance)
     print("Détection réelle :", detection)
 finally:
-    if hardware["perception"] is not None:
-        hardware["perception"].close()
+    if hardware["camera"] is not None:
+        hardware["camera"].close()
     if hardware["robot"] is not None:
         hardware["robot"].stop()
         hardware["robot"].cleanup()

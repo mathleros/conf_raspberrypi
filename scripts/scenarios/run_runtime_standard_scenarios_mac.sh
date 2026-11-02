@@ -25,9 +25,9 @@ run_case() {
     tmp_out="$(mktemp)"
 
     if [[ -n "${mock_pos}" ]]; then
-        bash scripts/test/run_llm_runtime_mac.sh --text "${text}" --mock-object-position "${mock_pos}" >"${tmp_out}"
+        bash scripts/scenarios/run_llm_runtime_mac.sh --text "${text}" --mock-object-position "${mock_pos}" >"${tmp_out}"
     else
-        bash scripts/test/run_llm_runtime_mac.sh --text "${text}" >"${tmp_out}"
+        bash scripts/scenarios/run_llm_runtime_mac.sh --text "${text}" >"${tmp_out}"
     fi
 
     local status trace

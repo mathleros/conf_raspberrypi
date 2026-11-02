@@ -19,6 +19,8 @@ import argparse
 import threading
 import time
 
+from irobot.config.settings import load_runtime_settings
+
 try:
     from gpiozero import DigitalOutputDevice, PWMOutputDevice
 except ModuleNotFoundError:  # pragma: no cover - relevant on non-Pi hosts only
@@ -64,6 +66,7 @@ class SmartCar2WD:
         require_obstacle_sensor: bool = False,
         time_fn=time.monotonic,
         sleep_fn=time.sleep,
+        drive_speed: float | None = None,
     ):
         self._time_fn = time_fn
         self._sleep_fn = sleep_fn
@@ -76,7 +79,9 @@ class SmartCar2WD:
         self.ena = PWMOutputDevice(ena, frequency=100)
         self.enb = PWMOutputDevice(enb, frequency=100)
 
-        self.speed = 1.0
+        if drive_speed is None:
+            drive_speed = load_runtime_settings().drive_speed
+        self.speed = self.clamp_speed(drive_speed)
         self.stop()
 
         # Un seul lecteur à la fois sur le HC-SR04 (TRIG/ECHO chronométrés à la main).

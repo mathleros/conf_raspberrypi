@@ -1,5 +1,6 @@
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import cv2
 import numpy as np
@@ -11,8 +12,7 @@ from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.hardware.camera import camera_live_pipeline
 from irobot.hardware.camera.face_detector import FaceDetector
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.hardware.camera.simulated_perception import SimulatedObjectPerception
-from irobot.interfaces.perception_pipeline import ObjectDetection
+from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 from tests.unit.fake_robot import FakeRobot
 
 
@@ -317,36 +317,22 @@ def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipelin
     assert closed == ["stop", "close"]
 
 
-@pytest.mark.parametrize("target", ["face", "human", " HUMAN "])
-@pytest.mark.parametrize("label", ["face", "human", "object"])
-def test_simulated_faces_accept_aliases_without_mutating_sequence(target, label):
-    original = ObjectDetection(label=label, position="center", distance_cm=100, confidence=0.9)
-    perception = SimulatedObjectPerception((original,))
-    detection = perception.detect(target=target)
-    assert detection.label == "face"
-    assert detection.position == "center"
-    assert detection.distance_cm == 100
-    assert original.label == label
-
-
-def test_simulation_does_not_report_ball_as_face():
-    perception = SimulatedObjectPerception((ObjectDetection(label="red_ball"),))
-    assert perception.detect(target="human") is None
-
-
 @pytest.mark.parametrize("target", ["face", "human"])
-def test_existing_follow_skill_aligns_approaches_and_holds_simulated_face(target):
+def test_follow_skill_aligns_approaches_and_holds_face_from_perception_mock(target):
     clock = [0.0]
 
     def sleep(seconds):
         clock[0] += seconds
 
     robot = FakeRobot()
-    perception = SimulatedObjectPerception((
+    detections = iter((
         ObjectDetection(label="face", position="left", distance_cm=200, confidence=0.9),
         ObjectDetection(label="face", position="center", distance_cm=200, confidence=0.9),
         ObjectDetection(label="face", position="center", distance_cm=100, confidence=0.9),
-    ), loop=False)
+    ))
+    last_detection = ObjectDetection(label="face", position="center", distance_cm=100, confidence=0.9)
+    perception = Mock(spec=ObjectPerceptionPipeline)
+    perception.detect.side_effect = lambda **kwargs: next(detections, last_detection)
     context = SkillContext(robot=robot, perception=perception, state={
         "active_intent_parameters": {"target_object": target, "duration_s": 1},
     })

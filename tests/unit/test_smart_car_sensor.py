@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 
+from irobot.config.settings import RuntimeSettings
 from irobot.hardware.smart_car import smart_car as sc
 from irobot.interfaces.robot_controller import RobotController
 
@@ -58,6 +59,19 @@ def _car(monkeypatch, sensor, clock):
     monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
     monkeypatch.setattr(sc, "HC_SR04", lambda **k: sensor)
     return sc.SmartCar2WD(time_fn=clock, sleep_fn=clock.sleep)
+
+
+def test_drive_speed_is_configured_by_constructor(monkeypatch):
+    monkeypatch.setattr(sc, "load_runtime_settings", lambda: RuntimeSettings(drive_speed=0.65))
+    car = _car(monkeypatch, None, _Clock())
+    assert car.speed == 0.65
+
+    custom_car = sc.SmartCar2WD(
+        time_fn=_Clock(),
+        sleep_fn=lambda _: None,
+        drive_speed=0.7,
+    )
+    assert custom_car.speed == 0.7
 
 
 def test_cache_within_50ms_then_refresh(monkeypatch):

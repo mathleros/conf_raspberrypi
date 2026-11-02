@@ -45,7 +45,7 @@ def build_hardware_runtime() -> dict[str, Any]:
     settings = load_runtime_settings()
     if settings.protection_presence == "present":
         raise RuntimeError("Protection declared present: no qualified real P5 adapter; live assembly refused")
-    from irobot.hardware.voice_runtime_factory import build_hardware_runtime as build
+    from irobot.hardware.runtime_factory import build_hardware_runtime as build
 
     return build(settings=settings)
 
@@ -224,7 +224,7 @@ def main() -> None:
             robot=hardware["robot"],
             camera=hardware["camera"],
             sensor=hardware["sensor"],
-            perception=hardware["perception"],
+            perception=hardware["camera"],
             input_device=args.input_device,
             use_llm=not args.no_llm,
         )

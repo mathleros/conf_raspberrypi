@@ -79,9 +79,8 @@ uv run vision-detect-live
 
 Il affiche simultanément l'ID ArUco 1, le visage sélectionné et les balles
 rouge/jaune, avec leurs distances estimées, sans piloter les moteurs ni enregistrer
-d'images. `q` ou Ctrl+C quitte l'outil. L'ancienne commande `marker-detect-live`
-reste un alias. Après mise à jour du dépôt, `uv sync --project .` installe la
-nouvelle commande.
+d'images. `q` ou Ctrl+C quitte l'outil. Après mise à jour du dépôt, exécuter
+`uv sync --project .` pour installer la commande `vision-detect-live`.
 
 ### 2. Installer le support Bluetooth audio (recommandé pour le casque Jabra)
 
@@ -112,7 +111,7 @@ Tu dois voir :
 ### 5. Lancer le test microphone Bluetooth
 
 ```bash
-uv run voice-assistant --once --input-device bluetooth
+uv run voice-runtime --once --input-device bluetooth
 ```
 
 ## Installation optionnelle du ReSpeaker
@@ -130,7 +129,7 @@ Puis tu peux tester :
 ```bash
 aplay -l
 arecord -l
-uv run voice-assistant --once --input-device wm8960
+uv run voice-runtime --once --input-device wm8960
 ```
 
 ## Installation du LLM local sur macOS (portable, sans Homebrew)

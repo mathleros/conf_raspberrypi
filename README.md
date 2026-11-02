@@ -6,53 +6,30 @@ Le projet a évolué vers une architecture plus claire :
 - l'entrée texte / voix est transformée en `Intent`
 - l'`Intent` est validée puis convertie en plan de `Skill`s
 - le plan est exécuté par un orchestrateur
-- le matériel n'est pas piloté directement par le LLM, mais via des skills et un adaptateur robot
+- le matériel n'est jamais piloté directement par le LLM, mais via des skills et un adaptateur robot
 
 ## Architecture actuelle
 
 ```text
-src/irobot/
-├── domain/
-│   ├── skills/
-│   │   ├── primitives/
-│   │   ├── perception/
-│   │   ├── behaviors/
-│   │   └── base_skill.py
-│   └── orchestrator/
-│       ├── planner.py
-│       ├── registry.py
-│       ├── executor.py
-│       └── mission_state_machine.py
-├── interfaces/
-│   ├── intent_parser.py
-│   ├── language_controller.py
-│   ├── robot_controller.py
-│   └── voice_runtime.py
-├── hardware/
-│   ├── audio/
-│   ├── camera/
-│   ├── sensors/
-│   ├── smart_car/
-│   └── ...
-├── config/
-└── __init__.py
-```
-
-Flux principal :
-
-```text
 Texte / voix
   ↓
-IntentParser
+IntentParser + validation du plan
   ↓
-IntentValidator
-  ↓
-SkillPlanner
+SkillPlanner / SkillRegistry
   ↓
 SkillExecutor
   ↓
-Skills / RobotController / hardware
+Skills → RobotController → adaptateurs matériels
 ```
+
+Les modules sont organisés par responsabilité dans `src/irobot/domain/`,
+`src/irobot/interfaces/`, `src/irobot/hardware/` et `src/irobot/config/`.
+Le [README du package](src/irobot/README.md) décrit les points d'entrée et
+les limites actuelles du runtime.
+
+Le suivi de « moi » utilise une cible visuelle ArUco (`follow_person`) ; il ne
+s'agit pas d'une reconnaissance d'identité. Le LLM propose un plan, mais ne
+commande jamais directement les moteurs ou les GPIO.
 
 ## Structure du dépôt
 
@@ -61,20 +38,20 @@ Skills / RobotController / hardware
 ├── README.md
 ├── PROJECT_CONTEXT.md
 ├── pyproject.toml
+├── uv.lock
+├── assets/
+│   ├── aruco/
+│   └── vision/
 ├── docs/
 │   ├── guide-installation-llm-local-pi5.md
-│   └── guide-installation-llm-mac-portable.md
+│   ├── guide-installation-llm-mac-portable.md
+│   └── test-campaign/
 ├── scripts/
 │   ├── README.md
 │   ├── install/
-│   │   ├── install_llm_mac_portable.sh
-│   │   ├── install_llm.sh
-│   │   ├── install_respeaker.sh
-│   │   ├── install_rpigpio.sh
-│   │   ├── install_bluetooth_audio.sh
-│   │   └── connect_jabra_bt.sh
-│   └── test/
-│       └── run_llm_runtime_mac.sh
+│   ├── scenarios/
+│   └── ssh_connect.sh
+├── specs/
 ├── src/
 │   └── irobot/
 ├── tests/
@@ -89,7 +66,7 @@ Skills / RobotController / hardware
 - Raspberry Pi 5 recommandé (Pi 4 possible selon le matériel)
 - Raspberry Pi OS 64 bits ; le guide LLM a été rédigé pour Raspberry Pi OS Bookworm
 - Python >= 3.12
-- Connexion réseau et environ 6 Go d'espace disque libre pour compiler llama.cpp et télécharger les modèles
+- Connexion réseau et espace disque suffisant pour compiler llama.cpp et télécharger les modèles (prévoir au moins 6 Go)
 - `uv` (installé à l'étape 3 ci-dessous)
 
 ### Scripts d'installation
@@ -108,10 +85,9 @@ Depuis la racine du dépôt, utiliser les scripts selon le matériel et la plate
 Pour vérifier la vision sur le Pi avec affichage X11, lancer
 `uv run vision-detect-live` : ID ArUco 1, visage et balles rouge/jaune sont
 détectés simultanément, avec distances estimées et rectangles/coins.
-L'outil [vision_diagnostic.py](src/irobot/interfaces/vision_diagnostic.py) réutilise
+L'outil [vision_diagnostic.py](src/irobot/tools/vision_diagnostic.py) réutilise
 la correction du contre-jour et les détecteurs du runtime, sans moteur ni
-enregistrement. Quitter avec `q` ou Ctrl+C. L'ancienne commande
-`marker-detect-live` reste un alias. Voir les [réglages et limites](src/irobot/README.md#diagnostic-vision).
+enregistrement. Quitter avec `q` ou Ctrl+C. Voir les [réglages et limites](src/irobot/README.md#diagnostic-vision).
 
 ## Installation et configuration sur Raspberry Pi
 
@@ -200,7 +176,7 @@ sudo reboot
 ./scripts/install/connect_jabra_bt.sh scan
 ./scripts/install/connect_jabra_bt.sh <ADRESSE_MAC_DU_CASQUE>
 bluetoothctl info <ADRESSE_MAC_DU_CASQUE>
-uv run voice-assistant --once --input-device bluetooth
+uv run voice-runtime --once --input-device bluetooth
 ```
 
 Pour le HAT **ReSpeaker 2-Mic** à la place du casque Bluetooth :
@@ -210,7 +186,7 @@ sudo ./scripts/install/install_respeaker.sh
 sudo reboot
 aplay -l
 arecord -l
-uv run voice-assistant --once --input-device wm8960
+uv run voice-runtime --once --input-device wm8960
 ```
 
 Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son overlay audio. Les scripts Bluetooth et ReSpeaker ne sont pas nécessaires pour le runtime texte/LLM.
@@ -225,16 +201,16 @@ surcharge explicite de replay reste prioritaire. Les budgets sont figés pendant
 la mission, reprise comprise ; une modification exige une nouvelle mission
 avec des réglages rechargés. Valeur non numérique, non finie ou non positive,
 table malformée ou clé inconnue : erreur explicite, aucun repli silencieux.
-Ni identité, calibration ni dégagement humain ne sont fabriqués ; le fournisseur
-matériel et le suivi moteur réel restent indisponibles. Voir le
-[protocole isolé SH-04](docs/test-campaign/lot-a-campagne-strictement-isolee.md)
-et le [rapport exact](specs/backlog/08_lot_a_rapport_sh09.md#17-sh-04--budgets-configurables-provisoires-et-revalidation-2026-10-31).
+Ces valeurs ne qualifient pas le suivi humain sur matériel réel. La
+[campagne de tests sur Raspberry Pi](docs/test-campaign/test_plan.md) rappelle
+les précautions et preuves nécessaires avant toute validation matérielle.
 
 **Sécurité matériel :** avant tout essai susceptible de commander les moteurs, placer le robot sur un support stable avec les roues dégagées, puis vérifier l'arrêt d'urgence et le câblage.
 
 ### Installation et tests sur macOS
 
-Pour installer le LLM portable sur Mac et tester le pipeline sans microphone ni matériel robot :
+Pour installer le LLM portable sur Mac et tester le pipeline sans microphone ni
+matériel robot :
 
 ```bash
 cd /path/to/conf_raspberrypi
@@ -242,13 +218,17 @@ bash scripts/install/install_llm_mac_portable.sh
 bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 ```
 
-Pour lancer la validation complète du runtime Mac :
+L'installateur prend en charge `qwen2.5-1.5b` (par défaut) et
+`ministral-3-3b`. Pour choisir le modèle :
 
 ```bash
-bash scripts/scenarios/run_llm_runtime_mac.sh
+bash scripts/install/install_llm_mac_portable.sh --model ministral-3-3b
+LLM_MODEL=ministral-3-3b bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 ```
 
-Cette commande démarre le serveur local et valide le pipeline texte -> `Intent` -> skills.
+Le script `run_llm_runtime_mac.sh` démarre le serveur local si nécessaire et
+exécute le runtime en mode texte ; sans `--text`, il demande une phrase au
+terminal. Il n'utilise ni microphone ni matériel robot.
 
 ### LLM et runtime sur Raspberry Pi
 
@@ -257,11 +237,21 @@ Le Pi sert **Qwen2.5-1.5B-Instruct** quantisé **Q4_K_M** (~1,1 Go) via `llama-s
 Fonctionnement du runtime (`voice_runtime.py`) :
 - la transcription est normalisée de façon déterministe (nombres en lettres -> chiffres, minutes -> secondes, mètres -> centimètres) ;
 - les commandes d'arrêt (« stop », « arrête toi », « halte », « pause ») sont traitées localement, sans LLM ;
-- le prompt de planification explique que « moi » désigne le marqueur : « approche-toi de moi » produit `search_and_approach_object` avec `target="marker"`, « suis-moi » produit `follow_person`. Le LLM interprète ces commandes et leurs plans composés ; le parseur local reste disponible sans LLM ou en repli technique. Les deux intents utilisent l'approche commune, pas un suivi continu ;
+- le prompt de planification explique que « moi » désigne le marqueur : « approche-toi de moi » produit `search_and_approach_object` avec `target="marker"`, tandis que « suis-moi » produit `follow_person`, un suivi continu de ce marqueur jusqu'à l'arrêt ;
+- le LLM interprète les commandes et leurs plans composés ; le parseur local reste disponible sans LLM ou en repli technique ;
 - le plan LLM est contrôlé lexicalement ; toute intention ou valeur numérique non justifiée par la phrase est rejetée ;
 - en cas de timeout, d'erreur HTTP, de JSON invalide ou de réponse incomplète, le parseur local prend le relais ; une liste d'étapes vide est rejetée.
 
-Variables d'environnement (défauts) : `LLM_MODEL` (`qwen2.5-1.5b`), `LLM_CONNECT_TIMEOUT_SECONDS` (1.0), `LLM_READ_TIMEOUT_SECONDS` (10.0), `LLM_MAX_TOKENS_PLAN` (120), `LLM_RESPONSE_FORMAT` (`schema` ; ou `json_object`, `none`), `LLM_WARMUP_WAIT_SECONDS` (60, attente du préchauffage en `--once`/`--text`). Diagnostic dans l'événement `plan_raw` de la trace : `llm_latency_seconds`, `llm_response_format`, `llm_attempts`, `llm_prompt_tokens`, `llm_completion_tokens`, `llm_timings`, `error_type`, `warmup_status`. Évaluation du prompt sur le serveur : `python3 scripts/scenarios/eval_prompt_plan.py --repeat 3`.
+Variables d'environnement principales : `LLM_MODEL` (`qwen2.5-1.5b`),
+`LLM_CONNECT_TIMEOUT_SECONDS` (1), `LLM_READ_TIMEOUT_SECONDS` (10),
+`LLM_MAX_TOKENS_PLAN` (120), `LLM_RESPONSE_FORMAT` (`schema`,
+`json_object` ou `none`) et `LLM_WARMUP_WAIT_SECONDS` (60). Les traces
+JSONL détaillent notamment la latence, le format de réponse, les tentatives,
+les tokens et les erreurs LLM. Pour évaluer le prompt contre le serveur local :
+
+```bash
+uv run python scripts/scenarios/eval_prompt_plan.py --repeat 3
+```
 
 Pour vérifier que le LLM retourne `target="marker"` pour « moi », sans commander les moteurs :
 
@@ -305,10 +295,18 @@ En écoute continue sur le Pi, dire : **« cherche la balle jaune, approche-toi 
 
 Paramètres objet :
 - `stand_off_cm` : distance de consigne (défaut 100 cm), bornée par `[limits] min_stand_off_cm` / `max_stand_off_cm` (30–300 cm) ;
-- `duration_s` : durée du suivi (défaut 60 s), recherche comprise, bornée à 1–`max_follow_duration_sec` (600 s) ;
+- `duration_s` : durée optionnelle du suivi, bornée à 1–`max_follow_duration_sec` (600 s). Sans durée explicite, le suivi est continu jusqu'à une commande d'arrêt ;
 - `search_timeout_s` : budget de recherche, borné à 1–120 s ; défaut `[runtime] search_timeout_seconds` (25 s).
 
-`[runtime] timeout_margin_seconds` (10 s) ajoute une marge au budget d'une étape avec `duration_s` ; le budget mission tient compte des étapes. Pendant une mission en écoute continue, **« stop »** déclenche immédiatement l'arrêt d'urgence ; les autres commandes ne lancent pas de mission concurrente. Ctrl+C arrête aussi le robot. Une urgence ou un obstacle interrompt le plan (`aborted`), sans retry ni étape suivante ; arrêt moteur garanti en sortie. Le suivi peut reculer : **aucun capteur arrière**, garder une zone dégagée.
+Pour `follow_person`, la cible est le marqueur ArUco et la distance de consigne
+par défaut est 20 cm ; aucune identification de personne n'est effectuée.
+`[runtime] timeout_margin_seconds` (10 s) ajoute une marge au budget d'une
+étape temporisée ; le budget de mission tient compte des étapes. Pendant une
+mission en écoute continue, **« stop »** déclenche l'arrêt d'urgence ; les
+autres commandes ne lancent pas de mission concurrente. Ctrl+C arrête aussi
+le robot. Une urgence ou un obstacle interrompt le plan (`aborted`), sans
+nouvelle tentative ni étape suivante. Le suivi peut reculer : **aucun capteur
+arrière**, garder une zone dégagée.
 
 Validation Mac sans matériel :
 
@@ -317,7 +315,13 @@ bash scripts/scenarios/run_runtime_standard_scenarios_mac.sh
 uv run pytest -q tests/unit/test_scenario_yellow_ball.py
 ```
 
-Le scénario « balle jaune » du script utilise une perception mock et un `FakeRobot` avec horloge virtuelle : 300 s simulées sans attendre cinq minutes, sans LLM pour ce cas. Les quatre autres scénarios utilisent le serveur LLM local. Statuts et traces sont consignés dans `target/logs/scenario_runs/`.
+Le scénario « balle jaune » utilise une perception simulée et un `FakeRobot`
+avec horloge virtuelle : 300 s sont simulées sans attendre cinq minutes ni
+appeler le LLM pour ce cas. Les quatre autres scénarios du script utilisent
+le serveur LLM local. Statuts et traces sont consignés dans
+`target/logs/scenario_runs/`. Ces validations simulées ne remplacent pas la
+campagne sur le robot réel décrite dans
+[docs/test-campaign/test_plan.md](docs/test-campaign/test_plan.md).
 
 ### Tests Python
 
@@ -346,11 +350,14 @@ Le dépôt couvre plusieurs axes de test :
 
 ## Documentation
 
-- [Campagne de tests bout en bout sur Raspberry Pi après audit V6](docs/test-campaign/plan-test-pi-post-audit-v6.md) : étapes de recette physique, critères Go/No-Go et modèle de compte rendu.
-- `docs/guide-installation-llm-mac-portable.md` : installation portable du LLM sur Mac
-- `docs/guide-installation-llm-local-pi5.md` : installation locale sur Raspberry Pi
-- `PROJECT_CONTEXT.md` : contexte technique et règles de structure du dépôt
-- `scripts/README.md` : vue d'ensemble des scripts d'installation et de test
+- [Campagne de tests bout en bout sur Raspberry Pi](docs/test-campaign/test_plan.md) : étapes de recette physique, règles de sécurité et critères de verdict.
+- [Guide d'installation du LLM sur macOS](docs/guide-installation-llm-mac-portable.md)
+- [Guide d'installation du LLM sur Raspberry Pi 5](docs/guide-installation-llm-local-pi5.md)
+- [Architecture fonctionnelle et technique](specs/02_functional_technical_architecture.md)
+- [Contexte technique du projet](PROJECT_CONTEXT.md)
+- [Vue d'ensemble des scripts](scripts/README.md)
+- [Structure du package irobot](src/irobot/README.md)
+- [Configuration du runtime](src/irobot/config/README.md)
 
 ## Règles de structure
 

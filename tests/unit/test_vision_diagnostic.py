@@ -10,9 +10,9 @@ from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.interfaces.perception_pipeline import ObjectDetection
-from irobot.interfaces.vision_diagnostic import detect_balls, format_object_status
+from irobot.tools.vision_diagnostic import detect_balls, format_object_status
 from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
-from irobot.interfaces.vision_diagnostic import (
+from irobot.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
     compute_marker_distance_cm,
@@ -204,7 +204,7 @@ def test_overlay_shows_current_pose_distance_and_failures():
 
 @pytest.mark.parametrize("inference_error", [False, True])
 def test_main_configures_reference_resolution_and_rotates_without_camera(monkeypatch, capsys, inference_error):
-    from irobot.interfaces import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     calls = []
     texts = []
@@ -327,7 +327,7 @@ def test_both_balls_are_detected_independently_with_existing_distance_model():
 
 
 def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
-    from irobot.interfaces import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     frame = np.zeros((640, 480, 3), np.uint8)
     assert detect_balls(frame, RuntimeSettings()) == {"red": None, "yellow": None}

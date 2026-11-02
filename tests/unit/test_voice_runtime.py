@@ -1355,7 +1355,7 @@ class _SlowWarmupLLM:
 def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     monkeypatch.setattr(vr, "build_hardware_runtime",
-                        lambda: {"robot": FakeRobot(), "camera": None, "sensor": None, "perception": None})
+                        lambda: {"robot": FakeRobot(), "camera": None, "sensor": None})
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
     vr.main()

@@ -80,7 +80,7 @@
 - Mettre à jour/réduire les références doc héritées si besoin après premiers tests Pi.
 - Calibrer `focal_px` sur le Pi (`calibrate-distance --known-distance-cm 100`) puis activer `ultrasonic_fusion` si les mesures sont cohérentes.
 - Mesurer sur le Pi 5 la latence/débit de Qwen2.5-1.5B (`eval_prompt_plan.py --repeat 3`) et l'effet de `cache_prompt` + préchauffage dans le budget de 10 s (`LLM_READ_TIMEOUT_SECONDS`), comparer `LLM_RESPONSE_FORMAT` schema/json_object/none via `llm_timings` de la trace, et le taux de faux rejets du contrôle lexical (`eval_prompt_plan.py` sans `--no-guards`).
-- Restes Ministral / `ctx-size 4096` hors chemin Pi : `install_llm_mac_portable.sh`, `run_llm_runtime_mac.sh`, `docs/guide-installation-llm-mac-portable.md`, `commandes.txt`, `tests/integration/test_voice_runtime_llm_integration.py` ; `hardware/audio/voice_assistant.py` (legacy) lit `LLM_MODEL` sans prétraitement ni timeouts ; README cite encore `uv run voice-assistant` (commandes audio).
+- Restes Ministral / `ctx-size 4096` hors chemin Pi : `install_llm_mac_portable.sh`, `run_llm_runtime_mac.sh`, `docs/guide-installation-llm-mac-portable.md`, `commandes.txt`, `tests/integration/test_voice_runtime_llm_integration.py` ; le point d'entrée CLI vocal est `voice-runtime`.
 - Voie legacy `handle_text` : `unknown` du LLM -> repli parseur (pas de rejet comme en voie plan).
 - prépare le système pour l’utilisation des GPIO
 

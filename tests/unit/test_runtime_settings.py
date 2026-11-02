@@ -28,6 +28,7 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "cm_per_second": 33.0,
         "backward_cm_per_second": 25.0,
         "deg_per_second": 180.0,
+        "drive_speed": 0.5,
         "turn_speed": 0.5,
         "step_timeout_seconds": 6.0,
         "mission_timeout_seconds": 45.0,
@@ -112,6 +113,7 @@ def test_load_runtime_settings_from_toml(tmp_path, monkeypatch):
 [runtime]
 cm_per_second = 30.0
 deg_per_second = 150.0
+drive_speed = 0.7
 step_timeout_seconds = 3.5
 mission_timeout_seconds = 20.0
 max_step_retries = 1
@@ -131,6 +133,7 @@ max_duration_sec = 8.0
     assert loaded.cm_per_second == 30.0
     assert loaded.backward_cm_per_second is None
     assert loaded.deg_per_second == 150.0
+    assert loaded.drive_speed == 0.7
     assert loaded.step_timeout_seconds == 3.5
     assert loaded.mission_timeout_seconds == 20.0
     assert loaded.max_step_retries == 1

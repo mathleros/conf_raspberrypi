@@ -53,6 +53,7 @@ class MarkerIdentity:
 class RuntimeSettings:
     cm_per_second: float = 33.0
     deg_per_second: float = 180.0
+    drive_speed: float = 0.5
     turn_speed: float = 0.5
     step_timeout_seconds: float = 6.0
     mission_timeout_seconds: float = 45.0
@@ -171,7 +172,7 @@ def _string(table: Mapping[str, object], key: str, default: str, error_name: str
 
 def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
     table = _table(raw, "runtime", {
-        "cm_per_second", "backward_cm_per_second", "deg_per_second", "turn_speed",
+        "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "turn_speed",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds",
     })
@@ -183,6 +184,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         cm_per_second=_float(table, "cm_per_second", current.cm_per_second, "runtime.cm_per_second"),
         backward_cm_per_second=backward,
         deg_per_second=_float(table, "deg_per_second", current.deg_per_second, "runtime.deg_per_second"),
+        drive_speed=_float(table, "drive_speed", current.drive_speed, "runtime.drive_speed"),
         turn_speed=_float(table, "turn_speed", current.turn_speed, "runtime.turn_speed"),
         step_timeout_seconds=_float(table, "step_timeout_seconds", current.step_timeout_seconds, "runtime.step_timeout_seconds"),
         mission_timeout_seconds=_float(table, "mission_timeout_seconds", current.mission_timeout_seconds, "runtime.mission_timeout_seconds"),

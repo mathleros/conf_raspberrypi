@@ -16,8 +16,10 @@ Notes de câblage :
 """
 
 import argparse
+from contextlib import ExitStack
 import threading
 import time
+from typing import Any
 
 from irobot.config.settings import load_runtime_settings
 
@@ -60,9 +62,8 @@ class SmartCar2WD:
         in4=DEFAULT_PINS["in4"],
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
+        distance_sensor: Any | None = None,
         obstacle_threshold_cm: float = 5.0,
-        sensor_trigger_pin: int = 17,
-        sensor_echo_pin: int = 27,
         require_obstacle_sensor: bool = False,
         time_fn=time.monotonic,
         sleep_fn=time.sleep,
@@ -78,6 +79,7 @@ class SmartCar2WD:
         }
         self.ena = PWMOutputDevice(ena, frequency=100)
         self.enb = PWMOutputDevice(enb, frequency=100)
+        self._closed = False
 
         if drive_speed is None:
             drive_speed = load_runtime_settings().drive_speed
@@ -91,14 +93,7 @@ class SmartCar2WD:
 
         self.obstacle_threshold_cm = obstacle_threshold_cm
         self.require_obstacle_sensor = bool(require_obstacle_sensor)
-        self.distance_sensor = (
-            HC_SR04(
-                trigger_pin=sensor_trigger_pin,
-                echo_pin=sensor_echo_pin,
-            )
-            if HC_SR04 is not None
-            else None
-        )
+        self.distance_sensor = distance_sensor
 
     @staticmethod
     def clamp_speed(speed: float) -> float:
@@ -157,14 +152,20 @@ class SmartCar2WD:
         self.enb.value = 0
 
     def cleanup(self) -> None:
-        """Libère proprement les ressources GPIO."""
-        self.stop()
-        for pin in self.pins.values():
-            pin.close()
-        self.ena.close()
-        self.enb.close()
-        if self.distance_sensor is not None:
-            self.distance_sensor.cleanup()
+        """Libère les GPIO du véhicule et du capteur qui lui a été confié."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.stop()
+        finally:
+            with ExitStack() as cleanup:
+                for pin in self.pins.values():
+                    cleanup.callback(pin.close)
+                cleanup.callback(self.ena.close)
+                cleanup.callback(self.enb.close)
+                if self.distance_sensor is not None:
+                    cleanup.callback(self.distance_sensor.cleanup)
 
     def read_distance_cm(self) -> float | None:
         """Lit le HC-SR04 sous verrou ; réutilise une mesure valide de moins de 50 ms."""
@@ -253,16 +254,21 @@ def run_command(args: argparse.Namespace) -> None:
     if args.obstacle_threshold_cm < 0:
         raise ValueError("Le seuil d'obstacle doit être positif.")
 
-    car = SmartCar2WD(obstacle_threshold_cm=args.obstacle_threshold_cm)
-    command_map = {
-        "forward": car.forward,
-        "backward": car.backward,
-        "left": car.left,
-        "right": car.right,
-        "stop": car.stop,
-    }
-
+    sensor = None
+    car = None
     try:
+        sensor = HC_SR04() if HC_SR04 is not None else None
+        car = SmartCar2WD(
+            distance_sensor=sensor,
+            obstacle_threshold_cm=args.obstacle_threshold_cm,
+        )
+        command_map = {
+            "forward": car.forward,
+            "backward": car.backward,
+            "left": car.left,
+            "right": car.right,
+            "stop": car.stop,
+        }
         car.set_speed(args.speed)
         command = command_map[args.command]
 
@@ -309,8 +315,10 @@ def run_command(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         print("\nInterruption clavier : arrêt des moteurs.")
     finally:
-        car.stop()
-        car.cleanup()
+        if car is not None:
+            car.cleanup()
+        elif sensor is not None:
+            sensor.cleanup()
 
 
 def _stop_lgpio_notify_thread() -> None:

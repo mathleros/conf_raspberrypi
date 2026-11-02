@@ -142,6 +142,48 @@ def test_hardware_factory_stays_offline_on_mac(monkeypatch):
     }
 
 
+def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
+    from irobot.hardware.smart_car import smart_car
+
+    class Sensor:
+        def __init__(self):
+            self.cleanup_calls = 0
+
+        def cleanup(self):
+            self.cleanup_calls += 1
+
+    class Car:
+        def __init__(self, *, distance_sensor, **kwargs):
+            self.distance_sensor = distance_sensor
+
+        def read_distance_cm(self):
+            return 25.0
+
+        def cleanup(self):
+            self.distance_sensor.cleanup()
+
+    sensor = Sensor()
+    monkeypatch.setattr(runtime_factory.sys, "platform", "linux")
+    monkeypatch.setattr(smart_car, "SmartCar2WD", Car)
+    monkeypatch.setitem(
+        sys.modules,
+        "irobot.hardware.sensors.hc_sr04",
+        SimpleNamespace(HC_SR04=lambda: sensor),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "irobot.hardware.camera.camera_live_pipeline",
+        SimpleNamespace(CameraLivePerceptionPipeline=lambda **kwargs: object()),
+    )
+
+    hardware = runtime_factory.build_hardware_runtime(settings=RuntimeSettings())
+
+    assert hardware["sensor"] is sensor
+    assert hardware["robot"].read_distance_cm() == 25.0
+    hardware["robot"].cleanup()
+    assert sensor.cleanup_calls == 1
+
+
 def test_hardware_factory_refuses_unqualified_protection(monkeypatch):
     monkeypatch.setattr(runtime_factory.sys, "platform", "linux")
     with pytest.raises(RuntimeError, match="no qualified real P5 adapter"):

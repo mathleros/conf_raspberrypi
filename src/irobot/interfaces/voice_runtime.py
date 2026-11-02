@@ -182,8 +182,12 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
             if self.perception is not None and hasattr(self.perception, "close"):
                 self.perception.close()
         finally:
-            if self.robot is not None and hasattr(self.robot, "stop"):
-                self.robot.stop()
+            if self.robot is not None:
+                cleanup = getattr(self.robot, "cleanup", None)
+                if callable(cleanup):
+                    cleanup()
+                elif hasattr(self.robot, "stop"):
+                    self.robot.stop()
 
 
 def _parse_args() -> argparse.Namespace:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import threading
 
 from irobot.config.settings import RuntimeSettings
@@ -27,6 +28,7 @@ class _Sensor:
     def __init__(self, values):
         self.values = list(values)
         self.calls = 0
+        self.cleanup_calls = 0
         self.active = 0
         self.max_active = 0
 
@@ -40,7 +42,7 @@ class _Sensor:
     values_default = 100.0
 
     def cleanup(self):
-        pass
+        self.cleanup_calls += 1
 
 
 class _Clock:
@@ -57,8 +59,7 @@ class _Clock:
 def _car(monkeypatch, sensor, clock):
     monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
     monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "HC_SR04", lambda **k: sensor)
-    return sc.SmartCar2WD(time_fn=clock, sleep_fn=clock.sleep)
+    return sc.SmartCar2WD(distance_sensor=sensor, time_fn=clock, sleep_fn=clock.sleep)
 
 
 def test_drive_speed_is_configured_by_constructor(monkeypatch):
@@ -72,6 +73,34 @@ def test_drive_speed_is_configured_by_constructor(monkeypatch):
         drive_speed=0.7,
     )
     assert custom_car.speed == 0.7
+
+
+def test_cleanup_releases_injected_sensor_once(monkeypatch):
+    sensor = _Sensor([])
+    car = _car(monkeypatch, sensor, _Clock())
+
+    car.cleanup()
+    car.cleanup()
+
+    assert sensor.cleanup_calls == 1
+
+
+def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
+    sensor = _Sensor([])
+    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "HC_SR04", lambda: sensor)
+    args = argparse.Namespace(
+        command="stop",
+        duration=0,
+        speed=0.5,
+        obstacle_threshold_cm=20.0,
+        obstacle_check_interval=0.2,
+    )
+
+    sc.run_command(args)
+
+    assert sensor.cleanup_calls == 1
 
 
 def test_cache_within_50ms_then_refresh(monkeypatch):

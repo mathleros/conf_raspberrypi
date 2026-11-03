@@ -18,7 +18,7 @@ pythonpath = ["src"]
 [project.scripts]
 test = "irobot:main"
 vision-detect-live = "irobot.tools.vision_diagnostic:main"
-calibrate-distance = "irobot.hardware.camera.calibrate_distance:main"
+calibrate-distance = "irobot.tools.calibrate_distance:main"
 voice-runtime = "irobot.interfaces.voice_runtime:main"
 smart-car = "irobot.hardware.smart_car.cli:main"
 hc-sr04 = "irobot.hardware.sensors.hc_sr04:main"

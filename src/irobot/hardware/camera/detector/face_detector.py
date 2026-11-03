@@ -10,13 +10,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 from irobot.config.settings import RuntimeSettings
+from .detector import Detector
 from irobot.hardware.camera.distance_estimator import estimate_distance_cm
 from irobot.interfaces.perception_pipeline import ObjectDetection
 
 logger = logging.getLogger(__name__)
 
 
-class FaceDetector:
+class FaceDetector(Detector):
     def __init__(self, settings: RuntimeSettings, *, focal_px: float | None = None) -> None:
         self._settings = settings
         self._focal_px = settings.camera_focal_px if focal_px is None else focal_px
@@ -101,10 +102,12 @@ class FaceDetector:
         distance = estimate_distance_cm(width, self._settings.camera_face_width_cm, self._focal_px)
         if distance is None or not math.isfinite(distance):
             raise ValueError("Distance visage inexploitable")
-        self._bounding_box = (float(best[0]), float(best[1]), width, float(best[3]))
+        bounding_box = (float(best[0]), float(best[1]), width, float(best[3]))
+        self._bounding_box = bounding_box
         center_x = (x + width / 2) * 480 / size[0]
         position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
         return ObjectDetection(
             label="face", position=position, distance_cm=distance,
             distance_visual_cm=distance, confidence=float(best[-1]), diameter_px=width,
+            bbox_px=tuple(map(int, bounding_box)),
         )

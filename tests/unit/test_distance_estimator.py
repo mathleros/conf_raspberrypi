@@ -7,8 +7,9 @@ import numpy as np
 import pytest
 
 from irobot.config import settings
-from irobot.hardware.camera import color_detector
+from irobot.hardware.camera.detector import color_detector
 from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
+from irobot.hardware.camera.detector import ColorDetector, Detector
 from irobot.hardware.camera.distance_estimator import (
     ExponentialSmoother,
     estimate_distance_cm,
@@ -64,27 +65,39 @@ def _pipeline(**kwargs) -> CameraLivePerceptionPipeline:
 
 
 def _ball(position: str = "center", diameter_px: float = 39.0) -> ObjectDetection:
-    return ObjectDetection(label="yellow_ball", position=position, confidence=0.95, diameter_px=diameter_px)
+    distance = estimate_distance_cm(diameter_px, 6.5, 600.0)
+    return ObjectDetection(
+        label="yellow_ball", position=position, confidence=0.95, diameter_px=diameter_px,
+        distance_cm=distance, distance_visual_cm=distance,
+    )
 
 
 def _publish(pipe: CameraLivePerceptionPipeline, detection: ObjectDetection) -> None:
-    """Simule ce que fait le thread caméra : estimation visuelle seule, puis publication."""
-    detection.distance_visual_cm = pipe._compute_visual_distance_cm(detection)
-    detection.distance_cm = detection.distance_visual_cm
     pipe._last_detection = detection
 
 
-def test_pipeline_visual_distance_and_smoothing():
-    pipe = _pipeline()
-    assert pipe._compute_visual_distance_cm(_ball(diameter_px=39.0)) == pytest.approx(100.0)
-    # diamètre doublé -> mesure brute 50, lissée : 0.4*50 + 0.6*100
-    assert pipe._compute_visual_distance_cm(_ball(diameter_px=78.0)) == pytest.approx(80.0)
+def test_color_detector_returns_visual_distance_and_common_contract():
+    detector = ColorDetector("yellow", ball_diameter_cm=6.5, focal_px=600.0)
+    detection = detector.detect(_synthetic_frame(40))
+    assert isinstance(detector, Detector)
+    assert detection is not None
+    assert detection.distance_cm == pytest.approx(600.0 * 6.5 / detection.diameter_px)
+    assert detection.distance_visual_cm == detection.distance_cm
+    assert detection.bbox_px is not None
 
 
-def test_pipeline_no_distance_for_object():
+def test_pipeline_smooths_detector_distance_and_resets_on_lost_target():
     pipe = _pipeline()
-    obj = ObjectDetection(label="yellow_object", position="center", diameter_px=39.0)
-    assert pipe._compute_visual_distance_cm(obj) is None
+    first = pipe._process_frame(_synthetic_frame(40))
+    second = pipe._process_frame(_synthetic_frame(80))
+    assert first.distance_cm == pytest.approx(600.0 * 6.5 / first.diameter_px)
+    assert second.distance_cm == pytest.approx(
+        0.4 * (600.0 * 6.5 / second.diameter_px)
+        + 0.6 * (600.0 * 6.5 / first.diameter_px),
+    )
+    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8)) is None
+    third = pipe._process_frame(_synthetic_frame(40))
+    assert third.distance_cm == pytest.approx(600.0 * 6.5 / third.diameter_px)
 
 
 def test_detect_fusion_concordant_divergent_absent_disabled():
@@ -214,14 +227,11 @@ def test_pipeline_process_frame_end_to_end():
 def test_pipeline_preserves_horizontal_position_thresholds(monkeypatch, center_x, position):
     pipe = _pipeline()
     candidate = {
-        "kind": "ball",
-        "bbox": (center_x - 10, 100, 20, 20),
-        "area": 300.0,
-        "diameter_px": 20.0,
+        "kind": "ball", "bbox": (center_x - 10, 100, 20, 20),
+        "area": 300.0, "diameter_px": 20.0,
     }
     monkeypatch.setattr(
-        "irobot.hardware.camera.camera_live_pipeline.detect_colored_objects",
-        lambda *args, **kwargs: [candidate],
+        color_detector, "detect_colored_objects", lambda *args, **kwargs: [candidate],
     )
     detection = pipe._process_frame(np.zeros((640, 480, 3), np.uint8), target="red")
     assert detection is not None

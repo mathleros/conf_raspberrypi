@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.hardware.camera import calibrate_distance
+from irobot.tools import calibrate_distance
 from irobot.hardware.camera import camera_live_pipeline
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
@@ -115,7 +115,7 @@ def _entrypoint(monkeypatch, name, camera):
     module_name = (
         "irobot.tools.vision_diagnostic"
         if name == "vision_diagnostic"
-        else f"irobot.hardware.camera.{name}"
+        else f"irobot.tools.{name}"
     )
     module = importlib.import_module(module_name)
     if hasattr(module, "Picamera2"):

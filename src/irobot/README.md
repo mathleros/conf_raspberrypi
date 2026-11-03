@@ -130,7 +130,7 @@ réglages que le runtime si la segmentation et les diamètres mesurés changent.
 
 ## Détection de visages
 
-[face_detector.py](hardware/camera/face_detector.py) utilise YuNet uniquement
+[face_detector.py](hardware/camera/detector/face_detector.py) utilise YuNet uniquement
 pour les cibles explicites `face` et `human` (alias). Le runtime applique d'abord
 le même CLAHE que pour les balles/ArUco, puis le wrapper convertit RGB vers BGR.
 Le modèle est chargé à la première image demandée pour un visage, jamais pour

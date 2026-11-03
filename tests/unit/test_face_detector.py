@@ -10,7 +10,7 @@ from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.hardware.camera import camera_live_pipeline
-from irobot.hardware.camera.face_detector import FaceDetector
+from irobot.hardware.camera.detector import FaceDetector
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 from tests.unit.fake_robot import FakeRobot
@@ -220,11 +220,15 @@ def test_pipeline_face_routes_enhanced_frame_without_aruco_or_colors(pipeline, m
     camera, net = pipeline
     frame = np.full((640, 480, 3), (90, 10, 5), np.uint8)
     net.faces = _faces((180, 20, 100, 100, 0.9))
-    monkeypatch.setattr(camera, "_detect_marker", lambda image: pytest.fail("No ArUco for faces"))
     monkeypatch.setattr(
-        camera_live_pipeline, "detect_colored_objects",
-        lambda *args, **kwargs: pytest.fail("No color detector for faces"),
+        camera._marker_detector, "detect",
+        lambda image: pytest.fail("No ArUco for faces"),
     )
+    for detector in camera._color_detectors.values():
+        monkeypatch.setattr(
+            detector, "detect",
+            lambda image: pytest.fail("No color detector for faces"),
+        )
     assert camera.detect(target=target) is None
     detection = camera._process_frame(frame)
     camera._last_detection = detection

@@ -11,7 +11,7 @@ from irobot.hardware.camera import camera_live_pipeline
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.interfaces.perception_pipeline import ObjectDetection
 from irobot.tools.vision_diagnostic import detect_balls, format_object_status
-from irobot.hardware.camera.marker_detector import ArucoFrameDetection, ObservationDisposition
+from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
 from irobot.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
@@ -109,7 +109,7 @@ def test_runtime_uses_pose_distance_for_configured_marker(
         MarkerIdentity("aruco", "DICT_4X4_50", identifier), projected.corners_px,
     )
     monkeypatch.setattr(runtime_pipeline._marker_detector, "identity", detection.identity)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect", lambda image: detection)
+    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
     runtime_pipeline.default_target = target
     frame = np.zeros((size[1], size[0], 3), dtype=np.uint8)
     result = runtime_pipeline._process_frame(frame)
@@ -148,7 +148,7 @@ def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeyp
     )
     assert compute_marker_distance_cm(detection) is None
     assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect", lambda image: detection)
+    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
     assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
     assert "ArUco" in caplog.text
 
@@ -164,7 +164,7 @@ def test_failed_pose_does_not_produce_a_distance(
     monkeypatch.setattr(cv2, "solvePnP", lambda *args, **kwargs: (success, None, translation))
     detection = _project_marker((0, 0, 80))
     assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect", lambda image: detection)
+    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
     assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
     assert "Pose ArUco inexploitable" in caplog.text
 
@@ -178,7 +178,7 @@ def test_opencv_pose_error_is_logged_without_width_fallback(
     monkeypatch.setattr(cv2, "solvePnP", fail)
     detection = _project_marker((0, 0, 80))
     assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect", lambda image: detection)
+    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
     assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
     assert "synthetic pose failure" in caplog.text
 
@@ -259,7 +259,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
     monkeypatch.setattr(
         vision_diagnostic, "OpenCVMarkerDetector",
-        lambda identity: SimpleNamespace(detect=detect),
+        lambda identity: SimpleNamespace(detect_observation=detect),
     )
     face = ObjectDetection(label="face", position="left", distance_cm=90, confidence=0.9)
 
@@ -384,14 +384,29 @@ def test_both_balls_are_detected_independently_with_existing_distance_model():
     assert red.distance_cm > yellow.distance_cm
 
 
+def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkeypatch):
+    from irobot.tools import vision_diagnostic
+
+    monkeypatch.setattr(
+        vision_diagnostic.ColorDetector,
+        "detect",
+        lambda detector, frame: ObjectDetection(label=f"{detector.color_name}_ball"),
+    )
+    with pytest.raises(RuntimeError, match="missing its bounding box"):
+        detect_balls(np.zeros((640, 480, 3), np.uint8), RuntimeSettings())
+
+
 def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
     from irobot.tools import vision_diagnostic
 
     frame = np.zeros((640, 480, 3), np.uint8)
-    assert detect_balls(frame, RuntimeSettings()) == {"red": None, "yellow": None}
-    monkeypatch.setattr(vision_diagnostic, "detect_colored_objects", lambda *args, **kwargs: [
-        {"kind": "object", "bbox": (100, 200, 50, 50), "area": 1000, "diameter_px": 35},
-    ])
+    monkeypatch.setattr(
+        vision_diagnostic.ColorDetector,
+        "detect",
+        lambda detector, frame: ObjectDetection(
+            label=f"{detector.color_name}_object", bbox_px=(100, 200, 50, 50),
+        ),
+    )
     assert detect_balls(frame, RuntimeSettings()) == {"red": None, "yellow": None}
 
 

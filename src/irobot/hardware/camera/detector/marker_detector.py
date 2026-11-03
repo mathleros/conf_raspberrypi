@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
 from typing import Protocol
 
+import cv2
+import numpy as np
+from numpy.typing import NDArray
+
 from irobot.config.settings import MarkerIdentity
+from .detector import Detector
+from irobot.hardware.camera.distance_estimator import estimate_marker_distance_cm
+from irobot.interfaces.perception_pipeline import ObjectDetection
+
+logger = logging.getLogger(__name__)
 
 
 class ObservationDisposition(str, Enum):
@@ -30,8 +40,8 @@ class MarkerDetectorBackend(Protocol):
     def detectMarkers(self, image: object) -> tuple[object, object, object]: ...
 
 
-class OpenCVMarkerDetector:
-    """Detect one configured ArUco ID from grayscale image frames."""
+class OpenCVMarkerDetector(Detector):
+    """Detect one configured ArUco ID from RGB frames."""
 
     def __init__(
         self, identity: MarkerIdentity, *, aruco_api: object | None = None,
@@ -67,7 +77,7 @@ class OpenCVMarkerDetector:
 
         return getattr(cv2, "aruco", None)
 
-    def detect(self, image: object) -> ArucoFrameDetection:
+    def detect_observation(self, image: object) -> ArucoFrameDetection:
         corners_raw, ids_raw, _ = self._detector.detectMarkers(image)
         corners = self._as_python_values(corners_raw)
         marker_ids = self._flatten_ids(ids_raw)
@@ -101,6 +111,44 @@ class OpenCVMarkerDetector:
             )
         return ArucoFrameDetection(
             ObservationDisposition.VALID, identity=self.identity, corners_px=parsed_corners,
+        )
+
+    def detect(self, frame_rgb: NDArray[np.uint8]) -> ObjectDetection | None:
+        observation = self.detect_observation(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY))
+        if observation.disposition != ObservationDisposition.VALID:
+            if observation.disposition not in {
+                ObservationDisposition.ABSENT,
+                ObservationDisposition.AMBIGUOUS,
+            }:
+                logger.warning("Détection ArUco non valide : %s", observation.reason)
+            return None
+
+        corners = observation.corners_px
+        if corners is None:
+            return None
+        distance = estimate_marker_distance_cm(corners, (frame_rgb.shape[1], frame_rgb.shape[0]))
+        if distance is None:
+            logger.warning("Pose ArUco inexploitable ; distance indisponible.")
+            return None
+
+        center_x = sum(x for x, _ in corners) / 4
+        frame_width = frame_rgb.shape[1]
+        position = (
+            "left" if center_x < frame_width * 180 / 480
+            else "right" if center_x > frame_width * 300 / 480
+            else "center"
+        )
+        left = round(min(x for x, _ in corners))
+        top = round(min(y for _, y in corners))
+        right = round(max(x for x, _ in corners))
+        bottom = round(max(y for _, y in corners))
+        return ObjectDetection(
+            label="marker_1",
+            position=position,
+            distance_cm=distance,
+            distance_visual_cm=distance,
+            confidence=1.0,
+            bbox_px=(left, top, right - left, bottom - top),
         )
 
     @classmethod

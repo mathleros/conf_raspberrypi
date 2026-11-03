@@ -12,21 +12,14 @@ except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
 
 from irobot.config.settings import MarkerIdentity, load_runtime_settings
-from irobot.hardware.camera.color_detector import (
-    ColorCandidate,
-    detect_colored_objects,
-    select_best_candidate,
-)
+from irobot.hardware.camera.detector import ColorDetector
 from irobot.hardware.camera.distance_estimator import (
     DistanceReader,
     ExponentialSmoother,
-    estimate_distance_cm,
-    estimate_marker_distance_cm,
     fuse_with_ultrasound,
 )
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
-from irobot.hardware.camera.face_detector import FaceDetector
-from irobot.hardware.camera.marker_detector import OpenCVMarkerDetector, ObservationDisposition
+from irobot.hardware.camera.detector import FaceDetector, OpenCVMarkerDetector
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
 logger = logging.getLogger(__name__)
@@ -67,11 +60,15 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._settings = settings
         self._frame_enhancer = FrameEnhancer(settings)
         self._face_detector: FaceDetector | None = None
+        self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
+        self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
+        self._color_detectors = {
+            color: ColorDetector(color, self.ball_diameter_cm, self.focal_px)
+            for color in ("red", "yellow")
+        }
         self._marker_detector = OpenCVMarkerDetector(
             settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
         )
-        self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
-        self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
         self.distance_reader = distance_reader
         self.fusion_enabled = bool(settings.camera_ultrasonic_fusion if fusion_enabled is None else fusion_enabled)
         self.fusion_tolerance = float(fusion_tolerance)
@@ -89,13 +86,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if autostart:
             self._thread.start()
 
-    def _compute_visual_distance_cm(self, detection: ObjectDetection) -> float | None:
-        """Estimation visuelle lissée (thread caméra) ; aucune lecture capteur ici."""
-        visual = None
-        if detection.label.endswith("_ball"):
-            visual = estimate_distance_cm(detection.diameter_px, self.ball_diameter_cm, self.focal_px)
-        return self._smoother.update(visual)
-
     def _fuse_distance_cm(self, detection: ObjectDetection) -> float | None:
         """Fusion ultrason, appelée depuis le thread appelant de detect()."""
         if detection.label in {"marker_1", "face"}:
@@ -110,29 +100,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         except Exception:
             return visual
         return fuse_with_ultrasound(visual, ultrasound, self.fusion_tolerance)
-
-    def _detect_marker(self, frame_rgb) -> ObjectDetection | None:
-        result = self._marker_detector.detect(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY))
-        if result.disposition != ObservationDisposition.VALID:
-            if result.disposition != ObservationDisposition.ABSENT:
-                logger.warning("Détection ArUco non valide : %s", result.reason)
-            return None
-        corners = result.corners_px
-        if corners is None or len(corners) != 4:
-            logger.warning("Détection ArUco sans quatre coins valides.")
-            return None
-        distance = estimate_marker_distance_cm(
-            corners, (frame_rgb.shape[1], frame_rgb.shape[0]),
-        )
-        if distance is None:
-            logger.warning("Pose ArUco inexploitable ; distance indisponible.")
-            return None
-        center_x = sum(x for x, _ in corners) / 4 * 480 / frame_rgb.shape[1]
-        position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
-        return ObjectDetection(
-            label="marker_1", position=position, distance_cm=distance,
-            distance_visual_cm=distance, confidence=1.0,
-        )
 
     def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
         """Détecte la meilleure cible dans une frame déjà orientée (RGB) et renseigne la distance."""
@@ -150,44 +117,27 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         marker_only = target in {"marker", "me"}
         ball_filter = target == "both" or any(value in target for value in ("red", "yellow", "ball"))
         if marker_only or not ball_filter:
-            marker = self._detect_marker(frame_rgb)
+            marker = self._marker_detector.detect(frame_rgb)
             if marker is not None or marker_only:
                 self._smoother.reset()
                 return marker
-        selected: tuple[str, ColorCandidate] | None = None
+        selected: ObjectDetection | None = None
         for color in self._iter_colors_for_target(target, self.default_target):
-            candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
-            candidate = select_best_candidate(candidates)
-            if candidate is None:
+            detection = self._color_detectors[color].detect(frame_rgb)
+            if detection is None:
                 continue
-            if selected is None or candidate["kind"] == "ball":
-                selected = (color, candidate)
-            if candidate["kind"] == "ball":
+            if selected is None or detection.label.endswith("_ball"):
+                selected = detection
+            if detection.label.endswith("_ball"):
                 break
 
         if selected is None:
             self._smoother.reset()
             return None
-        color, candidate = selected
-        x, _, width, _ = candidate["bbox"]
-        center_x = x + width / 2
-        frame_width = frame_rgb.shape[1]
-        position = (
-            "left" if center_x < frame_width / 3
-            else "right" if center_x > 2 * frame_width / 3
-            else "center"
-        )
-        kind = candidate["kind"]
-        detection = ObjectDetection(
-            label=f"{color}_{kind}",
-            position=position,
-            distance_cm=None,
-            confidence=0.95 if kind == "ball" else 0.75,
-            diameter_px=candidate["diameter_px"],
-        )
-        detection.distance_visual_cm = self._compute_visual_distance_cm(detection)
-        detection.distance_cm = detection.distance_visual_cm
-        return detection
+        distance = self._smoother.update(selected.distance_visual_cm)
+        selected.distance_visual_cm = distance
+        selected.distance_cm = distance
+        return selected
 
     @staticmethod
     def _iter_colors_for_target(target: str | None, default_target: str) -> list[str]:

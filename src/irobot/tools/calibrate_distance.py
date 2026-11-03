@@ -1,4 +1,4 @@
-"""Calibration de la distance caméra : affiche diameter_px et la distance estimée.
+"""Outil de calibration caméra : affiche diameter_px et la distance estimée.
 
 Usage :
     uv run calibrate-distance --color yellow
@@ -18,11 +18,8 @@ import sys
 import cv2
 
 from irobot.config.settings import load_runtime_settings
-from irobot.hardware.camera.color_detector import (
-    detect_colored_objects,
-    select_best_candidate,
-)
-from irobot.hardware.camera.distance_estimator import estimate_distance_cm, focal_from_known_distance
+from irobot.hardware.camera.detector import ColorDetector
+from irobot.hardware.camera.distance_estimator import focal_from_known_distance
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 
 try:
@@ -44,14 +41,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def measure_diameter_px(frame_rgb, color: str) -> float | None:
-    candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
-    candidate = select_best_candidate(candidates)
-    if candidate is None or candidate["kind"] != "ball":
-        return None
-    return candidate["diameter_px"]
-
-
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     if Picamera2 is None:
@@ -59,6 +48,7 @@ def main(argv: list[str] | None = None) -> None:
 
     settings = load_runtime_settings()
     enhancer = FrameEnhancer(settings)
+    detector = ColorDetector(args.color, args.ball_diameter_cm, args.focal_px)
     camera = Picamera2(CAMERA_INDEX)
     started = False
     samples: list[float] = []
@@ -71,13 +61,20 @@ def main(argv: list[str] | None = None) -> None:
         while True:
             frame = cv2.rotate(camera.capture_array(), cv2.ROTATE_90_CLOCKWISE)
             frame = enhancer.apply(frame)
-            diameter = measure_diameter_px(frame, args.color)
-            if diameter is None:
+            detection = detector.detect(frame)
+            if detection is None or not detection.label.endswith("_ball"):
                 print("balle non détectée          ", end="\r", flush=True)
+                continue
+            diameter = detection.diameter_px
+            if diameter is None:
+                print("diamètre de balle indisponible          ", end="\r", flush=True)
                 continue
 
             if args.known_distance_cm is None:
-                distance = estimate_distance_cm(diameter, args.ball_diameter_cm, args.focal_px)
+                distance = detection.distance_cm
+                if distance is None:
+                    print("distance indisponible          ", end="\r", flush=True)
+                    continue
                 print(f"diameter_px={diameter:7.1f}  distance={distance:7.1f} cm", end="\r", flush=True)
                 continue
 

@@ -12,6 +12,7 @@ class ObjectDetection:
     confidence: float = 0.0
     diameter_px: float | None = None
     distance_visual_cm: float | None = None
+    bbox_px: tuple[int, int, int, int] | None = None
 
 
 class ObjectPerceptionPipeline(Protocol):

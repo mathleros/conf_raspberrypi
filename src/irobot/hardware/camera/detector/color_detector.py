@@ -1,10 +1,15 @@
 """Détection des balles et objets rouges ou jaunes dans une image."""
 
+import math
 from typing import Literal, TypedDict
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
+
+from .detector import Detector
+from irobot.hardware.camera.distance_estimator import estimate_distance_cm
+from irobot.interfaces.perception_pipeline import ObjectDetection
 
 
 class ColorCandidate(TypedDict):
@@ -131,3 +136,48 @@ def select_best_candidate(candidates: list[ColorCandidate]) -> ColorCandidate | 
 
     objects = [candidate for candidate in candidates if candidate["kind"] == "object"]
     return max(objects, key=lambda candidate: candidate["area"]) if objects else None
+
+
+class ColorDetector(Detector):
+    def __init__(
+        self,
+        color_name: str,
+        ball_diameter_cm: float = 6.0,
+        focal_px: float = 680.0,
+    ) -> None:
+        if color_name not in COLOR_CONFIG:
+            raise ValueError(f"Couleur non supportée : {color_name}")
+        if (not math.isfinite(ball_diameter_cm) or ball_diameter_cm <= 0
+                or not math.isfinite(focal_px) or focal_px <= 0):
+            raise ValueError("Ball diameter and focal length must be finite and positive")
+        self.color_name = color_name
+        self.ball_diameter_cm = ball_diameter_cm
+        self.focal_px = focal_px
+
+    def detect(self, frame_rgb: NDArray[np.uint8]) -> ObjectDetection | None:
+        candidates = detect_colored_objects(frame_rgb, self.color_name, is_rgb=True)
+        candidate = select_best_candidate(candidates)
+        if candidate is None:
+            return None
+
+        x, y, width, height = candidate["bbox"]
+        center_x = x + width / 2
+        frame_width = frame_rgb.shape[1]
+        position = (
+            "left" if center_x < frame_width / 3
+            else "right" if center_x > 2 * frame_width / 3
+            else "center"
+        )
+        distance = (
+            estimate_distance_cm(candidate["diameter_px"], self.ball_diameter_cm, self.focal_px)
+            if candidate["kind"] == "ball" else None
+        )
+        return ObjectDetection(
+            label=f"{self.color_name}_{candidate['kind']}",
+            position=position,
+            distance_cm=distance,
+            distance_visual_cm=distance,
+            confidence=0.95 if candidate["kind"] == "ball" else 0.75,
+            diameter_px=candidate["diameter_px"],
+            bbox_px=(x, y, width, height),
+        )

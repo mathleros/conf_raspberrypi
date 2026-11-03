@@ -4,20 +4,19 @@ from __future__ import annotations
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
-from irobot.hardware.camera.face_detector import FaceDetector
-from irobot.hardware.camera.marker_detector import (
+from irobot.hardware.camera.detector import (
     ArucoFrameDetection,
+    ColorDetector,
+    FaceDetector,
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
-from irobot.hardware.camera.color_detector import detect_colored_objects, select_best_candidate
 from irobot.interfaces.perception_pipeline import ObjectDetection
 from irobot.hardware.camera.distance_estimator import (
     MARKER_FOCAL_PX,
     MARKER_ORIENTED_SIZE_PX,
     MARKER_SIDE_CM,
     estimate_marker_distance_cm,
-    estimate_distance_cm,
 )
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
@@ -30,24 +29,14 @@ def detect_balls(
 ) -> dict[str, tuple[ObjectDetection, tuple[int, int, int, int]] | None]:
     results: dict[str, tuple[ObjectDetection, tuple[int, int, int, int]] | None] = {}
     for color in ("red", "yellow"):
-        candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
-        candidate = select_best_candidate(candidates)
-        if candidate is None or candidate["kind"] != "ball":
+        detector = ColorDetector(color, settings.camera_ball_diameter_cm, settings.camera_focal_px)
+        detection = detector.detect(frame_rgb)
+        if detection is None or not detection.label.endswith("_ball"):
             results[color] = None
             continue
-        x, _, width, _ = candidate["bbox"]
-        center_x = (x + width / 2) * 480 / frame_rgb.shape[1]
-        position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
-        distance = estimate_distance_cm(
-            candidate["diameter_px"], settings.camera_ball_diameter_cm, settings.camera_focal_px,
-        )
-        results[color] = (
-            ObjectDetection(
-                label=f"{color}_ball", position=position, distance_cm=distance,
-                distance_visual_cm=distance, confidence=0.95, diameter_px=candidate["diameter_px"],
-            ),
-            candidate["bbox"],
-        )
+        if detection.bbox_px is None:
+            raise RuntimeError(f"{color} ball detection is missing its bounding box")
+        results[color] = (detection, detection.bbox_px)
     return results
 
 
@@ -218,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
                 cv2.imshow("Vision - Preview", display_frame)
             else:
                 grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
-                detection = marker_detector.detect(grayscale)
+                detection = marker_detector.detect_observation(grayscale)
                 face = faces.detect(rotated_rgb)
                 balls = detect_balls(rotated_rgb, settings)
                 frame_size_px = (rotated_rgb.shape[1], rotated_rgb.shape[0])

@@ -104,28 +104,26 @@ def _synthetic_frame(radius: int, rotate: bool = False):
     return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate else frame
 
 
-def test_detector_diameter_is_rotation_invariant_and_candidate_selection():
+def test_detector_diameter_is_rotation_invariant_and_selects_largest_ball():
     frame = _synthetic_frame(40)
     expected = 80.0
     for rotated in (frame, _synthetic_frame(40, rotate=True)):
-        cands = color_detector.detect_colored_objects(rotated, "yellow", is_rgb=True)
+        cands = color_detector.detect_colored_balls(rotated, "yellow", is_rgb=True)
         assert len(cands) == 1
         assert cands[0]["diameter_px"] == pytest.approx(expected, rel=0.05)
-        selected = color_detector.select_best_candidate(cands)
+        selected = color_detector.select_largest_ball(cands)
         assert selected == cands[0]
-        assert selected["kind"] == "ball"
         assert selected["diameter_px"] == cands[0]["diameter_px"]
 
 
-def test_candidate_selection_prefers_largest_ball_then_largest_object():
+def test_ball_selection_returns_largest_ball_or_none():
     candidates = [
-        {"kind": "object", "bbox": (10, 10, 20, 20), "area": 900, "diameter_px": 34},
-        {"kind": "ball", "bbox": (40, 40, 10, 10), "area": 400, "diameter_px": 23},
-        {"kind": "ball", "bbox": (70, 70, 15, 15), "area": 500, "diameter_px": 25},
+        {"bbox": (40, 40, 10, 10), "area": 400, "diameter_px": 23},
+        {"bbox": (70, 70, 15, 15), "area": 500, "diameter_px": 25},
     ]
-    assert color_detector.select_best_candidate(candidates) is candidates[2]
-    assert color_detector.select_best_candidate(candidates[:1]) is candidates[0]
-    assert color_detector.select_best_candidate([]) is None
+    assert color_detector.select_largest_ball(candidates) is candidates[1]
+    assert color_detector.select_largest_ball(candidates[:1]) is candidates[0]
+    assert color_detector.select_largest_ball([]) is None
 
 
 def test_pipeline_process_frame_end_to_end():
@@ -143,11 +141,11 @@ def test_pipeline_process_frame_end_to_end():
 def test_pipeline_preserves_horizontal_position_thresholds(monkeypatch, center_x, position):
     pipe = _pipeline()
     candidate = {
-        "kind": "ball", "bbox": (center_x - 10, 100, 20, 20),
+        "bbox": (center_x - 10, 100, 20, 20),
         "area": 300.0, "diameter_px": 20.0,
     }
     monkeypatch.setattr(
-        color_detector, "detect_colored_objects", lambda *args, **kwargs: [candidate],
+        color_detector, "detect_colored_balls", lambda *args, **kwargs: [candidate],
     )
     detection = pipe._process_frame(np.zeros((640, 480, 3), np.uint8), target="red")
     assert detection is not None

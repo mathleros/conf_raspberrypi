@@ -1,7 +1,7 @@
-"""Détection des balles et objets rouges ou jaunes dans une image."""
+"""Détection des balles rouges ou jaunes dans une image."""
 
 import math
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 import cv2
 import numpy as np
@@ -12,14 +12,12 @@ from .distance_estimator import estimate_distance_cm
 from irobot.interfaces.perception_contracts import ObjectDetection
 
 
-class ColorCandidate(TypedDict):
-    kind: Literal["ball", "object"]
+class BallCandidate(TypedDict):
     bbox: tuple[int, int, int, int]
     area: float
     diameter_px: float
 
 
-MIN_AREA = 300
 MAX_AREA_RATIO = 0.25
 BORDER_MARGIN = 10
 
@@ -66,23 +64,20 @@ def build_mask_for_color(hsv: NDArray[np.uint8], color_name: str) -> NDArray[np.
 
 def classify_colored_contour(
     contour: NDArray[np.int32], frame: NDArray[np.uint8], color_name: str,
-) -> Literal["ball", "object"] | None:
-    """Classe un contour selon sa forme et sa taille."""
+) -> bool:
+    """Indique si un contour coloré correspond à une balle."""
     area = cv2.contourArea(contour)
-    if area < MIN_AREA:
-        return None
-
     x, y, width, height = cv2.boundingRect(contour)
     if x <= BORDER_MARGIN or y <= BORDER_MARGIN:
-        return None
+        return False
     if x + width >= frame.shape[1] - BORDER_MARGIN or y + height >= frame.shape[0] - BORDER_MARGIN:
-        return None
+        return False
     if area > frame.shape[0] * frame.shape[1] * MAX_AREA_RATIO:
-        return None
+        return False
 
     perimeter = cv2.arcLength(contour, True)
     if perimeter == 0:
-        return None
+        return False
 
     circularity = (4 * np.pi * area) / (perimeter * perimeter)
     aspect = width / height if height else 0.0
@@ -91,36 +86,33 @@ def classify_colored_contour(
     solidity = area / hull_area if hull_area > 0 else 0.0
 
     cfg = COLOR_CONFIG[color_name]
-    is_ball = (
+    return (
         area >= cfg["min_area"]
         and circularity >= cfg["min_circularity"]
         and cfg["aspect_min"] <= aspect <= cfg["aspect_max"]
         and extent >= cfg["min_extent"]
         and solidity >= cfg["min_solidity"]
     )
-    return "ball" if is_ball else "object"
 
 
-def detect_colored_objects(
+def detect_colored_balls(
     frame: NDArray[np.uint8], color_name: str = "red", *, is_rgb: bool = False,
-) -> list[ColorCandidate]:
-    """Détecte les candidats et expose leur boîte, aire et diamètre équivalent."""
+) -> list[BallCandidate]:
+    """Détecte les balles et expose leur boîte, aire et diamètre équivalent."""
     hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV if is_rgb else cv2.COLOR_BGR2HSV)
     mask = build_mask_for_color(hsv, color_name)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    candidates: list[ColorCandidate] = []
+    candidates: list[BallCandidate] = []
     for contour in contours:
-        kind = classify_colored_contour(contour, frame, color_name)
-        if kind is None:
+        if not classify_colored_contour(contour, frame, color_name):
             continue
 
         x, y, width, height = cv2.boundingRect(contour)
         area = cv2.contourArea(contour)
         candidates.append({
-            "kind": kind,
             "bbox": (x, y, width, height),
             "area": area,
             "diameter_px": float(np.sqrt(4.0 * area / np.pi)),
@@ -128,14 +120,9 @@ def detect_colored_objects(
     return candidates
 
 
-def select_best_candidate(candidates: list[ColorCandidate]) -> ColorCandidate | None:
-    """Choisit la plus grande balle, ou à défaut le plus grand objet."""
-    balls = [candidate for candidate in candidates if candidate["kind"] == "ball"]
-    if balls:
-        return max(balls, key=lambda candidate: candidate["area"])
-
-    objects = [candidate for candidate in candidates if candidate["kind"] == "object"]
-    return max(objects, key=lambda candidate: candidate["area"]) if objects else None
+def select_largest_ball(candidates: list[BallCandidate]) -> BallCandidate | None:
+    """Choisit la plus grande balle détectée."""
+    return max(candidates, key=lambda candidate: candidate["area"], default=None)
 
 
 class ColorDetector(Detector[ObjectDetection]):
@@ -155,8 +142,8 @@ class ColorDetector(Detector[ObjectDetection]):
         self.focal_px = focal_px
 
     def detect(self, frame_rgb: NDArray[np.uint8]) -> ObjectDetection | None:
-        candidates = detect_colored_objects(frame_rgb, self.color_name, is_rgb=True)
-        candidate = select_best_candidate(candidates)
+        candidates = detect_colored_balls(frame_rgb, self.color_name, is_rgb=True)
+        candidate = select_largest_ball(candidates)
         if candidate is None:
             return None
 
@@ -168,16 +155,15 @@ class ColorDetector(Detector[ObjectDetection]):
             else "right" if center_x > 2 * frame_width / 3
             else "center"
         )
-        distance = (
-            estimate_distance_cm(candidate["diameter_px"], self.ball_diameter_cm, self.focal_px)
-            if candidate["kind"] == "ball" else None
+        distance = estimate_distance_cm(
+            candidate["diameter_px"], self.ball_diameter_cm, self.focal_px,
         )
         return ObjectDetection(
-            label=f"{self.color_name}_{candidate['kind']}",
+            label=f"{self.color_name}_ball",
             position=position,
             distance_cm=distance,
             distance_visual_cm=distance,
-            confidence=0.95 if candidate["kind"] == "ball" else 0.75,
+            confidence=0.95,
             diameter_px=candidate["diameter_px"],
             bbox_px=(x, y, width, height),
         )

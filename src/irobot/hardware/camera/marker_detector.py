@@ -1,4 +1,4 @@
-"""Decode a configured marker through an injected ArUco API, without camera access."""
+"""OpenCV ArUco detector for one configured marker identity."""
 
 from __future__ import annotations
 
@@ -26,12 +26,12 @@ class ArucoFrameDetection:
     reason: str | None = None
 
 
-class ArucoDetectorBackend(Protocol):
+class MarkerDetectorBackend(Protocol):
     def detectMarkers(self, image: object) -> tuple[object, object, object]: ...
 
 
-class OpenCVArucoMarkerDecoder:
-    """Decode one configured ArUco ID; geometry/calibration remain separate."""
+class OpenCVMarkerDetector:
+    """Detect one configured ArUco ID from grayscale image frames."""
 
     def __init__(
         self, identity: MarkerIdentity, *, aruco_api: object | None = None,
@@ -59,16 +59,16 @@ class OpenCVArucoMarkerDecoder:
             raise RuntimeError("OpenCV ArUco detector lacks detectMarkers")
         self.identity = identity
         self.expected_id = int(identity.identifier)
-        self._detector: ArucoDetectorBackend = detector
+        self._detector: MarkerDetectorBackend = detector
 
     @staticmethod
     def _load_aruco_api() -> object | None:
-        from irobot.hardware.camera.aruco_backend import load_aruco_api
+        import cv2
 
-        return load_aruco_api()
+        return getattr(cv2, "aruco", None)
 
     def detect(self, image: object) -> ArucoFrameDetection:
-        corners_raw, ids_raw, _rejected = self._detector.detectMarkers(image)
+        corners_raw, ids_raw, _ = self._detector.detectMarkers(image)
         corners = self._as_python_values(corners_raw)
         marker_ids = self._flatten_ids(ids_raw)
         if marker_ids is None:

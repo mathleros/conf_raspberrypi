@@ -26,7 +26,7 @@ from irobot.hardware.camera.distance_estimator import (
 )
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.hardware.camera.face_detector import FaceDetector
-from irobot.interfaces.aruco_marker_decoder import OpenCVArucoMarkerDecoder, ObservationDisposition
+from irobot.hardware.camera.marker_detector import OpenCVMarkerDetector, ObservationDisposition
 from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._settings = settings
         self._frame_enhancer = FrameEnhancer(settings)
         self._face_detector: FaceDetector | None = None
-        self._marker_decoder = OpenCVArucoMarkerDecoder(
+        self._marker_detector = OpenCVMarkerDetector(
             settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
         )
         self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
@@ -112,7 +112,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         return fuse_with_ultrasound(visual, ultrasound, self.fusion_tolerance)
 
     def _detect_marker(self, frame_rgb) -> ObjectDetection | None:
-        result = self._marker_decoder.detect(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY))
+        result = self._marker_detector.detect(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY))
         if result.disposition != ObservationDisposition.VALID:
             if result.disposition != ObservationDisposition.ABSENT:
                 logger.warning("Détection ArUco non valide : %s", result.reason)

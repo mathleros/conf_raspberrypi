@@ -5,6 +5,11 @@ from __future__ import annotations
 from irobot.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.hardware.camera.face_detector import FaceDetector
+from irobot.hardware.camera.marker_detector import (
+    ArucoFrameDetection,
+    ObservationDisposition,
+    OpenCVMarkerDetector,
+)
 from irobot.hardware.camera.color_detector import detect_colored_objects, select_best_candidate
 from irobot.interfaces.perception_pipeline import ObjectDetection
 from irobot.hardware.camera.distance_estimator import (
@@ -14,13 +19,6 @@ from irobot.hardware.camera.distance_estimator import (
     estimate_marker_distance_cm,
     estimate_distance_cm,
 )
-from irobot.interfaces.aruco_marker_decoder import (
-    ArucoFrameDetection,
-    ObservationDisposition,
-    OpenCVArucoMarkerDecoder,
-)
-
-
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
 PREVIEW_SIZE_PX = (640, 480)
@@ -187,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_runtime_settings()
     enhancer = FrameEnhancer(settings)
     if not args.preview_only:
-        decoder = OpenCVArucoMarkerDecoder(TEST_MARKER_IDENTITY)
+        marker_detector = OpenCVMarkerDetector(TEST_MARKER_IDENTITY)
         faces = FaceDetector(settings)
     camera = Picamera2(0)
     started = False
@@ -220,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
                 cv2.imshow("Vision - Preview", display_frame)
             else:
                 grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
-                detection = decoder.detect(grayscale)
+                detection = marker_detector.detect(grayscale)
                 face = faces.detect(rotated_rgb)
                 balls = detect_balls(rotated_rgb, settings)
                 frame_size_px = (rotated_rgb.shape[1], rotated_rgb.shape[0])

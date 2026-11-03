@@ -10,7 +10,7 @@ import pytest
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
 from irobot.hardware.camera import camera_live_pipeline
 
-from irobot.interfaces.aruco_marker_decoder import ArucoFrameDetection, ObservationDisposition
+from irobot.hardware.camera.marker_detector import ArucoFrameDetection, ObservationDisposition
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
@@ -78,7 +78,7 @@ def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, p
             ),
         )
 
-    monkeypatch.setattr(pipeline._marker_decoder, "detect", detect)
+    monkeypatch.setattr(pipeline._marker_detector, "detect", detect)
     detection = pipeline._process_frame(frame)
     assert detection.position == position
     assert detection.distance_cm == pytest.approx(
@@ -95,7 +95,7 @@ def test_configured_identity(monkeypatch):
     pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
     )
-    assert pipeline._marker_decoder.identity == identity
+    assert pipeline._marker_detector.identity == identity
     assert pipeline._process_frame(_frame(marker_id=1)) is None
     assert pipeline._process_frame(_frame(marker_id=2)).label == "marker_1"
 
@@ -126,7 +126,7 @@ def test_marker_precedes_colors_without_ball_filter(pipeline):
 ])
 def test_nonvalid_marker_is_not_returned(pipeline, monkeypatch, disposition):
     monkeypatch.setattr(
-        pipeline._marker_decoder, "detect",
+        pipeline._marker_detector, "detect",
         lambda image: ArucoFrameDetection(disposition),
     )
     assert pipeline._process_frame(_frame()) is None
@@ -134,7 +134,7 @@ def test_nonvalid_marker_is_not_returned(pipeline, monkeypatch, disposition):
 
 def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
     monkeypatch.setattr(
-        pipeline._marker_decoder, "detect",
+        pipeline._marker_detector, "detect",
         lambda image: ArucoFrameDetection(
             ObservationDisposition.VALID, corners_px=((240.0, 300.0),) * 4,
         ),

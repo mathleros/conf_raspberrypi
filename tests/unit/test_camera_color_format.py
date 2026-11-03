@@ -127,15 +127,11 @@ def _entrypoint(monkeypatch, name, camera):
     monkeypatch.setattr(cv2, "imshow", lambda *args: None)
     monkeypatch.setattr(cv2, "waitKey", lambda *args: ord("q"))
     monkeypatch.setattr(cv2, "destroyAllWindows", lambda: None)
-    if name == "color_detector":
-        monkeypatch.setattr(module, "parse_args", lambda: SimpleNamespace(
-            debug=False, robotic=True, color="red",
-        ))
     return module
 
 
-@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "vision_diagnostic"])
-def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factory, name, capsys):
+@pytest.mark.parametrize("name", ["calibrate_distance", "vision_diagnostic"])
+def test_camera_tools_apply_shared_rgb_enhancer(monkeypatch, camera_factory, name, capsys):
     camera = camera_factory(0)
     camera.red_level = 78
     module = _entrypoint(monkeypatch, name, camera)
@@ -150,13 +146,9 @@ def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factor
     if name == "calibrate_distance":
         module.main(["--color", "red", "--known-distance-cm", "70", "--samples", "1"])
         assert "focal_px =" in capsys.readouterr().out
-    elif name == "vision_diagnostic":
+    else:
         module.main(["--preview-only"])
         assert "Aperçu caméra uniquement" in capsys.readouterr().out
-    else:
-        module.main()
-        if name == "color_detector":
-            assert "BALL_RED_" in capsys.readouterr().out
     assert len(calls) == 1
     assert calls[0].shape == (640, 480, 3)
     assert calls[0][320, 239].tolist() == [78, 0, 0]
@@ -164,8 +156,8 @@ def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factor
     assert camera.stopped and camera.closed
 
 
-@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "vision_diagnostic"])
-def test_exposure_failure_releases_standalone_camera(monkeypatch, camera_factory, name):
+@pytest.mark.parametrize("name", ["calibrate_distance", "vision_diagnostic"])
+def test_exposure_failure_releases_camera(monkeypatch, camera_factory, name):
     camera = camera_factory(0)
     module = _entrypoint(monkeypatch, name, camera)
 
@@ -176,10 +168,8 @@ def test_exposure_failure_releases_standalone_camera(monkeypatch, camera_factory
     with pytest.raises(RuntimeError, match="exposure rejected"):
         if name == "calibrate_distance":
             module.main([])
-        elif name == "vision_diagnostic":
-            module.main(["--preview-only"])
         else:
-            module.main()
+            module.main(["--preview-only"])
     assert camera.calls == ["configure"]
     assert camera.captures == 0
     assert camera.closed

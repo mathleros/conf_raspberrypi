@@ -19,13 +19,18 @@ import cv2
 
 from irobot.config.settings import load_runtime_settings
 from irobot.hardware.camera.color_detector import (
-    CAMERA_INDEX,
-    Picamera2,
-    choose_best_result_with_metrics,
     detect_colored_objects,
+    select_best_candidate,
 )
 from irobot.hardware.camera.distance_estimator import estimate_distance_cm, focal_from_known_distance
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+
+try:
+    from picamera2 import Picamera2
+except ModuleNotFoundError:  # pragma: no cover - environnements hors Raspberry Pi
+    Picamera2 = None
+
+CAMERA_INDEX = 0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -41,10 +46,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def measure_diameter_px(frame_rgb, color: str) -> float | None:
     candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
-    _, metrics = choose_best_result_with_metrics(candidates, color, frame_rgb.shape, robotic=True)
-    if metrics is None or metrics["kind"] != "ball":
+    candidate = select_best_candidate(candidates)
+    if candidate is None or candidate["kind"] != "ball":
         return None
-    return metrics["diameter_px"]
+    return candidate["diameter_px"]
 
 
 def main(argv: list[str] | None = None) -> None:

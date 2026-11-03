@@ -82,8 +82,8 @@ L'inventaire a été réalisé à partir des modules du dépôt :
 - État : disponible
 
 10. `detect_target_position_in_frame`
-- Implémentation : `get_object_position()`
-- Fonction : retourne une zone approximative (centre, haut, bas, gauche, droite etc.)
+- Implémentation : position calculée depuis la boîte du candidat dans le runtime ou le diagnostic
+- Fonction : situe horizontalement la cible (gauche, centre ou droite)
 - État : disponible mais non encore structuré comme skill réutilisable
 
 11. `read_distance_hcsr04`

@@ -148,7 +148,7 @@ Si une ancienne version du [script matériel](../../tests/hardware/test_hardware
 
 ### H02 — Caméra et distance visuelle
 
-Si `color-detector --color red --debug` reconnaît la cible mais que la calibration ne la détecte pas, vérifier que le correctif d'ordre des canaux est présent : calibration et perception runtime demandent le format Picamera2 `BGR888`, dont les tableaux sont en ordre RGB, conformément à leur traitement `is_rgb=True`. L'ancien format `RGB888` fournissait des tableaux BGR interprétés à tort comme RGB (rouge et bleu inversés). Ne pas compenser ce défaut par une modification des seuils HSV ; récupérer le correctif et refaire la calibration.
+Si `vision-detect-live` reconnaît la cible mais que la calibration ne la détecte pas, vérifier que le correctif d'ordre des canaux est présent : calibration et perception runtime demandent le format Picamera2 `BGR888`, dont les tableaux sont en ordre RGB, conformément à leur traitement `is_rgb=True`. L'ancien format `RGB888` fournissait des tableaux BGR interprétés à tort comme RGB (rouge et bleu inversés). Ne pas compenser ce défaut par une modification des seuils HSV ; récupérer le correctif et refaire la calibration.
 
 Moteurs hors tension ; balle jaune de diamètre mesuré, éclairage et montage identiques aux essais futurs :
 
@@ -166,7 +166,7 @@ run_case H02-controle uv run calibrate-distance --color yellow
 
 Ce contrôle est continu : Ctrl+C une fois les mesures relevées. À 50, 100, 150 et 200 cm, noter au moins 10 estimations après stabilisation ; erreur moyenne absolue cible ≤ 15 %. À 100 cm, viser 85–115 cm. Si la balle n'est pas détectée, le mode calibration peut attendre sans fin : interrompre, ne pas valider.
 
-Pour contrôler visuellement couleur et orientation, utiliser `uv run color-detector` avec un écran/session graphique, puis le fermer. En SSH sans affichage, le contrôle textuel précédent et H03 restent utilisables. Refaire le contrôle avec une balle rouge de même diamètre. Vérifier absence de faux positif balle sur le fond seul. Toute modification de résolution/orientation/diamètre invalide la calibration précédente.
+Pour contrôler visuellement couleur et orientation, utiliser `uv run vision-detect-live` avec un écran/session graphique, puis le fermer. En SSH sans affichage, la calibration et H03 restent utilisables. Refaire le contrôle avec une balle rouge de même diamètre. Vérifier absence de faux positif balle sur le fond seul. Toute modification de résolution/orientation/diamètre invalide la calibration précédente.
 
 ### H03 — Prouver que le runtime utilise vraiment le matériel
 

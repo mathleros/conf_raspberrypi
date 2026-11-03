@@ -5,7 +5,7 @@ from __future__ import annotations
 from irobot.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.hardware.camera.face_detector import FaceDetector
-from irobot.hardware.camera.color_detector import detect_colored_objects, choose_best_result_with_metrics
+from irobot.hardware.camera.color_detector import detect_colored_objects, select_best_candidate
 from irobot.interfaces.perception_pipeline import ObjectDetection
 from irobot.hardware.camera.distance_estimator import (
     MARKER_FOCAL_PX,
@@ -33,24 +33,22 @@ def detect_balls(
     results: dict[str, tuple[ObjectDetection, tuple[int, int, int, int]] | None] = {}
     for color in ("red", "yellow"):
         candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
-        _, metrics = choose_best_result_with_metrics(
-            candidates, color, frame_rgb.shape, robotic=True,
-        )
-        if metrics is None or metrics["kind"] != "ball":
+        candidate = select_best_candidate(candidates)
+        if candidate is None or candidate["kind"] != "ball":
             results[color] = None
             continue
-        x, _, width, _ = metrics["bbox"]
+        x, _, width, _ = candidate["bbox"]
         center_x = (x + width / 2) * 480 / frame_rgb.shape[1]
         position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
         distance = estimate_distance_cm(
-            metrics["diameter_px"], settings.camera_ball_diameter_cm, settings.camera_focal_px,
+            candidate["diameter_px"], settings.camera_ball_diameter_cm, settings.camera_focal_px,
         )
         results[color] = (
             ObjectDetection(
                 label=f"{color}_ball", position=position, distance_cm=distance,
-                distance_visual_cm=distance, confidence=0.95, diameter_px=metrics["diameter_px"],
+                distance_visual_cm=distance, confidence=0.95, diameter_px=candidate["diameter_px"],
             ),
-            metrics["bbox"],
+            candidate["bbox"],
         )
     return results
 

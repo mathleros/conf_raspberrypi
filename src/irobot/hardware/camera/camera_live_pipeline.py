@@ -12,7 +12,11 @@ except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
 
 from irobot.config.settings import MarkerIdentity, load_runtime_settings
-from irobot.hardware.camera.color_detector import choose_best_result_with_metrics, detect_colored_objects
+from irobot.hardware.camera.color_detector import (
+    ColorCandidate,
+    detect_colored_objects,
+    select_best_candidate,
+)
 from irobot.hardware.camera.distance_estimator import (
     DistanceReader,
     ExponentialSmoother,
@@ -85,34 +89,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if autostart:
             self._thread.start()
 
-    @staticmethod
-    def _result_position_to_pipeline_position(result_position: str) -> str:
-        value = (result_position or "").upper()
-        if "A_GAUCHE" in value:
-            return "left"
-        if "A_DROITE" in value:
-            return "right"
-        if "CENTRE" in value or "EN_HAUT" in value or "EN_BAS" in value:
-            return "center"
-        return "UNKNOWN"
-
-    @staticmethod
-    def _result_to_detection(result: str, diameter_px: float | None = None) -> ObjectDetection | None:
-        if not result or result == "NONE":
-            return None
-
-        parts = result.split("_", 2)
-        if len(parts) < 3:
-            return None
-
-        kind, color, position_raw = parts
-        label = f"{color.lower()}_{kind.lower()}"
-        position = CameraLivePerceptionPipeline._result_position_to_pipeline_position(position_raw)
-        confidence = 0.95 if kind == "BALL" else 0.75
-        return ObjectDetection(
-            label=label, position=position, distance_cm=None, confidence=confidence, diameter_px=diameter_px
-        )
-
     def _compute_visual_distance_cm(self, detection: ObjectDetection) -> float | None:
         """Estimation visuelle lissée (thread caméra) ; aucune lecture capteur ici."""
         visual = None
@@ -178,36 +154,40 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             if marker is not None or marker_only:
                 self._smoother.reset()
                 return marker
-        results: list[str] = []
-        metrics_by_result: dict[str, dict | None] = {}
+        selected: tuple[str, ColorCandidate] | None = None
         for color in self._iter_colors_for_target(target, self.default_target):
-            candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True, debug=False)
-            best, metrics = choose_best_result_with_metrics(candidates, color, frame_rgb.shape, robotic=True)
-            if best:
-                results.append(best)
-                metrics_by_result.setdefault(best, metrics)
+            candidates = detect_colored_objects(frame_rgb, color_name=color, is_rgb=True)
+            candidate = select_best_candidate(candidates)
+            if candidate is None:
+                continue
+            if selected is None or candidate["kind"] == "ball":
+                selected = (color, candidate)
+            if candidate["kind"] == "ball":
+                break
 
-        chosen = self._select_robotic_result(results) or ""
-        metrics = metrics_by_result.get(chosen)
-        detection = self._result_to_detection(chosen, metrics["diameter_px"] if metrics else None)
-        if detection is None:
+        if selected is None:
             self._smoother.reset()
             return None
+        color, candidate = selected
+        x, _, width, _ = candidate["bbox"]
+        center_x = x + width / 2
+        frame_width = frame_rgb.shape[1]
+        position = (
+            "left" if center_x < frame_width / 3
+            else "right" if center_x > 2 * frame_width / 3
+            else "center"
+        )
+        kind = candidate["kind"]
+        detection = ObjectDetection(
+            label=f"{color}_{kind}",
+            position=position,
+            distance_cm=None,
+            confidence=0.95 if kind == "ball" else 0.75,
+            diameter_px=candidate["diameter_px"],
+        )
         detection.distance_visual_cm = self._compute_visual_distance_cm(detection)
         detection.distance_cm = detection.distance_visual_cm
         return detection
-
-    @staticmethod
-    def _select_robotic_result(results: list[str]) -> str | None:
-        if not results:
-            return None
-        for item in results:
-            if item.startswith("BALL_"):
-                return item
-        for item in results:
-            if item.startswith("OBJECT_"):
-                return item
-        return results[0]
 
     @staticmethod
     def _iter_colors_for_target(target: str | None, default_target: str) -> list[str]:

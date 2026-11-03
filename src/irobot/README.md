@@ -102,7 +102,7 @@ et l'absence de fusion ultrason pour les marqueurs restent inchangés.
 ## Correction du contre-jour
 
 [frame_enhancer.py](hardware/camera/frame_enhancer.py) partage la correction entre
-le runtime, `color-detector`, `vision-detect-live` (y compris son mode aperçu) et
+le runtime, `vision-detect-live` (y compris son mode aperçu) et
 `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
 au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
 appliqué uniquement au canal de luminosité L de LAB, avant toute détection.

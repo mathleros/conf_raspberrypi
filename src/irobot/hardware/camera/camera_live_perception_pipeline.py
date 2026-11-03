@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
     """Perception Picamera2 : balles, ArUco (marker/me) et YuNet (face/human).
 
-    Sans filtre balle, ArUco est prioritaire. L'identité configurée est utilisée,
-    sinon aruco/DICT_4X4_50/1 ; distance directe indicative estimée par pose
-    pour un carré de 8 cm, avec la focale configurée et sans correction de distorsion.
+    L'identité du marqueur configurée est utilisée, sinon aruco/DICT_4X4_50/1.
+    La distance est estimée par pose pour un carré de 8 cm, avec la focale
+    configurée et sans correction de distorsion.
     Les seuils horizontaux sont rapportés à une largeur de 480 px.
     """
 
@@ -34,7 +34,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self,
         *,
         camera_index: int = 0,
-        default_target: str = "red",
         poll_interval_s: float = 0.05,
         ball_diameter_cm: float | None = None,
         focal_px: float | None = None,
@@ -44,9 +43,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
     ) -> None:
         self.camera_index = int(camera_index)
         self.sensor = sensor
-        self.default_target = (default_target or "").strip().lower()
-        if self.default_target == "human":
-            self.default_target = "face"
         self.poll_interval_s = max(0.0, float(poll_interval_s))
 
         settings = load_runtime_settings()
@@ -73,13 +69,9 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
         """Traite une image RGB via le composant dédié au routage des détecteurs."""
-        if target is None:
-            with self._lock:
-                target = self._requested_target or self.default_target
         return self._frame_processor.process_frame(
             frame_rgb,
             target=target,
-            default_target=self.default_target,
         )
 
     def _capture_loop(self) -> None:
@@ -104,7 +96,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
             while not self._stop_event.is_set():
                 with self._lock:
-                    target = self._requested_target or self.default_target
+                    target = self._requested_target
                     revision = self._target_revision
                 frame_rgb = camera.capture_array()
                 if revision != processed_revision:
@@ -146,14 +138,13 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             expected = "face"
         requested = "marker" if expected == "me" else expected
         with self._frame_condition:
-            previous = self._requested_target or self.default_target
-            previous = "marker" if previous == "me" else previous
-            desired = requested or self.default_target
-            desired = "marker" if desired == "me" else desired
-            if desired != previous:
+            if requested != self._requested_target:
                 self._target_revision += 1
                 self._last_detection = None
             self._requested_target = requested or None
+            if requested is None:
+                self._last_detection = None
+                return None
             revision = self._target_revision
             if self._thread.is_alive():
                 ready = self._frame_condition.wait_for(

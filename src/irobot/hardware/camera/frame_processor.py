@@ -75,11 +75,9 @@ class CameraFrameProcessor:
         frame_rgb: NDArray[np.uint8],
         *,
         target: str | None,
-        default_target: str,
     ) -> ObjectDetection | None:
         frame_rgb = self._frame_enhancer.apply(frame_rgb)
-        if target is None:
-            target = default_target
+        target = (target or "").strip().lower()
 
         if target in {"face", "human"}:
             self._smoother.reset()
@@ -90,17 +88,24 @@ class CameraFrameProcessor:
         if self._face_detector is not None:
             self._face_detector.reset()
 
-        marker_only = target in {"marker", "me"}
-        ball_filter = target == "both" or any(
-            value in target for value in ("red", "yellow", "ball")
-        )
-        if marker_only or not ball_filter:
+        if target in {"marker", "me"}:
             marker = self._marker_detector.detect(frame_rgb).as_object_detection()
-            if marker is not None or marker_only:
-                self._smoother.reset()
-                return marker
+            self._smoother.reset()
+            return marker
 
-        selected = self._detect_color(frame_rgb, target, default_target)
+        colors = {
+            "red": ("red",),
+            "red_ball": ("red",),
+            "yellow": ("yellow",),
+            "yellow_ball": ("yellow",),
+            "ball": ("red", "yellow"),
+            "both": ("red", "yellow"),
+        }.get(target)
+        if colors is None:
+            self._smoother.reset()
+            return None
+
+        selected = self._detect_color(frame_rgb, colors)
         if selected is None:
             self._smoother.reset()
             return None
@@ -113,11 +118,10 @@ class CameraFrameProcessor:
     def _detect_color(
         self,
         frame_rgb: NDArray[np.uint8],
-        target: str,
-        default_target: str,
+        colors: tuple[str, ...],
     ) -> ObjectDetection | None:
         selected: ObjectDetection | None = None
-        for color in self._iter_colors_for_target(target, default_target):
+        for color in colors:
             detection = self._color_detectors[color].detect(frame_rgb)
             if detection is None:
                 continue
@@ -126,12 +130,3 @@ class CameraFrameProcessor:
             if detection.label.endswith("_ball"):
                 break
         return selected
-
-    @staticmethod
-    def _iter_colors_for_target(target: str | None, default_target: str) -> list[str]:
-        desired = (target or default_target or "both").strip().lower()
-        if desired == "both":
-            return ["red", "yellow"]
-        if "yellow" in desired:
-            return ["yellow", "red"]
-        return ["red", "yellow"]

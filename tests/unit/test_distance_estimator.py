@@ -75,22 +75,23 @@ def test_color_detector_returns_visual_distance_and_common_contract():
 
 def test_pipeline_smooths_detector_distance_and_resets_on_lost_target():
     pipe = _pipeline()
-    first = pipe._process_frame(_synthetic_frame(40))
-    second = pipe._process_frame(_synthetic_frame(80))
+    first = pipe._process_frame(_synthetic_frame(40), target="yellow")
+    second = pipe._process_frame(_synthetic_frame(80), target="yellow")
     assert first.distance_cm == pytest.approx(600.0 * 6.5 / first.diameter_px)
     assert second.distance_cm == pytest.approx(
         0.4 * (600.0 * 6.5 / second.diameter_px)
         + 0.6 * (600.0 * 6.5 / first.diameter_px),
     )
-    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8)) is None
-    third = pipe._process_frame(_synthetic_frame(40))
+    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target="yellow") is None
+    third = pipe._process_frame(_synthetic_frame(40), target="yellow")
     assert third.distance_cm == pytest.approx(600.0 * 6.5 / third.diameter_px)
 
 
 def test_detect_returns_visual_distance_without_mutating_published_detection():
     pipe = _pipeline()
+    pipe.detect(target="yellow")
     _publish(pipe, _ball())
-    assert pipe.detect().distance_cm == pytest.approx(100.0)
+    assert pipe.detect(target="yellow").distance_cm == pytest.approx(100.0)
     assert pipe._last_detection.distance_cm == pytest.approx(100.0)
 
 
@@ -129,11 +130,11 @@ def test_candidate_selection_prefers_largest_ball_then_largest_object():
 
 def test_pipeline_process_frame_end_to_end():
     pipe = _pipeline()
-    detection = pipe._process_frame(_synthetic_frame(40))
+    detection = pipe._process_frame(_synthetic_frame(40), target="yellow")
     assert detection is not None and detection.label == "yellow_ball"
     assert detection.diameter_px == pytest.approx(80.0, rel=0.05)
     assert detection.distance_cm == pytest.approx(600.0 * 6.5 / detection.diameter_px)
-    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8)) is None
+    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target="yellow") is None
 
 
 @pytest.mark.parametrize(("center_x", "position"), [
@@ -151,6 +152,42 @@ def test_pipeline_preserves_horizontal_position_thresholds(monkeypatch, center_x
     detection = pipe._process_frame(np.zeros((640, 480, 3), np.uint8), target="red")
     assert detection is not None
     assert detection.position == position
+
+
+@pytest.mark.parametrize("target", [None, "", "blue", "object"])
+def test_unknown_target_does_not_try_another_detector(monkeypatch, target):
+    pipe = _pipeline()
+    monkeypatch.setattr(
+        pipe._frame_processor._marker_detector,
+        "detect",
+        lambda image: pytest.fail("Unknown target must not try ArUco"),
+    )
+    for detector in pipe._frame_processor._color_detectors.values():
+        monkeypatch.setattr(
+            detector,
+            "detect",
+            lambda image: pytest.fail("Unknown target must not try color detection"),
+        )
+
+    assert pipe._frame_processor.process_frame(
+        np.zeros((480, 640, 3), np.uint8),
+        target=target,
+    ) is None
+
+
+def test_color_target_does_not_try_other_color(monkeypatch):
+    pipe = _pipeline()
+    monkeypatch.setattr(pipe._frame_processor._color_detectors["red"], "detect", lambda image: None)
+    monkeypatch.setattr(
+        pipe._frame_processor._color_detectors["yellow"],
+        "detect",
+        lambda image: pytest.fail("Red target must not try yellow detection"),
+    )
+
+    assert pipe._frame_processor.process_frame(
+        np.zeros((480, 640, 3), np.uint8),
+        target="red",
+    ) is None
 
 
 def test_camera_section_in_toml(tmp_path, monkeypatch):

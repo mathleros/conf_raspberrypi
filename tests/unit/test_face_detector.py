@@ -230,7 +230,7 @@ def test_pipeline_face_routes_enhanced_frame_without_aruco_or_colors(pipeline, m
             lambda image: pytest.fail("No color detector for faces"),
         )
     assert camera.detect(target=target) is None
-    detection = camera._process_frame(frame)
+    detection = camera._process_frame(frame, target=target)
     camera._last_detection = detection
     assert camera.detect(target=target).label == "face"
     expected = FrameEnhancer(camera._settings).apply(frame)
@@ -246,12 +246,12 @@ def test_face_aliases_do_not_change_request_revision(pipeline):
     camera.detect(target="human")
     revision = camera._target_revision
     net.faces = _faces((180, 20, 100, 100, 0.9))
-    camera._last_detection = camera._process_frame(frame)
+    camera._last_detection = camera._process_frame(frame, target="face")
     assert camera.detect(target="face").label == "face"
     assert camera._target_revision == revision
     net.faces = None
     assert camera.detect(target="face") is not None
-    assert camera._process_frame(frame).label == "face"
+    assert camera._process_frame(frame, target="face").label == "face"
 
 
 def test_changing_to_balls_clears_face_memory(pipeline):
@@ -274,7 +274,7 @@ def test_face_model_not_loaded_for_other_targets(pipeline):
 
 def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipeline, monkeypatch):
     camera, net = pipeline
-    camera.default_target = "face"
+    camera.detect(target="face")
     captures = 0
     closed = []
 
@@ -313,8 +313,8 @@ def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipelin
     camera._capture_loop()
     assert captures == 3
     assert len(net.inputs) == 3
-    assert camera._target_revision == 2
-    assert camera._frame_revision == 2
+    assert camera._target_revision == 3
+    assert camera._frame_revision == 3
     assert camera._last_detection is None
     assert closed == ["stop", "close"]
 

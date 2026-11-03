@@ -38,7 +38,7 @@ def _runtime_settings(**kwargs):
 def pipeline(monkeypatch):
     monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _runtime_settings)
     return camera_live_perception_pipeline.CameraLivePerceptionPipeline(
-        default_target="marker", autostart=False,
+        autostart=False,
     )
 
 
@@ -47,7 +47,8 @@ def pipeline(monkeypatch):
     [(179, "left"), (181, "center"), (240, "center"), (300, "center"), (301, "right")],
 )
 def test_marker_position_and_distance(pipeline, center_x, position):
-    detection = pipeline._process_frame(_frame(center_x))
+    pipeline.detect(target="marker")
+    detection = pipeline._process_frame(_frame(center_x), target="marker")
     assert detection.label == "marker_1"
     assert detection.position == position
     assert detection.confidence == 1.0
@@ -59,7 +60,7 @@ def test_marker_position_and_distance(pipeline, center_x, position):
 
 
 def test_position_scales_to_image_width(pipeline):
-    assert pipeline._process_frame(_frame(center_x=440, image_width=640)).position == "right"
+    assert pipeline._process_frame(_frame(center_x=440, image_width=640), target="marker").position == "right"
 
 
 @pytest.mark.parametrize(
@@ -82,7 +83,7 @@ def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, p
         "_detector",
         SimpleNamespace(detectMarkers=detect_markers),
     )
-    detection = pipeline._process_frame(frame)
+    detection = pipeline._process_frame(frame, target="marker")
     assert detection.position == position
     assert detection.distance_cm == pytest.approx(
         8 / 80 * math.hypot(600, center_x - 240),
@@ -96,11 +97,11 @@ def test_configured_identity(monkeypatch):
         lambda: _runtime_settings(human_marker_identity=identity),
     )
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(
-        default_target="marker", autostart=False,
+        autostart=False,
     )
     assert pipeline._frame_processor._marker_detector.identity == identity
-    assert pipeline._process_frame(_frame(marker_id=1)) is None
-    assert pipeline._process_frame(_frame(marker_id=2)).label == "marker_1"
+    assert pipeline._process_frame(_frame(marker_id=1), target="marker") is None
+    assert pipeline._process_frame(_frame(marker_id=2), target="marker").label == "marker_1"
 
 
 def test_detect_returns_complete_marker_result(pipeline):
@@ -125,22 +126,26 @@ def test_detect_returns_complete_marker_result(pipeline):
 
 @pytest.mark.parametrize("target", ["marker", "me"])
 def test_requested_target_changes_camera_processing(pipeline, target):
-    pipeline.default_target = "red"
     assert pipeline.detect(target=target) is None
-    detection = pipeline._process_frame(_frame())
+    detection = pipeline._process_frame(_frame(), target=target)
     pipeline._last_detection = detection
     assert pipeline.detect(target=target).label == "marker_1"
     assert pipeline.detect(target="red") is None
-    assert pipeline._process_frame(_frame()) is None
+    assert pipeline._process_frame(_frame(), target="red") is None
 
 
-def test_marker_precedes_colors_without_ball_filter(pipeline):
-    pipeline.default_target = ""
+def test_marker_and_color_targets_use_only_the_requested_detector(pipeline):
     frame = _frame()
     cv2.circle(frame, (400, 150), 25, (255, 0, 0), -1)
-    assert pipeline._process_frame(frame).label == "marker_1"
-    pipeline.default_target = "red"
-    assert pipeline._process_frame(frame).label == "red_ball"
+    assert pipeline._process_frame(frame, target="marker").label == "marker_1"
+    assert pipeline._process_frame(frame, target="red").label == "red_ball"
+
+
+def test_missing_target_does_not_fall_back_to_a_default(pipeline):
+    pipeline.detect(target="marker")
+    assert pipeline.detect() is None
+    assert pipeline._requested_target is None
+    assert pipeline._process_frame(_frame()) is None
 
 
 @pytest.mark.parametrize("disposition", [
@@ -152,7 +157,7 @@ def test_nonvalid_marker_is_not_returned(pipeline, monkeypatch, disposition):
         pipeline._frame_processor._marker_detector, "detect",
         lambda image: ArucoFrameDetection(disposition),
     )
-    assert pipeline._process_frame(_frame()) is None
+    assert pipeline._process_frame(_frame(), target="marker") is None
 
 
 def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
@@ -164,7 +169,7 @@ def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
             [[(240.0, 300.0)] * 4], [[marker_detector.expected_id]], None,
         )),
     )
-    assert pipeline._process_frame(_frame()) is None
+    assert pipeline._process_frame(_frame(), target="marker") is None
     assert "Pose ArUco inexploitable" in caplog.text
 
 

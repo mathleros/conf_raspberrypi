@@ -89,6 +89,7 @@ def test_runtime_detects_red_from_picamera_memory_layout(monkeypatch, camera_fac
     camera = camera_factory(0)
     monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", lambda index: camera)
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    pipeline.detect(target="red")
     camera.on_capture = pipeline._stop_event.set
 
     pipeline._capture_loop()

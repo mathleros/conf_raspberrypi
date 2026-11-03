@@ -23,7 +23,7 @@ Le LLM ne choisit pas les commandes moteur : `Intent` -> validation/bornage -> p
 L'inventaire a été réalisé à partir des modules du dépôt :
 - `src/irobot/smart_car/smart_car.py`
 - `src/irobot/camera/color_detector.py`
-- `src/irobot/camera/camera_live.py`
+- `src/irobot/tools/vision_diagnostic.py`
 - `src/irobot/sensors/hc_sr04.py`
 - `src/irobot/voice_assistant/voice_assistant.py`
 - `scripts/install_llm.sh`
@@ -72,8 +72,8 @@ L'inventaire a été réalisé à partir des modules du dépôt :
 ### B. Skills de perception / capteurs
 
 8. `capture_camera_live`
-- Implémentation : `camera_live.py`
-- Fonction : ouvre le flux de la caméra et affiche le flux
+- Implémentation : mode `--preview-only` de `vision_diagnostic.py`
+- Fonction : ouvre le flux de la caméra et l'affiche sans détection
 - État : disponible
 
 9. `detect_red_or_yellow_object`

@@ -142,8 +142,9 @@ def test_hardware_factory_stays_offline_on_mac(monkeypatch):
     }
 
 
-def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
+def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeypatch):
     from irobot.hardware.smart_car import smart_car
+    from irobot.hardware.runtime_factory import close_hardware_runtime
 
     class Sensor:
         def __init__(self):
@@ -156,11 +157,14 @@ def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
             self.cleanup_calls += 1
 
     class Car:
-        def __init__(self, *, distance_sensor, **kwargs):
-            self.distance_sensor = distance_sensor
+        def __init__(self, *, drive_speed):
+            self.speed = drive_speed
 
         def cleanup(self):
-            self.distance_sensor.cleanup()
+            pass
+
+        def stop(self):
+            pass
 
     sensor = Sensor()
     monkeypatch.setattr(runtime_factory.sys, "platform", "linux")
@@ -182,14 +186,17 @@ def test_hardware_factory_injects_sensor_and_robot_owns_cleanup(monkeypatch):
         SimpleNamespace(CameraLivePerceptionPipeline=create_camera),
     )
 
-    hardware = runtime_factory.build_hardware_runtime(settings=RuntimeSettings())
+    hardware = runtime_factory.build_hardware_runtime(
+        settings=RuntimeSettings(obstacle_threshold_cm=30.0),
+    )
 
     assert hardware["sensor"] is sensor
     assert hardware["sensor"].read_distance_cm() == 25.0
     assert not hasattr(hardware["robot"], "read_distance_cm")
+    assert hardware["robot"].check_obstacle() is True
     assert camera_kwargs["distance_reader"]() == 25.0
     assert camera_kwargs["distance_reader"].__self__ is sensor
-    hardware["robot"].cleanup()
+    close_hardware_runtime(hardware)
     assert sensor.cleanup_calls == 1
 
 
@@ -206,15 +213,14 @@ def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
             calls.append("sensor cleanup")
 
     class Car:
-        def __init__(self, *, distance_sensor, **kwargs):
-            self.distance_sensor = distance_sensor
+        def __init__(self, *, drive_speed):
+            self.speed = drive_speed
 
         def stop(self):
             calls.append("robot stop")
 
         def cleanup(self):
             calls.append("robot cleanup")
-            self.distance_sensor.cleanup()
 
     def fail_camera(**kwargs):
         raise RuntimeError("camera init failed")

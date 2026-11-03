@@ -105,16 +105,21 @@ def test_runtime_detects_red_from_picamera_memory_layout(monkeypatch, camera_fac
 
 def _entrypoint(monkeypatch, name, camera):
     monkeypatch.setenv("DISPLAY", ":test")
-    monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=lambda index: camera))
-    module = importlib.import_module(f"irobot.hardware.camera.{name}")
-
     class Factory:
         global_camera_info = staticmethod(lambda: [{"Model": "ov5647"}])
 
         def __new__(cls, index):
             return camera
 
-    monkeypatch.setattr(module, "Picamera2", Factory)
+    monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Factory))
+    module_name = (
+        "irobot.tools.vision_diagnostic"
+        if name == "vision_diagnostic"
+        else f"irobot.hardware.camera.{name}"
+    )
+    module = importlib.import_module(module_name)
+    if hasattr(module, "Picamera2"):
+        monkeypatch.setattr(module, "Picamera2", Factory)
     monkeypatch.setattr(
         module, "load_runtime_settings",
         lambda: RuntimeSettings(camera_clahe_enabled=True, camera_exposure_value=1.0),
@@ -129,7 +134,7 @@ def _entrypoint(monkeypatch, name, camera):
     return module
 
 
-@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "camera_live"])
+@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "vision_diagnostic"])
 def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factory, name, capsys):
     camera = camera_factory(0)
     camera.red_level = 78
@@ -145,6 +150,9 @@ def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factor
     if name == "calibrate_distance":
         module.main(["--color", "red", "--known-distance-cm", "70", "--samples", "1"])
         assert "focal_px =" in capsys.readouterr().out
+    elif name == "vision_diagnostic":
+        module.main(["--preview-only"])
+        assert "Aperçu caméra uniquement" in capsys.readouterr().out
     else:
         module.main()
         if name == "color_detector":
@@ -156,7 +164,7 @@ def test_standalone_streams_apply_shared_rgb_enhancer(monkeypatch, camera_factor
     assert camera.stopped and camera.closed
 
 
-@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "camera_live"])
+@pytest.mark.parametrize("name", ["calibrate_distance", "color_detector", "vision_diagnostic"])
 def test_exposure_failure_releases_standalone_camera(monkeypatch, camera_factory, name):
     camera = camera_factory(0)
     module = _entrypoint(monkeypatch, name, camera)
@@ -168,6 +176,8 @@ def test_exposure_failure_releases_standalone_camera(monkeypatch, camera_factory
     with pytest.raises(RuntimeError, match="exposure rejected"):
         if name == "calibrate_distance":
             module.main([])
+        elif name == "vision_diagnostic":
+            module.main(["--preview-only"])
         else:
             module.main()
     assert camera.calls == ["configure"]

@@ -102,7 +102,7 @@ et l'absence de fusion ultrason pour les marqueurs restent inchangés.
 ## Correction du contre-jour
 
 [frame_enhancer.py](hardware/camera/frame_enhancer.py) partage la correction entre
-le runtime, `camera-live`, `color-detector`, `vision-detect-live` et
+le runtime, `color-detector`, `vision-detect-live` (y compris son mode aperçu) et
 `calibrate-distance`. Les images restent en RGB jusqu'à la conversion propre
 au détecteur ou à l'affichage. Le CLAHE est créé une seule fois par flux et
 appliqué uniquement au canal de luminosité L de LAB, avant toute détection.
@@ -182,6 +182,9 @@ ses quatre coins et sa distance par pose. Les statuts et distances sont affiché
 à l'écran et journalisés lors de changements. Les objets colorés non classés
 comme balles ne sont pas présentés comme balles.
 
+`uv run vision-detect-live --preview-only` affiche le même flux corrigé et tourné,
+sans lancer les détecteurs, afficher de statut ni annoter l'image.
+
 Un visage conservé pendant le délai de grâce est marqué `memorized`, avec sa
 dernière boîte et ses anciennes mesures. Le diagnostic utilise les réglages
 caméra du TOML, ne commande aucun moteur et n'enregistre aucune image.
@@ -204,12 +207,14 @@ chemin de planification ; la priorité lexicale des arrêts s'applique à
 ## Organisation du contrôleur robot
 
 [RobotController](interfaces/robot_controller.py) adapte le pilote injecté :
-mouvements, vitesse, ultrason et arrêt d'urgence logiciel. Aucun mode protégé,
-permis de mission ou cycle P5 n'est conservé.
+mouvements, vitesse, surveillance du capteur injecté et arrêt d'urgence logiciel.
+Le pilote [SmartCar2WD](hardware/smart_car/smart_car.py) ne gère que les moteurs
+et leurs GPIO ; le CLI est séparé dans [hardware/smart_car/cli.py](hardware/smart_car/cli.py).
+Aucun mode protégé, permis de mission ou cycle P5 n'est conservé.
 
-[robot_motion.py](interfaces/robot_motion.py) conserve les mouvements temporisés :
-horloge injectable, durée finie et positive ou nulle, vérification d'arrêt,
-vérification d'obstacle et arrêt final même en cas d'erreur.
+`RobotController` gère aussi les mouvements temporisés : horloge injectable,
+durée finie et positive ou nulle, vérification d'arrêt, vérification d'obstacle
+et arrêt final même en cas d'erreur.
 La période de contrôle maximale est de 20 ms ; le recul ne vérifie pas
 l'obstacle frontal. Une erreur ou une absence de mesure du capteur d'obstacle
 est journalisée et traitée comme un obstacle.

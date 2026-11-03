@@ -79,7 +79,8 @@ uv run vision-detect-live
 
 Il affiche simultanément l'ID ArUco 1, le visage sélectionné et les balles
 rouge/jaune, avec leurs distances estimées, sans piloter les moteurs ni enregistrer
-d'images. `q` ou Ctrl+C quitte l'outil. Après mise à jour du dépôt, exécuter
+d'images. Ajouter `--preview-only` pour afficher le flux sans détection ni
+annotation. `q` ou Ctrl+C quitte l'outil. Après mise à jour du dépôt, exécuter
 `uv sync --project .` pour installer la commande `vision-detect-live`.
 
 ### 2. Installer le support Bluetooth audio (recommandé pour le casque Jabra)

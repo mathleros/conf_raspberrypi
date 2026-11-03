@@ -1,13 +1,4 @@
-"""Pilote une voiture 2 roues via un module L298N sur Raspberry Pi.
-
-Le programme expose deux modes de commande :
-- une commande de direction : forward, backward, left, right, stop
-- un réglage de vitesse via --speed (0.0 à 1.0)
-
-Exemples :
-    uv run smart-car forward --speed 0.6 --duration 2
-    uv run smart-car left --speed 0.4
-    uv run smart-car stop
+"""Pilote matériel d'une voiture 2 roues via un module L298N.
 
 Notes de câblage :
 - GPIO 5, 6, 16, 24 sont utilisés pour les entrées IN1, IN2, IN3, IN4
@@ -15,23 +6,13 @@ Notes de câblage :
 - le GND du Raspberry Pi doit être relié au GND du module L298N
 """
 
-import argparse
 from contextlib import ExitStack
-import time
-from typing import Any
-
-from irobot.config.settings import load_runtime_settings
 
 try:
     from gpiozero import DigitalOutputDevice, PWMOutputDevice
 except ModuleNotFoundError:  # pragma: no cover - relevant on non-Pi hosts only
     DigitalOutputDevice = None
     PWMOutputDevice = None
-
-try:
-    from irobot.hardware.sensors.hc_sr04 import HC_SR04
-except (ModuleNotFoundError, SystemExit):  # pragma: no cover - hc_sr04 quitte si gpiozero est absent
-    HC_SR04 = None
 
 
 class SmartCar2WD:
@@ -50,8 +31,6 @@ class SmartCar2WD:
         "enb": 13,
     }
 
-    SENSOR_READ_ATTEMPTS = 5
-
     def __init__(
         self,
         in1=DEFAULT_PINS["in1"],
@@ -60,13 +39,8 @@ class SmartCar2WD:
         in4=DEFAULT_PINS["in4"],
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
-        distance_sensor: Any | None = None,
-        obstacle_threshold_cm: float | None = None,
-        require_obstacle_sensor: bool = False,
-        sleep_fn=time.sleep,
-        drive_speed: float | None = None,
+        drive_speed: float = 0.5,
     ):
-        self._sleep_fn = sleep_fn
         self.pins = {
             "in1": DigitalOutputDevice(in1),
             "in2": DigitalOutputDevice(in2),
@@ -77,18 +51,8 @@ class SmartCar2WD:
         self.enb = PWMOutputDevice(enb, frequency=100)
         self._closed = False
 
-        if drive_speed is None or obstacle_threshold_cm is None:
-            settings = load_runtime_settings()
-            if drive_speed is None:
-                drive_speed = settings.drive_speed
-            if obstacle_threshold_cm is None:
-                obstacle_threshold_cm = settings.obstacle_threshold_cm
         self.speed = self.clamp_speed(drive_speed)
         self.stop()
-
-        self.obstacle_threshold_cm = obstacle_threshold_cm
-        self.require_obstacle_sensor = bool(require_obstacle_sensor)
-        self.distance_sensor = distance_sensor
 
     @staticmethod
     def clamp_speed(speed: float) -> float:
@@ -147,7 +111,7 @@ class SmartCar2WD:
         self.enb.value = 0
 
     def cleanup(self) -> None:
-        """Libère les GPIO du véhicule et du capteur qui lui a été confié."""
+        """Arrête le véhicule et libère ses GPIO."""
         if self._closed:
             return
         self._closed = True
@@ -159,175 +123,3 @@ class SmartCar2WD:
                     cleanup.callback(pin.close)
                 cleanup.callback(self.ena.close)
                 cleanup.callback(self.enb.close)
-                if self.distance_sensor is not None:
-                    cleanup.callback(self.distance_sensor.cleanup)
-
-    def check_obstacle(self) -> bool:
-        """Retourne True si un objet est détecté à moins de l seuil configuré."""
-        if self.distance_sensor is None and not self.require_obstacle_sensor:
-            return False
-        if self.distance_sensor is None:
-            return True
-
-        # Le HC-SR04 renvoie souvent des mesures manquantes : on réessaie avant de conclure.
-        for _ in range(self.SENSOR_READ_ATTEMPTS):
-            try:
-                distance_cm = self.distance_sensor.read_distance_cm()
-            except Exception:
-                return True
-            if distance_cm is not None:
-                return distance_cm < self.obstacle_threshold_cm
-            self._sleep_fn(0.03)
-        return True
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Crée le parser de ligne de commande."""
-    settings = load_runtime_settings()
-    parser = argparse.ArgumentParser(
-        description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via un pont H-bridge L298N."
-    )
-    parser.add_argument(
-        "command",
-        choices=["forward", "backward", "left", "right", "stop"],
-        help="Commande à exécuter sur la voiture.",
-    )
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=-1.0,
-        help="Durée en secondes. Par défaut, -1 = indéfinie jusqu'à Ctrl+C. 0 = arrêt immédiat.",
-    )
-    parser.add_argument(
-        "--speed",
-        type=float,
-        default=1.0,
-        help="Vitesse entre 0.0 (arrêt) et 1.0 (vitesse maximale).",
-    )
-    parser.add_argument(
-        "--obstacle-threshold-cm",
-        type=float,
-        default=settings.obstacle_threshold_cm,
-        help="Arrête la voiture si le capteur HC-SR04 détecte un objet à moins de X cm.",
-    )
-    parser.add_argument(
-        "--obstacle-check-interval",
-        type=float,
-        default=0.2,
-        help="Intervalle de vérification du capteur en secondes pendant un déplacement.",
-    )
-    return parser
-
-
-def run_command(args: argparse.Namespace) -> None:
-    """Exécute la commande demandée."""
-    if args.duration < -1:
-        raise ValueError("La durée doit être >= -1. (-1 = indéfinie)")
-    if not 0.0 <= args.speed <= 1.0:
-        raise ValueError("La vitesse doit être comprise entre 0.0 et 1.0.")
-    if args.obstacle_threshold_cm < 0:
-        raise ValueError("Le seuil d'obstacle doit être positif.")
-
-    sensor = None
-    car = None
-    try:
-        sensor = HC_SR04() if HC_SR04 is not None else None
-        car = SmartCar2WD(
-            distance_sensor=sensor,
-            obstacle_threshold_cm=args.obstacle_threshold_cm,
-        )
-        command_map = {
-            "forward": car.forward,
-            "backward": car.backward,
-            "left": car.left,
-            "right": car.right,
-            "stop": car.stop,
-        }
-        car.set_speed(args.speed)
-        command = command_map[args.command]
-
-        if args.command == "stop":
-            command()
-            print("Commande 'stop' exécutée.")
-            return
-
-        command()
-        # Le recul n'est jamais interrompu par le capteur avant (HC-SR04 orienté vers l'avant)
-        check_obstacles = args.command != "backward"
-
-        if args.duration == -1:
-            print(
-                f"Commande '{args.command}' en cours indéfiniment "
-                f"(vitesse {args.speed:.2f}, seuil obstacle {args.obstacle_threshold_cm:.1f} cm). "
-                "Appuie sur Ctrl+C pour stopper."
-            )
-            while True:
-                if check_obstacles and car.check_obstacle():
-                    print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
-                    car.stop()
-                    break
-                time.sleep(args.obstacle_check_interval)
-            return
-
-        if args.duration > 0:
-            deadline = time.monotonic() + args.duration
-            while time.monotonic() < deadline:
-                if check_obstacles and car.check_obstacle():
-                    print(f"Obstacle détecté à moins de {args.obstacle_threshold_cm:.1f} cm : arrêt de la voiture.")
-                    car.stop()
-                    return
-                time.sleep(args.obstacle_check_interval)
-
-            car.stop()
-            print(
-                f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}."
-            )
-            return
-
-        car.stop()
-        print(f"Commande '{args.command}' arrêtée immédiatement.")
-    except KeyboardInterrupt:
-        print("\nInterruption clavier : arrêt des moteurs.")
-    finally:
-        if car is not None:
-            car.cleanup()
-        elif sensor is not None:
-            sensor.cleanup()
-
-
-def _stop_lgpio_notify_thread() -> None:
-    """Arrête le thread daemon de lgpio pour éviter un crash à la finalisation de Python."""
-    try:
-        import lgpio
-        from gpiozero import Device
-    except ImportError:  # pragma: no cover - hors Raspberry Pi
-        return
-
-    thread = getattr(lgpio, "_notify_thread", None)
-    if thread is None:
-        return
-    try:
-        thread.stop()
-        if Device.pin_factory is not None:
-            Device.pin_factory.close()
-        lgpio._notify_close(thread._notify)
-        thread.join(1.0)
-    except Exception:
-        pass
-
-
-def main() -> None:
-    """Point d'entrée du script."""
-    parser = build_parser()
-    args = parser.parse_args()
-
-    try:
-        run_command(args)
-    except ValueError as exc:
-        parser.error(str(exc))
-    finally:
-        _stop_lgpio_notify_thread()
-
-
-if __name__ == "__main__":
-    main()

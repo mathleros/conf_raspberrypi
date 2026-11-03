@@ -1,9 +1,10 @@
 # Smart Car 2WD (L298N)
 
-Ce module pilote une voiture 2 roues motrices (2WD) depuis un Raspberry Pi via
-un pont en H L298N. Les moteurs sont commandés par les sorties IN1–IN4 ; ENA et
-ENB reçoivent un signal PWM commun pour régler leur vitesse. Le capteur HC-SR04,
-s'il est connecté, protège les déplacements vers l'avant et les rotations.
+Ce module fournit le pilote matériel d'une voiture 2 roues motrices (2WD) depuis
+un Raspberry Pi via un pont en H L298N. Les moteurs sont commandés par les sorties
+IN1–IN4 ; ENA et ENB reçoivent un signal PWM commun pour régler leur vitesse.
+La logique de commande et la surveillance du HC-SR04 sont portées par
+`RobotController` ; le CLI est dans `cli.py`.
 
 Les commandes sont fournies par le point d'entrée `smart-car` :
 

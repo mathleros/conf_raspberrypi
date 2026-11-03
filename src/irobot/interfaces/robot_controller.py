@@ -1,28 +1,40 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
-from irobot.interfaces import robot_motion
+
+class DistanceSensor(Protocol):
+    def read_distance_cm(self) -> float | None: ...
 
 
 class RobotController:
     """Adapter between robot business logic and hardware implementation."""
 
     CONTROL_LOOP_PERIOD_S = 0.02
+    SENSOR_READ_ATTEMPTS = 5
+    SENSOR_RETRY_DELAY_S = 0.03
 
     def __init__(
         self,
         robot: Any,
         time_fn: Callable[[], float] = time.monotonic,
         sleep_fn: Callable[[float], None] = time.sleep,
+        *,
+        distance_sensor: DistanceSensor | None = None,
+        obstacle_threshold_cm: float = 5.0,
+        require_obstacle_sensor: bool = False,
     ):
         self._robot = robot
         self.time_fn = time_fn
         self.sleep_fn = sleep_fn
+        self._distance_sensor = distance_sensor
+        self._obstacle_threshold_cm = obstacle_threshold_cm
+        self._require_obstacle_sensor = bool(require_obstacle_sensor)
         self._emergency_event = threading.Event()
 
     @property
@@ -67,6 +79,11 @@ class RobotController:
             self.stop()
 
     def check_obstacle(self) -> bool:
+        if self._distance_sensor is not None:
+            return self._check_distance_sensor()
+        if self._require_obstacle_sensor:
+            return True
+
         check = getattr(self._robot, "check_obstacle", None)
         if not callable(check):
             return False
@@ -79,6 +96,24 @@ class RobotController:
             logging.getLogger(__name__).error("Capteur d'obstacle indisponible")
             return True
         return bool(obstacle)
+
+    def _check_distance_sensor(self) -> bool:
+        sensor = self._distance_sensor
+        if sensor is None:
+            return self._require_obstacle_sensor
+
+        for attempt in range(self.SENSOR_READ_ATTEMPTS):
+            try:
+                distance_cm = sensor.read_distance_cm()
+            except Exception:
+                logging.getLogger(__name__).exception("Echec du capteur d'obstacle")
+                return True
+            if distance_cm is not None:
+                return distance_cm < self._obstacle_threshold_cm
+            if attempt < self.SENSOR_READ_ATTEMPTS - 1:
+                self.sleep_fn(self.SENSOR_RETRY_DELAY_S)
+        logging.getLogger(__name__).error("Capteur d'obstacle indisponible")
+        return True
 
     def request_emergency_stop(self) -> None:
         self._emergency_event.set()
@@ -113,9 +148,34 @@ class RobotController:
         self, start_motion: Callable[[], None], duration_seconds: float,
         check_obstacle: bool = True,
     ) -> str | None:
-        return robot_motion.run_motion_for(
-            self, start_motion, duration_seconds, check_obstacle,
-        )
+        try:
+            if (isinstance(duration_seconds, bool)
+                    or not isinstance(duration_seconds, (int, float))
+                    or not math.isfinite(duration_seconds) or duration_seconds < 0):
+                raise ValueError("Motion duration must be finite and non-negative")
+            if self._is_emergency_stop_requested():
+                return "emergency_stop"
+            if check_obstacle and self.check_obstacle():
+                return "obstacle"
+            if self._is_emergency_stop_requested():
+                return "emergency_stop"
+            start_motion()
+            if duration_seconds == 0:
+                return None
+            deadline = self.time_fn() + duration_seconds
+            while True:
+                if self._is_emergency_stop_requested():
+                    return "emergency_stop"
+                if check_obstacle and self.check_obstacle():
+                    return "obstacle"
+                if self._is_emergency_stop_requested():
+                    return "emergency_stop"
+                remaining = deadline - self.time_fn()
+                if remaining <= 0.0:
+                    return None
+                self.sleep_fn(min(self.CONTROL_LOOP_PERIOD_S, remaining))
+        finally:
+            self.stop()
 
     def forward_for(self, duration_seconds: float) -> str | None:
         return self._run_motion_for(self.forward, duration_seconds)

@@ -27,11 +27,8 @@ def close_hardware_runtime(runtime: dict[str, Any]) -> None:
     errors: list[Exception] = []
     robot = runtime.get("robot")
     _attempt_cleanup(errors, robot, "stop", "le robot")
-
-    robot_owns_sensor = _attempt_cleanup(errors, robot, "cleanup", "le robot")
-    if not robot_owns_sensor:
-        _attempt_cleanup(errors, runtime.get("sensor"), "cleanup", "le capteur")
-
+    _attempt_cleanup(errors, robot, "cleanup", "le robot")
+    _attempt_cleanup(errors, runtime.get("sensor"), "cleanup", "le capteur")
     _attempt_cleanup(errors, runtime.get("camera"), "close", "la caméra")
 
     if len(errors) == 1:
@@ -54,12 +51,13 @@ def _build_robot(runtime: dict[str, Any], settings: RuntimeSettings) -> None:
     from irobot.interfaces.robot_controller import RobotController
 
     car = SmartCar2WD(
-        distance_sensor=runtime["sensor"],
         drive_speed=settings.drive_speed,
-        obstacle_threshold_cm=settings.obstacle_threshold_cm,
-        require_obstacle_sensor=False,
     )
-    runtime["robot"] = RobotController(car)
+    runtime["robot"] = RobotController(
+        car,
+        distance_sensor=runtime["sensor"],
+        obstacle_threshold_cm=settings.obstacle_threshold_cm,
+    )
 
 
 def _build_camera(runtime: dict[str, Any]) -> None:

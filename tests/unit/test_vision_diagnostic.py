@@ -287,11 +287,11 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     monkeypatch.setattr(cv2, "destroyAllWindows", lambda: calls.append("close"))
     if inference_error:
         with pytest.raises(cv2.error, match="diagnostic inference failure"):
-            vision_diagnostic.main()
+            vision_diagnostic.main([])
         assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
         assert windows == []
         return
-    assert vision_diagnostic.main() == 0
+    assert vision_diagnostic.main([]) == 0
     assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
     output = capsys.readouterr().out
     assert "objectif non calibré" in output
@@ -308,6 +308,64 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
     for text in texts[1:]:
         width = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0]
         assert width <= 480 - 12
+
+
+def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypatch, capsys):
+    from irobot.tools import vision_diagnostic
+
+    calls = []
+    windows = []
+    frame = np.full((480, 640, 3), (10, 20, 30), dtype=np.uint8)
+
+    class Camera:
+        camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
+
+        @staticmethod
+        def global_camera_info():
+            return [{"Model": "ov5647"}]
+
+        def __init__(self, index):
+            assert index == 0
+
+        def create_preview_configuration(self, *, main):
+            return main
+
+        def configure(self, config):
+            calls.append("configure")
+
+        def start(self):
+            calls.append("start")
+
+        def set_controls(self, controls):
+            calls.append("exposure")
+
+        def capture_array(self):
+            return frame
+
+        def stop(self):
+            calls.append("stop")
+
+        def close(self):
+            calls.append("camera_close")
+
+    monkeypatch.setenv("DISPLAY", ":test")
+    monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
+    monkeypatch.setattr(vision_diagnostic, "OpenCVArucoMarkerDecoder", lambda *_: pytest.fail("ArUco detector started"))
+    monkeypatch.setattr(vision_diagnostic, "FaceDetector", lambda *_: pytest.fail("face detector started"))
+    monkeypatch.setattr(vision_diagnostic, "detect_balls", lambda *_: pytest.fail("ball detector started"))
+    monkeypatch.setattr(cv2, "imshow", lambda name, image: windows.append((name, image.copy())))
+    monkeypatch.setattr(cv2, "putText", lambda *args: pytest.fail("frame annotated"))
+    monkeypatch.setattr(cv2, "rectangle", lambda *args: pytest.fail("frame annotated"))
+    monkeypatch.setattr(cv2, "waitKey", lambda *args: ord("q"))
+    monkeypatch.setattr(cv2, "destroyAllWindows", lambda: calls.append("close"))
+
+    assert vision_diagnostic.main(["--preview-only"]) == 0
+
+    assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
+    assert windows[0][0] == "Vision - Preview"
+    expected_rgb = FrameEnhancer(RuntimeSettings()).apply(cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE))
+    np.testing.assert_array_equal(windows[0][1], cv2.cvtColor(expected_rgb, cv2.COLOR_RGB2BGR))
+    assert "Aperçu caméra uniquement" in capsys.readouterr().out
 
 
 def test_both_balls_are_detected_independently_with_existing_distance_model():

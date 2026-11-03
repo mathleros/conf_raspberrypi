@@ -10,7 +10,7 @@ from irobot.interfaces import RobotController
 
 INTERFACES = Path(__file__).resolve().parents[2] / "src/irobot/interfaces"
 CONTROLLER_FILES = (
-    "robot_controller.py", "robot_motion.py",
+    "robot_controller.py",
 )
 
 

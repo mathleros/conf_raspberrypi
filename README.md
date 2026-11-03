@@ -264,7 +264,8 @@ uv run python scripts/scenarios/eval_prompt_plan.py --only approche_moi,approche
 ### Caméra
 
 ```bash
-uv run camera-live
+uv run vision-detect-live --preview-only
+uv run vision-detect-live
 uv run color-detector
 # Sur Pi : balle jaune centrée à 100 cm mesurés depuis la caméra
 uv run calibrate-distance --color yellow --ball-diameter-cm 6.5 --known-distance-cm 100

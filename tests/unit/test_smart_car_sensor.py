@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
 from irobot.hardware.smart_car import smart_car as sc
+from irobot.hardware.smart_car import cli
+from irobot.interfaces.robot_controller import RobotController
 
 
 class _Pin:
@@ -63,7 +64,7 @@ class _Clock:
 def _car(monkeypatch, sensor, clock):
     monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
     monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
-    return sc.SmartCar2WD(distance_sensor=sensor, sleep_fn=clock.sleep)
+    return sc.SmartCar2WD()
 
 
 def _hc_sr04(monkeypatch, clock):
@@ -93,50 +94,56 @@ def _mock_sensor_reads(sensor, clock, distances):
     sensor._wait_for_level = wait_for_level
 
 
-def test_drive_speed_is_configured_by_constructor(monkeypatch):
-    monkeypatch.setattr(
-        sc, "load_runtime_settings",
-        lambda: RuntimeSettings(drive_speed=0.65, obstacle_threshold_cm=8.0),
-    )
-    car = _car(monkeypatch, None, _Clock())
-    assert car.speed == 0.65
-    assert car.obstacle_threshold_cm == 8.0
-
-    custom_car = sc.SmartCar2WD(
-        sleep_fn=lambda _: None,
-        drive_speed=0.7,
-        obstacle_threshold_cm=12.0,
-    )
-    assert custom_car.speed == 0.7
-    assert custom_car.obstacle_threshold_cm == 12.0
+def test_drive_speed_is_set_by_the_caller(monkeypatch):
+    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    car = sc.SmartCar2WD(drive_speed=0.7)
+    assert car.speed == 0.7
 
 
 def test_smart_car_cli_threshold_defaults_to_runtime_settings(monkeypatch):
+    from irobot.config.settings import RuntimeSettings
+
     monkeypatch.setattr(
-        sc, "load_runtime_settings",
+        cli, "load_runtime_settings",
         lambda: RuntimeSettings(obstacle_threshold_cm=9.0),
     )
 
-    args = sc.build_parser().parse_args(["forward"])
+    args = cli.build_parser().parse_args(["forward"])
 
     assert args.obstacle_threshold_cm == 9.0
 
 
-def test_cleanup_releases_injected_sensor_once(monkeypatch):
-    sensor = _Sensor([])
-    car = _car(monkeypatch, sensor, _Clock())
+def test_cleanup_releases_gpio_once(monkeypatch):
+    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    car = sc.SmartCar2WD()
 
     car.cleanup()
     car.cleanup()
 
-    assert sensor.cleanup_calls == 1
+    assert car._closed is True
 
 
 def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
     sensor = _Sensor([])
-    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "HC_SR04", lambda: sensor)
+    calls = []
+
+    class Car:
+        def __init__(self, *, drive_speed):
+            self.speed = drive_speed
+
+        def stop(self):
+            calls.append("stop")
+
+        def set_speed(self, speed):
+            self.speed = speed
+
+        def cleanup(self):
+            calls.append("car cleanup")
+
+    monkeypatch.setattr(cli, "SmartCar2WD", Car)
+    monkeypatch.setattr(cli, "HC_SR04", lambda: sensor)
     args = argparse.Namespace(
         command="stop",
         duration=0,
@@ -145,9 +152,47 @@ def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
         obstacle_check_interval=0.2,
     )
 
-    sc.run_command(args)
+    cli.run_command(args)
 
     assert sensor.cleanup_calls == 1
+    assert calls == ["stop", "car cleanup"]
+
+
+def test_smart_car_cli_routes_obstacle_stop_through_controller(monkeypatch, capsys):
+    sensor = _Sensor([1.0])
+    calls = []
+
+    class Car:
+        def __init__(self, *, drive_speed):
+            self.speed = drive_speed
+
+        def forward(self):
+            calls.append("forward")
+
+        def stop(self):
+            calls.append("stop")
+
+        def set_speed(self, speed):
+            self.speed = speed
+
+        def cleanup(self):
+            calls.append("car cleanup")
+
+    monkeypatch.setattr(cli, "SmartCar2WD", Car)
+    monkeypatch.setattr(cli, "HC_SR04", lambda: sensor)
+    args = argparse.Namespace(
+        command="forward",
+        duration=1,
+        speed=0.5,
+        obstacle_threshold_cm=20.0,
+        obstacle_check_interval=0.2,
+    )
+
+    cli.run_command(args)
+
+    assert calls == ["forward", "stop", "car cleanup"]
+    assert sensor.cleanup_calls == 1
+    assert "Obstacle détecté" in capsys.readouterr().out
 
 
 def test_sensor_cache_within_50ms_then_refresh(monkeypatch):
@@ -164,17 +209,22 @@ def test_sensor_cache_within_50ms_then_refresh(monkeypatch):
 
 def test_check_obstacle_retries_missing_sensor_reading(monkeypatch):
     sensor, clock = _Sensor([None, 3.0]), _Clock()
-    car = _car(monkeypatch, sensor, clock)
+    controller = RobotController(
+        _car(monkeypatch, None, clock),
+        distance_sensor=sensor,
+        obstacle_threshold_cm=5.0,
+        sleep_fn=clock.sleep,
+    )
 
-    assert car.check_obstacle() is True  # 3 cm < 5 cm, après un retry sur None
+    assert controller.check_obstacle() is True
     assert sensor.calls == 2
 
 
 def test_no_sensor_obstacle_policy(monkeypatch):
-    car = _car(monkeypatch, None, _Clock())
-    assert car.check_obstacle() is False
-    car.require_obstacle_sensor = True
-    assert car.check_obstacle() is True
+    clock = _Clock()
+    robot = _car(monkeypatch, None, clock)
+    assert RobotController(robot).check_obstacle() is False
+    assert RobotController(robot, require_obstacle_sensor=True).check_obstacle() is True
 
 
 def test_sensor_concurrent_reads_are_serialized(monkeypatch):

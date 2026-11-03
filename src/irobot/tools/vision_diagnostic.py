@@ -8,20 +8,13 @@ from irobot.hardware.camera.detector import (
     ArucoFrameDetection,
     ColorDetector,
     FaceDetector,
+    MARKER_SIDE_CM,
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
-from irobot.interfaces.perception_pipeline import ObjectDetection
-from irobot.hardware.camera.distance_estimator import (
-    MARKER_FOCAL_PX,
-    MARKER_ORIENTED_SIZE_PX,
-    MARKER_SIDE_CM,
-    estimate_marker_distance_cm,
-)
+from irobot.interfaces.perception_contracts import ObjectDetection
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
-PREVIEW_SIZE_PX = (640, 480)
-ORIENTED_SIZE_PX = MARKER_ORIENTED_SIZE_PX
 
 
 def detect_balls(
@@ -59,24 +52,12 @@ def _draw_object_status(
     cv2_api.putText(frame, text, (12, 30 + row * 30), cv2_api.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
 
-def compute_marker_distance_cm(
-    detection: ArucoFrameDetection,
-    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
-) -> float | None:
-    """Estimate direct range from pose, assuming centred optics without distortion."""
-    corners = detection.corners_px
-    if not _is_selected_detection(detection) or corners is None:
-        return None
-    return estimate_marker_distance_cm(corners, frame_size_px)
-
-
 def format_detection_status(
     detection: ArucoFrameDetection,
-    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
 ) -> str:
     if _is_selected_detection(detection):
         corners = detection.corners_px
-        distance_cm = compute_marker_distance_cm(detection, frame_size_px)
+        distance_cm = detection.distance_cm
         distance_text = (
             f"{distance_cm:.1f} cm" if distance_cm is not None else "indisponible"
         )
@@ -105,7 +86,6 @@ def _draw_detection(
     frame: object,
     detection: ArucoFrameDetection,
     cv2_api: object,
-    frame_size_px: tuple[int, int] = ORIENTED_SIZE_PX,
 ) -> None:
     corners = detection.corners_px
     selected = _is_selected_detection(detection)
@@ -117,7 +97,7 @@ def _draw_detection(
             cv2_api.circle(frame, point, 4, (0, 0, 255), -1)
 
     if selected:
-        distance_cm = compute_marker_distance_cm(detection, frame_size_px)
+        distance_cm = detection.distance_cm
         text = (
             f"ID 1 DETECTED ~{distance_cm:.1f} cm"
             if distance_cm is not None
@@ -174,7 +154,11 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_runtime_settings()
     enhancer = FrameEnhancer(settings)
     if not args.preview_only:
-        marker_detector = OpenCVMarkerDetector(TEST_MARKER_IDENTITY)
+        marker_detector = OpenCVMarkerDetector(
+            TEST_MARKER_IDENTITY,
+            focal_px=settings.camera_focal_px,
+            oriented_frame_size_px=settings.camera_oriented_frame_size_px,
+        )
         faces = FaceDetector(settings)
     camera = Picamera2(0)
     started = False
@@ -185,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "Diagnostic vision : ArUco DICT_4X4_50 / ID 1, visages, balles rouge/jaune. "
             f"Distance directe estimée par pose (côté {MARKER_SIDE_CM:g} cm, "
-            f"focale {MARKER_FOCAL_PX:g} px) ; "
+            f"focale configurée {settings.camera_focal_px:g} px) ; "
             "objectif non calibré, distorsion non corrigée. "
             "Distances visage/balle indicatives. Visage mémorisé signalé pendant la grâce. "
             "Aucune image n'est enregistrée. Appuyez sur q pour quitter.",
@@ -193,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     try:
         camera.configure(camera.create_preview_configuration(
-            main={"size": PREVIEW_SIZE_PX, "format": "BGR888"},
+            main={"size": settings.camera_capture_size_px, "format": "BGR888"},
         ))
         configure_exposure(camera, settings)
         camera.start()
@@ -206,12 +190,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.preview_only:
                 cv2.imshow("Vision - Preview", display_frame)
             else:
-                grayscale = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2GRAY)
-                detection = marker_detector.detect_observation(grayscale)
+                detection = marker_detector.detect(rotated_rgb)
                 face = faces.detect(rotated_rgb)
                 balls = detect_balls(rotated_rgb, settings)
-                frame_size_px = (rotated_rgb.shape[1], rotated_rgb.shape[0])
-                _draw_detection(display_frame, detection, cv2, frame_size_px)
+                _draw_detection(display_frame, detection, cv2)
                 statuses = [format_object_status("FACE", face, cached=faces.is_cached)]
                 _draw_object_status(
                     display_frame, "FACE", face, 1, (255, 200, 0), cv2, cached=faces.is_cached,
@@ -232,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
 
                 status_key = (detection.disposition, detection.reason, *statuses)
                 if status_key != last_status:
-                    print(format_detection_status(detection, frame_size_px), flush=True)
+                    print(format_detection_status(detection), flush=True)
                     print(" | ".join(statuses), flush=True)
                     last_status = status_key
 

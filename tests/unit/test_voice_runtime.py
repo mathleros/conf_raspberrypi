@@ -26,7 +26,7 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
             self.targets = []
 
         def detect(self, *, target=None):
-            from irobot.interfaces.perception_pipeline import ObjectDetection
+            from irobot.interfaces.perception_contracts import ObjectDetection
 
             self.targets.append(target)
             return ObjectDetection(label="marker_1", position="center", distance_cm=25.0, confidence=1.0)

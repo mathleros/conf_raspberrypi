@@ -14,7 +14,7 @@ Les sections suivantes conservent le cadrage historique ; le contrat implément�
 
 Bornes du TOML livré : `stand_off_cm` 30–300 cm (`min_stand_off_cm`/`max_stand_off_cm`), `duration_s` 1–600 s (`max_follow_duration_sec`), `search_timeout_s` 1–120 s (défaut `search_timeout_seconds=25`). La durée de suivi inclut la recherche ; tolérance de suivi par défaut 15 cm. `timeout_margin_seconds=10` intervient dans le budget d'étape avec durée explicite.
 
-La perception live estime la distance par diamètre apparent (`focal_px * ball_diameter_cm / diameter_px`) avec lissage ; `[camera]` expose `ball_diameter_cm`, `focal_px` et `ultrasonic_fusion` (désactivée par défaut). Calibration sur Pi : `uv run calibrate-distance --color yellow --known-distance-cm 100`. Aucun capteur arrière : le recul du suivi exige une zone dégagée.
+La perception live estime la distance par diamètre apparent (`focal_px * ball_diameter_cm / diameter_px`) avec lissage ; `[camera]` expose `ball_diameter_cm` et `focal_px`. L'ultrason sert uniquement à la détection d'obstacles, pas à l'estimation de distance de la cible. Calibration sur Pi : `uv run calibrate-distance --color yellow --known-distance-cm 100`. Aucun capteur arrière : le recul du suivi exige une zone dégagée.
 
 Le LLM ne choisit pas les commandes moteur : `Intent` -> validation/bornage -> planner/skills -> `RobotController`. Les boucles sont testées sans matériel avec `FakeRobot`, `time_fn` et `sleep_fn`.
 

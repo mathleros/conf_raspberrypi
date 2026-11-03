@@ -157,7 +157,7 @@ run_case H02-calibration uv run calibrate-distance --color yellow \
   --ball-diameter-cm 6.5 --known-distance-cm 100 --samples 30
 ```
 
-Remplacer `6.5` par le diamètre réel. Reporter manuellement la focale affichée **et** ce diamètre dans `[camera]` du TOML, conserver `ultrasonic_fusion = false`, puis :
+Remplacer `6.5` par le diamètre réel. Reporter manuellement la focale affichée **et** ce diamètre dans `[camera]` du TOML, puis :
 
 ```bash
 cp src/irobot/config/runtime_settings.toml "$CAMPAGNE/parametres-camera.toml"
@@ -451,7 +451,7 @@ Puis, moteurs hors tension et runtimes fermés : redémarrer le Pi, vérifier se
 
 ### Q02 — Fusion ultrason optionnelle
 
-**N/A si la configuration de livraison garde `ultrasonic_fusion=false`.** Si cette option est réellement destinée à être livrée : sauvegarder la configuration de référence, activer la fusion dans une campagne distincte, répéter H01–H03, H06–H07 et E01–E05. Vérifier cible centrée et cohérence visuel/ultrason à ±25 % ; une mesure incohérente ne doit pas tirer la distance vers l'obstacle. Conserver les mesures comparées. Ne pas mélanger les résultats fusion activée/désactivée.
+Ce scénario est obsolète : l'estimation caméra n'est plus fusionnée avec les mesures ultrasonores. Le HC-SR04 reste validé séparément pour la détection d'obstacles.
 
 ### Q03 — Réserves de l'audit à rendre visibles
 

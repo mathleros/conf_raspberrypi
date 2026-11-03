@@ -9,10 +9,10 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.hardware.camera import camera_live_pipeline
+from irobot.hardware.camera import camera_live_perception_pipeline
 from irobot.hardware.camera.detector import FaceDetector
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
+from irobot.interfaces.perception_contracts import ObjectDetection, ObjectPerceptionPipeline
 from tests.unit.fake_robot import FakeRobot
 
 
@@ -209,10 +209,10 @@ def test_missing_model_fails_explicitly(tmp_path):
 def pipeline(yunet, monkeypatch):
     settings, net = yunet
     monkeypatch.setattr(
-        camera_live_pipeline, "load_runtime_settings",
+        camera_live_perception_pipeline, "load_runtime_settings",
         lambda: replace(settings, camera_clahe_enabled=True),
     )
-    return camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False), net
+    return camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False), net
 
 
 @pytest.mark.parametrize("target", ["face", "human"])
@@ -221,10 +221,10 @@ def test_pipeline_face_routes_enhanced_frame_without_aruco_or_colors(pipeline, m
     frame = np.full((640, 480, 3), (90, 10, 5), np.uint8)
     net.faces = _faces((180, 20, 100, 100, 0.9))
     monkeypatch.setattr(
-        camera._marker_detector, "detect",
+        camera._frame_processor._marker_detector, "detect",
         lambda image: pytest.fail("No ArUco for faces"),
     )
-    for detector in camera._color_detectors.values():
+    for detector in camera._frame_processor._color_detectors.values():
         monkeypatch.setattr(
             detector, "detect",
             lambda image: pytest.fail("No color detector for faces"),
@@ -232,8 +232,6 @@ def test_pipeline_face_routes_enhanced_frame_without_aruco_or_colors(pipeline, m
     assert camera.detect(target=target) is None
     detection = camera._process_frame(frame)
     camera._last_detection = detection
-    camera.fusion_enabled = True
-    camera.distance_reader = lambda: pytest.fail("No ultrasound for faces")
     assert camera.detect(target=target).label == "face"
     expected = FrameEnhancer(camera._settings).apply(frame)
     np.testing.assert_array_equal(net.inputs[-1], cv2.cvtColor(expected, cv2.COLOR_RGB2BGR))
@@ -311,7 +309,7 @@ def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipelin
         def close(self):
             closed.append("close")
 
-    monkeypatch.setattr(camera_live_pipeline, "Picamera2", lambda index: Camera())
+    monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", lambda index: Camera())
     camera._capture_loop()
     assert captures == 3
     assert len(net.inputs) == 3

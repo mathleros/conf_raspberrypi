@@ -5,8 +5,8 @@ Ils sont chargés par `settings.py` au démarrage.
 
 - `[runtime]` : vitesses et délais d’exécution.
 - `[limits]` : bornes des déplacements, durées et plans.
-- `[camera]` : dimensions et focale pour les distances, fusion ultrason,
-  correction d’image et détection de visages.
+- `[camera]` : dimensions de capture et d’image orientée, focale pour les
+  distances, correction d’image et détection de visages.
 - `[human_follow]` : paramètres temporels du suivi humain.
 
 Modifie les valeurs dans le TOML plutôt que les valeurs par défaut de `settings.py`.

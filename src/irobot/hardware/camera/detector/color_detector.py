@@ -8,8 +8,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .detector import Detector
-from irobot.hardware.camera.distance_estimator import estimate_distance_cm
-from irobot.interfaces.perception_pipeline import ObjectDetection
+from .distance_estimator import estimate_distance_cm
+from irobot.interfaces.perception_contracts import ObjectDetection
 
 
 class ColorCandidate(TypedDict):
@@ -138,7 +138,7 @@ def select_best_candidate(candidates: list[ColorCandidate]) -> ColorCandidate | 
     return max(objects, key=lambda candidate: candidate["area"]) if objects else None
 
 
-class ColorDetector(Detector):
+class ColorDetector(Detector[ObjectDetection]):
     def __init__(
         self,
         color_name: str,

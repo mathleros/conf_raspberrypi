@@ -11,16 +11,10 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
 
-from irobot.config.settings import MarkerIdentity, load_runtime_settings
-from irobot.hardware.camera.detector import ColorDetector
-from irobot.hardware.camera.distance_estimator import (
-    DistanceReader,
-    ExponentialSmoother,
-    fuse_with_ultrasound,
-)
-from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
-from irobot.hardware.camera.detector import FaceDetector, OpenCVMarkerDetector
-from irobot.interfaces.perception_pipeline import ObjectDetection, ObjectPerceptionPipeline
+from irobot.config.settings import load_runtime_settings
+from irobot.hardware.camera.frame_enhancer import configure_exposure
+from irobot.hardware.camera.frame_processor import CameraFrameProcessor
+from irobot.interfaces.perception_contracts import ObjectDetection, ObjectPerceptionPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +24,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
     Sans filtre balle, ArUco est prioritaire. L'identité configurée est utilisée,
     sinon aruco/DICT_4X4_50/1 ; distance directe indicative estimée par pose
-    pour un carré de 8 cm et une focale de 600 px, sans correction de distorsion.
+    pour un carré de 8 cm, avec la focale configurée et sans correction de distorsion.
     Les seuils horizontaux sont rapportés à une largeur de 480 px.
     """
 
@@ -45,12 +39,11 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         ball_diameter_cm: float | None = None,
         focal_px: float | None = None,
         smoothing_alpha: float = 0.4,
-        distance_reader: DistanceReader | None = None,
-        fusion_enabled: bool | None = None,
-        fusion_tolerance: float = 0.25,
+        sensor: object | None = None,
         autostart: bool = True,
     ) -> None:
         self.camera_index = int(camera_index)
+        self.sensor = sensor
         self.default_target = (default_target or "").strip().lower()
         if self.default_target == "human":
             self.default_target = "face"
@@ -58,22 +51,14 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
         settings = load_runtime_settings()
         self._settings = settings
-        self._frame_enhancer = FrameEnhancer(settings)
-        self._face_detector: FaceDetector | None = None
         self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
         self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
-        self._color_detectors = {
-            color: ColorDetector(color, self.ball_diameter_cm, self.focal_px)
-            for color in ("red", "yellow")
-        }
-        self._marker_detector = OpenCVMarkerDetector(
-            settings.human_marker_identity or MarkerIdentity("aruco", "DICT_4X4_50", "1")
+        self._frame_processor = CameraFrameProcessor(
+            settings,
+            ball_diameter_cm=self.ball_diameter_cm,
+            focal_px=self.focal_px,
+            smoothing_alpha=smoothing_alpha,
         )
-        self.distance_reader = distance_reader
-        self.fusion_enabled = bool(settings.camera_ultrasonic_fusion if fusion_enabled is None else fusion_enabled)
-        self.fusion_tolerance = float(fusion_tolerance)
-        self._smoother = ExponentialSmoother(smoothing_alpha)
-
         self._last_detection: ObjectDetection | None = None
         self._requested_target: str | None = None
         self._lock = threading.Lock()
@@ -86,67 +71,16 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if autostart:
             self._thread.start()
 
-    def _fuse_distance_cm(self, detection: ObjectDetection) -> float | None:
-        """Fusion ultrason, appelée depuis le thread appelant de detect()."""
-        if detection.label in {"marker_1", "face"}:
-            return detection.distance_cm
-        visual = detection.distance_visual_cm
-        if visual is None or not self.fusion_enabled or self.distance_reader is None:
-            return visual
-        if detection.position != "center":
-            return visual
-        try:
-            ultrasound = self.distance_reader()
-        except Exception:
-            return visual
-        return fuse_with_ultrasound(visual, ultrasound, self.fusion_tolerance)
-
     def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
-        """Détecte la meilleure cible dans une frame déjà orientée (RGB) et renseigne la distance."""
-        frame_rgb = self._frame_enhancer.apply(frame_rgb)
+        """Traite une image RGB via le composant dédié au routage des détecteurs."""
         if target is None:
             with self._lock:
                 target = self._requested_target or self.default_target
-        if target in {"face", "human"}:
-            self._smoother.reset()
-            if self._face_detector is None:
-                self._face_detector = FaceDetector(self._settings, focal_px=self.focal_px)
-            return self._face_detector.detect(frame_rgb)
-        if self._face_detector is not None:
-            self._face_detector.reset()
-        marker_only = target in {"marker", "me"}
-        ball_filter = target == "both" or any(value in target for value in ("red", "yellow", "ball"))
-        if marker_only or not ball_filter:
-            marker = self._marker_detector.detect(frame_rgb)
-            if marker is not None or marker_only:
-                self._smoother.reset()
-                return marker
-        selected: ObjectDetection | None = None
-        for color in self._iter_colors_for_target(target, self.default_target):
-            detection = self._color_detectors[color].detect(frame_rgb)
-            if detection is None:
-                continue
-            if selected is None or detection.label.endswith("_ball"):
-                selected = detection
-            if detection.label.endswith("_ball"):
-                break
-
-        if selected is None:
-            self._smoother.reset()
-            return None
-        distance = self._smoother.update(selected.distance_visual_cm)
-        selected.distance_visual_cm = distance
-        selected.distance_cm = distance
-        return selected
-
-    @staticmethod
-    def _iter_colors_for_target(target: str | None, default_target: str) -> list[str]:
-        desired = (target or default_target or "both").strip().lower()
-        if desired == "both":
-            return ["red", "yellow"]
-        if "yellow" in desired:
-            return ["yellow", "red"]
-        return ["red", "yellow"]
+        return self._frame_processor.process_frame(
+            frame_rgb,
+            target=target,
+            default_target=self.default_target,
+        )
 
     def _capture_loop(self) -> None:
         if Picamera2 is None:
@@ -161,7 +95,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             camera = Picamera2(self.camera_index)
             # Picamera2 BGR888 fournit des octets R, G, B à _process_frame.
             config = camera.create_preview_configuration(
-                main={"size": (640, 480), "format": "BGR888"}
+                main={"size": self._settings.camera_capture_size_px, "format": "BGR888"}
             )
             camera.configure(config)
             configure_exposure(camera, self._settings)
@@ -174,9 +108,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     revision = self._target_revision
                 frame_rgb = camera.capture_array()
                 if revision != processed_revision:
-                    if self._face_detector is not None:
-                        self._face_detector.reset()
-                    self._smoother.reset()
+                    self._frame_processor.reset_for_target_change()
                     processed_revision = revision
                 rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
                 detection = self._process_frame(rotated_frame_rgb, target=target)
@@ -246,7 +178,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     return None
             elif expected not in label and label not in expected:
                 return None
-        return dataclasses.replace(detection, distance_cm=self._fuse_distance_cm(detection))
+        return dataclasses.replace(detection)
 
     def close(self, timeout_s: float | None = None) -> None:
         with self._frame_condition:

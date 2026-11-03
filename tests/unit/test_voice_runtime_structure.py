@@ -182,7 +182,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
 
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.camera.camera_live_pipeline",
+        "irobot.hardware.camera.camera_live_perception_pipeline",
         SimpleNamespace(CameraLivePerceptionPipeline=create_camera),
     )
 
@@ -194,8 +194,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
     assert hardware["sensor"].read_distance_cm() == 25.0
     assert not hasattr(hardware["robot"], "read_distance_cm")
     assert hardware["robot"].check_obstacle() is True
-    assert camera_kwargs["distance_reader"]() == 25.0
-    assert camera_kwargs["distance_reader"].__self__ is sensor
+    assert camera_kwargs["sensor"] is sensor
     close_hardware_runtime(hardware)
     assert sensor.cleanup_calls == 1
 
@@ -234,7 +233,7 @@ def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
     )
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.camera.camera_live_pipeline",
+        "irobot.hardware.camera.camera_live_perception_pipeline",
         SimpleNamespace(CameraLivePerceptionPipeline=fail_camera),
     )
 

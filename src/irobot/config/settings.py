@@ -68,9 +68,10 @@ class RuntimeSettings:
     max_stand_off_cm: float = 300.0
     search_timeout_seconds: float = 25.0
     timeout_margin_seconds: float = 10.0
+    camera_capture_size_px: tuple[int, int] = (640, 480)
+    camera_oriented_frame_size_px: tuple[int, int] = (480, 640)
     camera_ball_diameter_cm: float = 6.0
     camera_focal_px: float = 680.0
-    camera_ultrasonic_fusion: bool = False
     camera_clahe_enabled: bool = True
     camera_clahe_clip_limit: float = 3.0
     camera_exposure_value: float = 1.0
@@ -86,6 +87,12 @@ class RuntimeSettings:
     human_announcement_timeout_seconds: float = 2.0
 
     def __post_init__(self) -> None:
+        for name in ("camera_capture_size_px", "camera_oriented_frame_size_px"):
+            size = getattr(self, name)
+            if (not isinstance(size, tuple) or len(size) != 2
+                    or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0
+                           for value in size)):
+                raise ValueError(f"{name} must contain two positive integers")
         if self.obstacle_threshold_cm < 0:
             raise ValueError("obstacle_threshold_cm must be non-negative")
         for name in ("camera_face_width_cm", "camera_face_score_threshold"):
@@ -172,6 +179,14 @@ def _string(table: Mapping[str, object], key: str, default: str, error_name: str
     return value
 
 
+def _size_px(table: Mapping[str, object], key: str, default: tuple[int, int], error_name: str) -> tuple[int, int]:
+    value = table.get(key, default)
+    if (not isinstance(value, (list, tuple)) or len(value) != 2
+            or any(isinstance(item, bool) or not isinstance(item, int) or item <= 0 for item in value)):
+        raise ValueError(f"{error_name} must contain two positive integers")
+    return value[0], value[1]
+
+
 def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
     table = _table(raw, "runtime", {
         "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "turn_speed",
@@ -221,7 +236,7 @@ def _load_camera_section(
     raw: Mapping[str, object], current: RuntimeSettings, config_path: Path,
 ) -> RuntimeSettings:
     table = _table(raw, "camera", {
-        "ball_diameter_cm", "focal_px", "ultrasonic_fusion", "exposure_value",
+        "capture_size_px", "oriented_frame_size_px", "ball_diameter_cm", "focal_px", "exposure_value",
         "clahe_enabled", "clahe_clip_limit", "face_model_path", "face_width_cm",
         "face_score_threshold", "face_grace_frames",
     })
@@ -232,9 +247,15 @@ def _load_camera_section(
         model_path = config_path.parent / model_path
     return replace(
         current,
+        camera_capture_size_px=_size_px(
+            table, "capture_size_px", current.camera_capture_size_px, "camera.capture_size_px",
+        ),
+        camera_oriented_frame_size_px=_size_px(
+            table, "oriented_frame_size_px", current.camera_oriented_frame_size_px,
+            "camera.oriented_frame_size_px",
+        ),
         camera_ball_diameter_cm=_float(table, "ball_diameter_cm", current.camera_ball_diameter_cm, "camera_ball_diameter_cm"),
         camera_focal_px=_float(table, "focal_px", current.camera_focal_px, "camera_focal_px"),
-        camera_ultrasonic_fusion=_bool(table, "ultrasonic_fusion", current.camera_ultrasonic_fusion, "camera_ultrasonic_fusion"),
         camera_clahe_enabled=_bool(table, "clahe_enabled", current.camera_clahe_enabled, "camera_clahe_enabled"),
         camera_clahe_clip_limit=_float(table, "clahe_clip_limit", current.camera_clahe_clip_limit, "camera_clahe_clip_limit"),
         camera_exposure_value=_float(table, "exposure_value", current.camera_exposure_value, "camera_exposure_value"),

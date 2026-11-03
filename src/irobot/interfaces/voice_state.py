@@ -13,7 +13,7 @@ from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
-from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
+from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
 from irobot.interfaces.voice_llm import LLMWarmup
 from irobot.interfaces.voice_llm_transport import llm_warmup_wait_seconds
 

@@ -11,7 +11,7 @@ from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
-from irobot.interfaces.perception_pipeline import ObjectPerceptionPipeline
+from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import follow_request_refusal
 
 

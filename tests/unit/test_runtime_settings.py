@@ -43,9 +43,10 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "max_stand_off_cm": 300.0,
         "search_timeout_seconds": 25.0,
         "timeout_margin_seconds": 10.0,
+        "camera_capture_size_px": (640, 480),
+        "camera_oriented_frame_size_px": (480, 640),
         "camera_ball_diameter_cm": 6.0,
         "camera_focal_px": 680.0,
-        "camera_ultrasonic_fusion": False,
         "camera_clahe_enabled": True,
         "camera_clahe_clip_limit": 3.0,
         "camera_exposure_value": 1.0,
@@ -67,6 +68,10 @@ def test_runtime_loader_rejects_unknown_top_level_and_section_keys(tmp_path, mon
     with pytest.raises(ValueError, match=r"Unknown key\(s\) in \[runtime\].*cm_per_sec"):
         settings.load_runtime_settings()
 
+    cfg.write_text("[camera]\nultrasonic_fusion = false\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"Unknown key\(s\) in \[camera\].*ultrasonic_fusion"):
+        settings.load_runtime_settings()
+
     cfg.write_text("unexpected = true\n", encoding="utf-8")
     with pytest.raises(ValueError, match="Unknown top-level key.*unexpected"):
         settings.load_runtime_settings()
@@ -75,13 +80,14 @@ def test_runtime_loader_rejects_unknown_top_level_and_section_keys(tmp_path, mon
 @pytest.mark.parametrize(
     ("toml", "error"),
     [
-        ('[camera]\nultrasonic_fusion = "false"\n', "camera_ultrasonic_fusion"),
         ("[camera]\nclahe_enabled = 1\n", "camera_clahe_enabled"),
         ('[camera]\nfocal_px = "680"\n', "camera_focal_px"),
         ("[limits]\nmax_plan_steps = 1.5\n", "limits.max_plan_steps"),
         ("[runtime]\nobstacle_threshold_cm = -1.0\n", "obstacle_threshold_cm"),
         ("[human_follow]\nmax_age_seconds = true\n", "human_follow.max_age_seconds"),
         ("[camera]\nfocal_px = nan\n", "camera_focal_px"),
+        ("[camera]\ncapture_size_px = [640, 0]\n", "camera.capture_size_px"),
+        ("[camera]\noriented_frame_size_px = [480, true]\n", "camera.oriented_frame_size_px"),
     ],
 )
 def test_runtime_loader_rejects_wrong_toml_types(tmp_path, monkeypatch, toml, error):
@@ -212,6 +218,20 @@ def test_backlight_settings_from_toml(tmp_path, monkeypatch):
     assert loaded.camera_clahe_enabled is True
     assert loaded.camera_clahe_clip_limit == 2.5
     assert loaded.camera_exposure_value == 1.5
+
+
+def test_camera_dimensions_from_toml(tmp_path, monkeypatch):
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text(
+        "[camera]\ncapture_size_px = [1280, 960]\noriented_frame_size_px = [960, 1280]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+
+    loaded = settings.load_runtime_settings()
+
+    assert loaded.camera_capture_size_px == (1280, 960)
+    assert loaded.camera_oriented_frame_size_px == (960, 1280)
 
 
 def test_backlight_defaults_match_packaged_calibration():

@@ -89,7 +89,7 @@ Le runtime n'intègre pas d'adaptateur P5 qualifié ; toute protection matériel
 doit fonctionner indépendamment du logiciel.
 
 La distance ArUco du runtime et du diagnostic utilise la même fonction
-[estimate_marker_distance_cm](hardware/camera/distance_estimator.py) : pose
+[estimate_marker_distance_cm](hardware/camera/detector/aruco_detector.py) : pose
 `solvePnP` à partir des quatre coins, puis distance directe objectif–centre
 du marqueur. L'inclinaison et le décentrage sont pris en compte. Le carré est
 supposé mesurer 8 cm ; la focale provisoire est 600 px pour l'image tournée

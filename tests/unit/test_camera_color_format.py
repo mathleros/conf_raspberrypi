@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from irobot.tools import calibrate_distance
-from irobot.hardware.camera import camera_live_pipeline
+from irobot.hardware.camera import camera_live_perception_pipeline
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 
@@ -87,8 +87,8 @@ def test_calibration_detects_red_from_picamera_memory_layout(monkeypatch, camera
 
 def test_runtime_detects_red_from_picamera_memory_layout(monkeypatch, camera_factory):
     camera = camera_factory(0)
-    monkeypatch.setattr(camera_live_pipeline, "Picamera2", lambda index: camera)
-    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", lambda index: camera)
+    pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
     camera.on_capture = pipeline._stop_event.set
 
     pipeline._capture_loop()
@@ -177,9 +177,9 @@ def test_exposure_failure_releases_camera(monkeypatch, camera_factory, name):
 
 def test_exposure_failure_is_logged_and_releases_runtime_camera(monkeypatch, camera_factory, caplog):
     camera = camera_factory(0)
-    monkeypatch.setattr(camera_live_pipeline, "Picamera2", lambda index: camera)
+    monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", lambda index: camera)
     monkeypatch.setattr(
-        camera_live_pipeline, "load_runtime_settings",
+        camera_live_perception_pipeline, "load_runtime_settings",
         lambda: RuntimeSettings(camera_exposure_value=1.0),
     )
 
@@ -187,7 +187,7 @@ def test_exposure_failure_is_logged_and_releases_runtime_camera(monkeypatch, cam
         raise RuntimeError("exposure rejected")
 
     monkeypatch.setattr(camera, "set_controls", fail)
-    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
     pipeline._capture_loop()
     assert pipeline.detect(target="red") is None
     assert camera.closed

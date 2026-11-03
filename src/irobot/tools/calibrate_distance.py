@@ -19,7 +19,6 @@ import cv2
 
 from irobot.config.settings import load_runtime_settings
 from irobot.hardware.camera.detector import ColorDetector
-from irobot.hardware.camera.distance_estimator import focal_from_known_distance
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 
 try:
@@ -28,6 +27,13 @@ except ModuleNotFoundError:  # pragma: no cover - environnements hors Raspberry 
     Picamera2 = None
 
 CAMERA_INDEX = 0
+
+
+def focal_from_known_distance(diameter_px: float, ball_diameter_cm: float, known_distance_cm: float) -> float | None:
+    """Inverse du modèle : focal_px = diameter_px * known_distance_cm / ball_diameter_cm."""
+    if diameter_px is None or diameter_px <= 0 or ball_diameter_cm <= 0 or known_distance_cm <= 0:
+        return None
+    return diameter_px * known_distance_cm / ball_diameter_cm
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -54,7 +60,9 @@ def main(argv: list[str] | None = None) -> None:
     samples: list[float] = []
     try:
         # Picamera2 BGR888 fournit des octets R, G, B au détecteur is_rgb=True.
-        camera.configure(camera.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"}))
+        camera.configure(camera.create_preview_configuration(
+            main={"size": settings.camera_capture_size_px, "format": "BGR888"},
+        ))
         configure_exposure(camera, settings)
         camera.start()
         started = True

@@ -191,7 +191,7 @@ uv run voice-runtime --once --input-device wm8960
 
 Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son overlay audio. Les scripts Bluetooth et ReSpeaker ne sont pas nécessaires pour le runtime texte/LLM.
 
-Les paramètres du robot et de la perception sont dans [runtime_settings.toml](src/irobot/config/runtime_settings.toml), à côté du module qui les charge. Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier. Garder `ultrasonic_fusion = false` tant que le capteur ultrason n'est pas installé et validé.
+Les paramètres du robot et de la perception sont dans [runtime_settings.toml](src/irobot/config/runtime_settings.toml), à côté du module qui les charge. Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier.
 
 Le raccordement logiciel SH-04 utilise la section `[human_follow]` du même
 fichier : `max_age_seconds = 0.2` et `announcement_timeout_seconds = 2.0`.
@@ -272,7 +272,7 @@ uv run calibrate-distance --color yellow --ball-diameter-cm 6.5 --known-distance
 uv run calibrate-distance --color yellow
 ```
 
-`calibrate-distance` prend 30 mesures par défaut (`--samples` pour changer ce nombre) et affiche la focale à reporter manuellement dans [runtime_settings.toml](src/irobot/config/runtime_settings.toml). Renseigner aussi le diamètre réel `ball_diameter_cm` dans ce fichier. La distance visuelle est estimée par `focal_px * ball_diameter_cm / diameter_px`, puis lissée dans la perception live. La fusion ultrason reste optionnelle (`ultrasonic_fusion = false` par défaut), uniquement pour une cible centrée et des mesures cohérentes à ±25 %.
+`calibrate-distance` prend 30 mesures par défaut (`--samples` pour changer ce nombre) et affiche la focale à reporter manuellement dans [runtime_settings.toml](src/irobot/config/runtime_settings.toml). Renseigner aussi le diamètre réel `ball_diameter_cm` dans ce fichier. La distance visuelle est estimée par `focal_px * ball_diameter_cm / diameter_px`, puis lissée dans la perception live. L'ultrason reste réservé aux mesures d'obstacles du robot et n'est pas utilisé pour estimer la distance de la cible visuelle.
 
 ### Smart Car
 

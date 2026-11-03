@@ -7,20 +7,27 @@ import numpy as np
 import pytest
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
-from irobot.hardware.camera import camera_live_pipeline
+from irobot.hardware.camera import camera_live_perception_pipeline
+from irobot.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.interfaces.perception_pipeline import ObjectDetection
+from irobot.interfaces.perception_contracts import ObjectDetection
 from irobot.tools.vision_diagnostic import detect_balls, format_object_status
 from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
 from irobot.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
-    compute_marker_distance_cm,
     format_detection_status,
 )
 
 
-def _project_marker(translation, yaw=0, pitch=0, roll=0, size=(480, 640)):
+def _project_marker(
+    translation,
+    yaw=0,
+    pitch=0,
+    roll=0,
+    size=RuntimeSettings().camera_oriented_frame_size_px,
+    focal_px=RuntimeSettings().camera_focal_px,
+):
     # Independently project the physical square through a pinhole camera.
     y, p, r = map(math.radians, (yaw, pitch, roll))
     rotate_y = np.array(((math.cos(y), 0, math.sin(y)), (0, 1, 0),
@@ -33,20 +40,33 @@ def _project_marker(translation, yaw=0, pitch=0, roll=0, size=(480, 640)):
     points = square @ (rotate_z @ rotate_y @ rotate_x).T + translation
     width, height = size
     image_points = points[:, :2] / points[:, 2, None]
-    image_points *= (600 * width / 480, 600 * height / 640)
+    image_points *= (
+        focal_px * width / RuntimeSettings().camera_oriented_frame_size_px[0],
+        focal_px * height / RuntimeSettings().camera_oriented_frame_size_px[1],
+    )
     image_points += (width / 2, height / 2)
+    corners = tuple((float(x), float(y)) for x, y in image_points)
     return ArucoFrameDetection(
         ObservationDisposition.VALID, TEST_MARKER_IDENTITY,
-        tuple((float(x), float(y)) for x, y in image_points),
+        corners,
+        distance_cm=estimate_marker_distance_cm(corners, focal_px, size),
     )
 
 
 @pytest.fixture
 def runtime_pipeline(monkeypatch):
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", RuntimeSettings)
-    return camera_live_pipeline.CameraLivePerceptionPipeline(
+    monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", RuntimeSettings)
+    return camera_live_perception_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
     )
+
+
+def _patch_marker_corners(monkeypatch, detector, corners):
+    marker_id = detector.expected_id
+    backend = SimpleNamespace(
+        detectMarkers=lambda image: ([list(corners)], [[marker_id]], None),
+    )
+    monkeypatch.setattr(detector, "_detector", backend)
 
 
 @pytest.mark.parametrize("x", [-20, 0, 20])
@@ -55,14 +75,14 @@ def runtime_pipeline(monkeypatch):
 def test_distance_accounts_for_position_and_orientation(x, yaw, pitch, roll):
     translation = (x, 0, 80)
     detection = _project_marker(translation, yaw, pitch, roll)
-    assert compute_marker_distance_cm(detection) == pytest.approx(
+    assert detection.distance_cm == pytest.approx(
         math.dist((0, 0, 0), translation), abs=0.01,
     )
 
 
 def test_centered_frontal_distance_preserves_previous_result():
     detection = _project_marker((0, 0, 100))
-    assert compute_marker_distance_cm(detection) == pytest.approx(100, abs=0.01)
+    assert detection.distance_cm == pytest.approx(100, abs=0.01)
     assert "distance=100.0 cm" in format_detection_status(detection)
 
 
@@ -72,7 +92,7 @@ def test_tilted_off_axis_distance_is_not_based_on_width_only():
     width = (math.dist(corners[0], corners[1]) + math.dist(corners[3], corners[2])) / 2
     expected = math.hypot(20, 80)
     assert abs(4800 / width - expected) > 5
-    assert compute_marker_distance_cm(detection) == pytest.approx(expected, abs=0.01)
+    assert detection.distance_cm == pytest.approx(expected, abs=0.01)
 
 
 @pytest.mark.parametrize("x", [-20, 20])
@@ -83,21 +103,26 @@ def test_84_cm_off_axis_with_subpixel_corner_noise(x):
         (x + dx, y + dy) for (x, y), (dx, dy) in zip(detection.corners_px, noise)
     )
     noisy_detection = ArucoFrameDetection(
-        ObservationDisposition.VALID, TEST_MARKER_IDENTITY, noisy_corners,
+        ObservationDisposition.VALID,
+        TEST_MARKER_IDENTITY,
+        noisy_corners,
+        distance_cm=estimate_marker_distance_cm(
+            noisy_corners, RuntimeSettings().camera_focal_px,
+        ),
     )
-    assert compute_marker_distance_cm(noisy_detection) == pytest.approx(84, abs=1)
+    assert noisy_detection.distance_cm == pytest.approx(84, abs=1)
 
 
-@pytest.mark.parametrize("size", [(480, 640), (960, 1280)])
+@pytest.mark.parametrize("size", [RuntimeSettings().camera_oriented_frame_size_px, (960, 1280)])
 def test_distance_uses_actual_frame_dimensions(size):
     detection = _project_marker((20, 10, 80), yaw=30, size=size)
-    assert compute_marker_distance_cm(detection, size) == pytest.approx(
+    assert detection.distance_cm == pytest.approx(
         math.sqrt(20**2 + 10**2 + 80**2), abs=0.01,
     )
 
 
 @pytest.mark.parametrize("x,yaw", [(-20, -30), (0, 0), (20, 45)])
-@pytest.mark.parametrize("size", [(480, 640), (960, 1280)])
+@pytest.mark.parametrize("size", [RuntimeSettings().camera_oriented_frame_size_px, (960, 1280)])
 @pytest.mark.parametrize("target", ["marker", "me"])
 @pytest.mark.parametrize("identifier", ["1", "2"])
 def test_runtime_uses_pose_distance_for_configured_marker(
@@ -107,9 +132,12 @@ def test_runtime_uses_pose_distance_for_configured_marker(
     detection = ArucoFrameDetection(
         ObservationDisposition.VALID,
         MarkerIdentity("aruco", "DICT_4X4_50", identifier), projected.corners_px,
+        distance_cm=projected.distance_cm,
     )
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "identity", detection.identity)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
+    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    monkeypatch.setattr(marker_detector, "identity", detection.identity)
+    monkeypatch.setattr(marker_detector, "expected_id", int(identifier))
+    _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
     runtime_pipeline.default_target = target
     frame = np.zeros((size[1], size[0], 3), dtype=np.uint8)
     result = runtime_pipeline._process_frame(frame)
@@ -118,10 +146,8 @@ def test_runtime_uses_pose_distance_for_configured_marker(
     assert result.distance_cm == pytest.approx(expected, abs=0.01)
     assert result.distance_visual_cm == result.distance_cm
     if identifier == "1":
-        assert result.distance_cm == compute_marker_distance_cm(projected, size)
+        assert result.distance_cm == projected.distance_cm
     runtime_pipeline._last_detection = result
-    runtime_pipeline.fusion_enabled = True
-    runtime_pipeline.distance_reader = lambda: pytest.fail("No ultrasound for marker pose")
     assert runtime_pipeline.detect(target=target).distance_cm == result.distance_cm
 
 
@@ -131,7 +157,7 @@ def test_runtime_uses_pose_distance_for_configured_marker(
 ])
 def test_non_detected_status_has_no_distance(disposition):
     detection = ArucoFrameDetection(disposition)
-    assert compute_marker_distance_cm(detection) is None
+    assert detection.distance_cm is None
     assert "distance=" not in format_detection_status(detection)
 
 
@@ -143,13 +169,17 @@ def test_non_detected_status_has_no_distance(disposition):
     ((0, 0), (10, 0), (10, 10)),
 ])
 def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeypatch, caplog):
-    detection = ArucoFrameDetection(
-        ObservationDisposition.VALID, TEST_MARKER_IDENTITY, corners,
-    )
-    assert compute_marker_distance_cm(detection) is None
-    assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
-    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    _patch_marker_corners(monkeypatch, marker_detector, corners)
+    frame = np.zeros((640, 480, 3), np.uint8)
+    detection = marker_detector.detect(frame)
+    assert detection.distance_cm is None
+    if detection.disposition is ObservationDisposition.VALID:
+        assert "distance=indisponible" in format_detection_status(detection)
+    else:
+        assert detection.disposition is ObservationDisposition.REJECTED
+        assert "rejected" in format_detection_status(detection)
+    assert runtime_pipeline._process_frame(frame) is None
     assert "ArUco" in caplog.text
 
 
@@ -162,10 +192,13 @@ def test_failed_pose_does_not_produce_a_distance(
     monkeypatch, success, translation, runtime_pipeline, caplog,
 ):
     monkeypatch.setattr(cv2, "solvePnP", lambda *args, **kwargs: (success, None, translation))
-    detection = _project_marker((0, 0, 80))
+    projected = _project_marker((0, 0, 80))
+    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
+    frame = np.zeros((640, 480, 3), np.uint8)
+    detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
-    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    assert runtime_pipeline._process_frame(frame) is None
     assert "Pose ArUco inexploitable" in caplog.text
 
 
@@ -176,10 +209,13 @@ def test_opencv_pose_error_is_logged_without_width_fallback(
         raise cv2.error("synthetic pose failure")
 
     monkeypatch.setattr(cv2, "solvePnP", fail)
-    detection = _project_marker((0, 0, 80))
+    projected = _project_marker((0, 0, 80))
+    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
+    frame = np.zeros((640, 480, 3), np.uint8)
+    detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
-    monkeypatch.setattr(runtime_pipeline._marker_detector, "detect_observation", lambda image: detection)
-    assert runtime_pipeline._process_frame(np.zeros((640, 480, 3), np.uint8)) is None
+    assert runtime_pipeline._process_frame(frame) is None
     assert "synthetic pose failure" in caplog.text
 
 
@@ -247,19 +283,25 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
         def close(self):
             calls.append("camera_close")
 
-    def detect(grayscale):
-        assert grayscale.shape == (640, 480)
+    def detect(frame_rgb):
+        assert frame_rgb.shape == (640, 480, 3)
         expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
             cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
         )
-        np.testing.assert_array_equal(grayscale, cv2.cvtColor(expected_rgb, cv2.COLOR_RGB2GRAY))
+        np.testing.assert_array_equal(frame_rgb, expected_rgb)
         return _project_marker((0, 0, 80))
 
     monkeypatch.setenv("DISPLAY", ":test")
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
+
+    def create_marker_detector(identity, *, focal_px, oriented_frame_size_px):
+        assert focal_px == RuntimeSettings().camera_focal_px
+        assert oriented_frame_size_px == RuntimeSettings().camera_oriented_frame_size_px
+        return SimpleNamespace(detect=detect)
+
     monkeypatch.setattr(
         vision_diagnostic, "OpenCVMarkerDetector",
-        lambda identity: SimpleNamespace(detect_observation=detect),
+        create_marker_detector,
     )
     face = ObjectDetection(label="face", position="left", distance_cm=90, confidence=0.9)
 

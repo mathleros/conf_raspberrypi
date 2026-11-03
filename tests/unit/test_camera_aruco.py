@@ -2,13 +2,14 @@ import queue
 import math
 import threading
 import time
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
 import pytest
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
-from irobot.hardware.camera import camera_live_pipeline
+from irobot.hardware.camera import camera_live_perception_pipeline
 
 from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
 from irobot.interfaces.robot_controller import RobotController
@@ -35,8 +36,8 @@ def _runtime_settings(**kwargs):
 
 @pytest.fixture
 def pipeline(monkeypatch):
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", _runtime_settings)
-    return camera_live_pipeline.CameraLivePerceptionPipeline(
+    monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _runtime_settings)
+    return camera_live_perception_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
     )
 
@@ -68,17 +69,19 @@ def test_position_scales_to_image_width(pipeline):
 def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, position):
     frame = _frame()
 
-    def detect_observation(grayscale):
+    def detect_markers(grayscale):
         np.testing.assert_array_equal(grayscale, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY))
-        return ArucoFrameDetection(
-            ObservationDisposition.VALID,
-            corners_px=(
+        corners = np.asarray([[
                 (center_x - 40, 280), (center_x + 40, 280),
                 (center_x + 40, 360), (center_x - 40, 360),
-            ),
-        )
+            ]], dtype=np.float32)
+        return corners, np.asarray([[1]], dtype=np.int32), None
 
-    monkeypatch.setattr(pipeline._marker_detector, "detect_observation", detect_observation)
+    monkeypatch.setattr(
+        pipeline._frame_processor._marker_detector,
+        "_detector",
+        SimpleNamespace(detectMarkers=detect_markers),
+    )
     detection = pipeline._process_frame(frame)
     assert detection.position == position
     assert detection.distance_cm == pytest.approx(
@@ -89,15 +92,35 @@ def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, p
 def test_configured_identity(monkeypatch):
     identity = MarkerIdentity("aruco", "DICT_4X4_50", "2")
     monkeypatch.setattr(
-        camera_live_pipeline, "load_runtime_settings",
+        camera_live_perception_pipeline, "load_runtime_settings",
         lambda: _runtime_settings(human_marker_identity=identity),
     )
-    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(
+    pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(
         default_target="marker", autostart=False,
     )
-    assert pipeline._marker_detector.identity == identity
+    assert pipeline._frame_processor._marker_detector.identity == identity
     assert pipeline._process_frame(_frame(marker_id=1)) is None
     assert pipeline._process_frame(_frame(marker_id=2)).label == "marker_1"
+
+
+def test_detect_returns_complete_marker_result(pipeline):
+    detector = pipeline._frame_processor._marker_detector
+
+    assert detector.focal_px == pipeline.focal_px == 600.0
+    detected = detector.detect(_frame())
+    assert detected.disposition is ObservationDisposition.VALID
+    assert detected.corners_px is not None
+    assert detected.distance_cm is not None
+    assert detected.bbox_px is not None
+    object_detection = detected.as_object_detection()
+    assert object_detection is not None
+    assert object_detection.distance_cm == detected.distance_cm
+
+    absent = detector.detect(np.full((640, 480, 3), 255, dtype=np.uint8))
+    assert absent.disposition is ObservationDisposition.ABSENT
+    assert absent.corners_px is None
+    assert absent.distance_cm is None
+    assert absent.as_object_detection() is None
 
 
 @pytest.mark.parametrize("target", ["marker", "me"])
@@ -126,34 +149,23 @@ def test_marker_precedes_colors_without_ball_filter(pipeline):
 ])
 def test_nonvalid_marker_is_not_returned(pipeline, monkeypatch, disposition):
     monkeypatch.setattr(
-        pipeline._marker_detector, "detect_observation",
+        pipeline._frame_processor._marker_detector, "detect",
         lambda image: ArucoFrameDetection(disposition),
     )
     assert pipeline._process_frame(_frame()) is None
 
 
 def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
+    marker_detector = pipeline._frame_processor._marker_detector
     monkeypatch.setattr(
-        pipeline._marker_detector, "detect_observation",
-        lambda image: ArucoFrameDetection(
-            ObservationDisposition.VALID, corners_px=((240.0, 300.0),) * 4,
-        ),
+        marker_detector,
+        "_detector",
+        SimpleNamespace(detectMarkers=lambda image: (
+            [[(240.0, 300.0)] * 4], [[marker_detector.expected_id]], None,
+        )),
     )
     assert pipeline._process_frame(_frame()) is None
     assert "Pose ArUco inexploitable" in caplog.text
-
-
-def test_marker_distance_is_not_fused_with_ultrasound(pipeline):
-    pipeline.fusion_enabled = True
-
-    def unexpected_read():
-        pytest.fail("Marker distance must remain the pose estimate")
-
-    pipeline.distance_reader = unexpected_read
-    pipeline._last_detection = pipeline._process_frame(_frame())
-    assert pipeline.detect(target="marker").distance_cm == pytest.approx(
-        8 / 79 * math.sqrt(600**2 + 0.5**2 + 0.5**2),
-    )
 
 
 @pytest.fixture
@@ -192,9 +204,9 @@ def live_pipeline(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(camera_live_pipeline, "Picamera2", Camera)
-    monkeypatch.setattr(camera_live_pipeline, "load_runtime_settings", _runtime_settings)
-    pipeline = camera_live_pipeline.CameraLivePerceptionPipeline(poll_interval_s=0)
+    monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", Camera)
+    monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _runtime_settings)
+    pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(poll_interval_s=0)
     original_wait = pipeline._frame_condition.wait_for
 
     def wait_for(predicate, timeout=None):

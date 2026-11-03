@@ -11,13 +11,13 @@ from numpy.typing import NDArray
 
 from irobot.config.settings import RuntimeSettings
 from .detector import Detector
-from irobot.hardware.camera.distance_estimator import estimate_distance_cm
-from irobot.interfaces.perception_pipeline import ObjectDetection
+from .distance_estimator import estimate_distance_cm
+from irobot.interfaces.perception_contracts import ObjectDetection
 
 logger = logging.getLogger(__name__)
 
 
-class FaceDetector(Detector):
+class FaceDetector(Detector[ObjectDetection]):
     def __init__(self, settings: RuntimeSettings, *, focal_px: float | None = None) -> None:
         self._settings = settings
         self._focal_px = settings.camera_focal_px if focal_px is None else focal_px

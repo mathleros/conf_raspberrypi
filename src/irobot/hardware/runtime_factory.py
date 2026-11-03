@@ -37,37 +37,6 @@ def close_hardware_runtime(runtime: dict[str, Any]) -> None:
         raise ExceptionGroup("Échecs pendant la fermeture du runtime hardware", errors)
 
 
-def _build_sensor(runtime: dict[str, Any]) -> None:
-    try:
-        from irobot.hardware.sensors.hc_sr04 import HC_SR04
-    except (ModuleNotFoundError, SystemExit) as exc:
-        raise RuntimeError("Impossible de charger le pilote HC-SR04") from exc
-
-    runtime["sensor"] = HC_SR04()
-
-
-def _build_robot(runtime: dict[str, Any], settings: RuntimeSettings) -> None:
-    from irobot.hardware.smart_car.smart_car import SmartCar2WD
-    from irobot.interfaces.robot_controller import RobotController
-
-    car = SmartCar2WD(
-        drive_speed=settings.drive_speed,
-    )
-    runtime["robot"] = RobotController(
-        car,
-        distance_sensor=runtime["sensor"],
-        obstacle_threshold_cm=settings.obstacle_threshold_cm,
-    )
-
-
-def _build_camera(runtime: dict[str, Any]) -> None:
-    from irobot.hardware.camera.camera_live_pipeline import CameraLivePerceptionPipeline
-
-    sensor = runtime["sensor"]
-    distance_reader = sensor.read_distance_cm if sensor is not None else None
-    runtime["camera"] = CameraLivePerceptionPipeline(distance_reader=distance_reader)
-
-
 def build_hardware_runtime(*, settings: RuntimeSettings | None = None) -> dict[str, Any]:
     """Construit les dépendances hardware réelles quand elles sont disponibles (Linux/Pi)."""
     runtime_settings = settings or load_runtime_settings()
@@ -75,9 +44,29 @@ def build_hardware_runtime(*, settings: RuntimeSettings | None = None) -> dict[s
 
     try:
         if sys.platform.startswith("linux"):
-            _build_sensor(runtime)
-            _build_robot(runtime, runtime_settings)
-            _build_camera(runtime)
+            try:
+                from irobot.hardware.sensors.hc_sr04 import HC_SR04
+            except (ModuleNotFoundError, SystemExit) as exc:
+                raise RuntimeError("Impossible de charger le pilote HC-SR04") from exc
+
+            sensor = HC_SR04()
+            runtime["sensor"] = sensor
+
+            from irobot.hardware.smart_car.smart_car import SmartCar2WD
+            from irobot.interfaces.robot_controller import RobotController
+
+            car = SmartCar2WD(
+                drive_speed=runtime_settings.drive_speed,
+            )
+            runtime["robot"] = RobotController(
+                car,
+                distance_sensor=sensor,
+                obstacle_threshold_cm=runtime_settings.obstacle_threshold_cm,
+            )
+
+            from irobot.hardware.camera.camera_live_perception_pipeline import CameraLivePerceptionPipeline
+
+            runtime["camera"] = CameraLivePerceptionPipeline(sensor=sensor)
     except BaseException:
         logging.getLogger(__name__).exception("Impossible d'assembler le runtime hardware")
         try:

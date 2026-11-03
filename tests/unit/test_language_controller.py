@@ -4,7 +4,7 @@ import pytest
 
 from irobot.interfaces.intent_parser import IntentParser, IntentValidator
 from irobot.interfaces.language_controller import LanguageController
-from irobot.interfaces.perception_pipeline import ObjectDetection
+from irobot.interfaces.perception_contracts import ObjectDetection
 from tests.unit.fake_robot import FakeRobot
 
 

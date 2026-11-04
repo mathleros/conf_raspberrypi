@@ -51,30 +51,11 @@ class SkillPlanner:
         ],
     }
 
-    def __init__(self, skills: Sequence[Skill] | None = None, registry: SkillRegistry | None = None):
+    def __init__(self, registry: SkillRegistry | None = None):
         self.registry = registry or SkillRegistry.default()
-        if skills:
-            self.registry.register_many(skills)
-        self.skills = list(skills or [])
 
     def plan(self, intent: str) -> list[Skill]:
-        names = self.INTENT_TO_SKILLS.get(intent, [])
-        if not names:
-            return []
-
-        resolved = self.registry.get_many(names)
-        if resolved:
-            return resolved
-
-        return self.skills
-
-    def plan_with_target(self, intent: str, *, target: str | None = None) -> list[Skill]:
-        plan = self.plan(intent)
-        if target == "red_ball" and "detect_object" not in {skill.name for skill in plan}:
-            detect_skill = self.registry.get("detect_object")
-            if detect_skill is not None:
-                plan.insert(0, detect_skill)
-        return plan
+        return self.registry.get_many(self.INTENT_TO_SKILLS.get(intent, []))
 
     def expand_intents(self, intents: Sequence[Intent]) -> list[Intent]:
         """Lower compound intents to an ordered sequence of executable intents."""

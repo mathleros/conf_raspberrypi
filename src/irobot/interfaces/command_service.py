@@ -56,7 +56,7 @@ class CommandService:
         self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.controller = LanguageController(
             robot=robot, camera=camera, sensor=sensor,
-            perception=perception, registry=registry,
+            perception=perception, registry=registry, settings=self.settings,
         )
         self.planner = self.controller.planner
         self.parser: IntentPlanParser = TextIntentParser()

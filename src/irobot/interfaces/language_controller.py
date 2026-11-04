@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.orchestrator.planner import SkillPlanStep, SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
@@ -26,13 +27,14 @@ class LanguageController:
         sensor=None,
         perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
+        settings: RuntimeSettings | None = None,
     ):
         self.robot = robot
         self.camera = camera
         self.sensor = sensor
         self.perception = perception
         self.validator = IntentValidator()
-        self.planner = SkillPlanner(registry=registry or SkillRegistry.default())
+        self.planner = SkillPlanner(registry=registry or SkillRegistry.default(settings))
 
     def _inject_perception_state(self, context: SkillContext) -> None:
         if self.perception is None or context.perception_target is None:

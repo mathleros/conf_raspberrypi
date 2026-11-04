@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills import (
     DetectObstacleSkill,
     DetectObjectSkill,
@@ -60,19 +61,19 @@ class SkillRegistry:
         return iter(self._skills.values())
 
     @classmethod
-    def default(cls) -> "SkillRegistry":
+    def default(cls, settings: RuntimeSettings | None = None) -> "SkillRegistry":
         registry = cls()
         registry.register_many(
             [
-                MoveForwardSkill(),
-                MoveBackwardSkill(),
-                TurnLeftSkill(),
-                TurnRightSkill(),
+                MoveForwardSkill(settings),
+                MoveBackwardSkill(settings),
+                TurnLeftSkill(settings),
+                TurnRightSkill(settings),
                 StopMotionSkill(),
                 DetectObjectSkill(),
                 DetectObstacleSkill(),
                 ApproachTargetSkill(),
-                FollowObjectSkill(),
+                FollowObjectSkill(settings=settings),
                 MoveCircleSkill(),
             ]
         )

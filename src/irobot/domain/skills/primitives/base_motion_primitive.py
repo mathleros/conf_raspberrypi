@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from irobot.config.settings import load_runtime_settings
+from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
-SETTINGS = load_runtime_settings()
+MotionCommand = Literal["forward", "backward", "left", "right"]
+MotionCommandFor = Literal["forward_for", "backward_for", "left_for", "right_for"]
 
 _METER_UNITS = {"m", "meter", "meters", "metre", "metres", "mètre", "mètres"}
 
@@ -23,18 +24,23 @@ class BaseMotionPrimitiveSkill(Skill):
     """Classe de base factorisée pour les primitives de mouvement."""
 
     motion: str = "motion"
-    command_method: str = ""
-    command_for_method: str = ""
+    command_method: MotionCommand
+    command_for_method: MotionCommandFor
     parameter_mode: str = "distance"  # distance|angle
     success_message: str = "Mouvement exécuté."
     failure_message: str = "Le robot ne fournit pas la méthode requise"
     error_prefix: str = "Erreur lors du mouvement"
+
+    def __init__(self, settings: RuntimeSettings | None = None) -> None:
+        # Sans injection, les réglages sont chargés à l'exécution.
+        self.settings = settings
 
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
 
     def _resolve_motion_parameters(self, context: SkillContext) -> dict[str, Any]:
         params = dict(context.state.get("active_intent_parameters") or {})
+        settings = self.settings or load_runtime_settings()
 
         if self.parameter_mode == "angle":
             angle = params.get("angle")
@@ -43,7 +49,7 @@ class BaseMotionPrimitiveSkill(Skill):
             angle_value = to_float(angle)
             duration_value = to_float(params.get("duration"))
             if duration_value is None and angle_value is not None:
-                duration_value = max(0.1, angle_value / SETTINGS.deg_per_second)
+                duration_value = max(0.1, angle_value / settings.deg_per_second)
             return {
                 "angle": angle_value,
                 "duration": duration_value,
@@ -55,9 +61,9 @@ class BaseMotionPrimitiveSkill(Skill):
         duration_value = to_float(params.get("duration"))
         if duration_value is None and distance_value is not None:
             distance_cm = distance_value * 100.0 if unit == "m" else distance_value
-            speed = SETTINGS.cm_per_second
-            if self.motion == "backward" and SETTINGS.backward_cm_per_second is not None:
-                speed = SETTINGS.backward_cm_per_second
+            speed = settings.cm_per_second
+            if self.motion == "backward" and settings.backward_cm_per_second is not None:
+                speed = settings.backward_cm_per_second
             duration_value = max(0.1, distance_cm / speed)
         return {
             "distance": distance_value,
@@ -75,7 +81,7 @@ class BaseMotionPrimitiveSkill(Skill):
         set_speed = getattr(context.robot, "set_speed", None)
         use_turn_speed = self.parameter_mode == "angle" and callable(set_speed)
         if use_turn_speed:
-            set_speed(SETTINGS.turn_speed)
+            set_speed((self.settings or load_runtime_settings()).turn_speed)
         stop_reason = None
         try:
             if duration_value is not None and callable(command_for):

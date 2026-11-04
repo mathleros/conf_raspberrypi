@@ -3,7 +3,6 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.domain.skills.primitives import base_motion_primitive
 from irobot.domain.skills.primitives.move_backward import MoveBackwardSkill
 from irobot.domain.skills.primitives.move_forward import MoveForwardSkill
 from irobot.domain.skills.primitives.turn_left import TurnLeftSkill
@@ -21,19 +20,19 @@ from irobot.domain.skills.primitives.turn_right import TurnRightSkill
         (TurnRightSkill(), {"angle": 90}, 0.5),
     ],
 )
-def test_directional_motion_duration(monkeypatch, skill, parameters, expected):
-    settings = RuntimeSettings(cm_per_second=55, backward_cm_per_second=25, deg_per_second=180)
-    monkeypatch.setattr(base_motion_primitive, "SETTINGS", settings)
+def test_directional_motion_duration(skill, parameters, expected):
+    skill.settings = RuntimeSettings(cm_per_second=55, backward_cm_per_second=25, deg_per_second=180)
     context = SkillContext(state={"active_intent_parameters": parameters})
 
     assert skill._resolve_motion_parameters(context)["duration"] == pytest.approx(expected)
 
 
-def test_missing_backward_calibration_preserves_shared_speed(monkeypatch):
-    monkeypatch.setattr(base_motion_primitive, "SETTINGS", RuntimeSettings(cm_per_second=50))
+def test_missing_backward_calibration_preserves_shared_speed():
+    skill = MoveBackwardSkill()
+    skill.settings = RuntimeSettings(cm_per_second=50)
     context = SkillContext(state={"active_intent_parameters": {"distance": 10}})
 
-    assert MoveBackwardSkill()._resolve_motion_parameters(context)["duration"] == pytest.approx(0.2)
+    assert skill._resolve_motion_parameters(context)["duration"] == pytest.approx(0.2)
 
 
 def test_follow_uses_directional_speed_and_preserves_pulse_limits():

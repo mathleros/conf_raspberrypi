@@ -15,12 +15,7 @@ from irobot.domain.intent import Intent
 from irobot.hardware.audio import voice_input
 from irobot.hardware import runtime_factory
 from irobot.interfaces import voice_runtime
-from irobot.interfaces.intent.intent_parser import IntentPlanParser
-from irobot.interfaces.intent.llm_intent_parser import (
-    LLMIntentParser,
-    ask_llm_for_intent_plan_with_trace,
-)
-from irobot.interfaces.intent.text_intent_parser import TextIntentParser
+from irobot.interfaces.intent.llm_intent_parser import ask_llm_for_intent_plan_with_trace
 
 
 PACKAGE = Path(__file__).resolve().parents[2] / "src" / "irobot"
@@ -285,26 +280,6 @@ def test_llm_interpretation_accepts_an_injected_transport():
     assert [intent.name for intent in intents] == ["move_forward"]
     assert trace["source"] == "llm_plan"
     assert trace["llm_attempts"] == 1
-
-
-def test_text_and_llm_parsers_share_the_intent_plan_contract():
-    text_parser: IntentPlanParser = TextIntentParser()
-    llm_parser = LLMIntentParser(
-        parse_with_trace=lambda text: (
-            [Intent(name="move_forward", raw_text=text)],
-            {"source": "llm_plan"},
-        )
-    )
-    llm_parser_contract: IntentPlanParser = llm_parser
-
-    text_plan = text_parser.parse_plan("avance")
-    llm_plan = llm_parser_contract.parse_plan("avance")
-    traced_plan, trace = llm_parser.parse_plan_with_trace("avance")
-
-    assert [intent.name for intent in text_plan] == ["move_forward"]
-    assert [intent.name for intent in llm_plan] == ["move_forward"]
-    assert [intent.name for intent in traced_plan] == ["move_forward"]
-    assert trace["source"] == "llm_plan"
 
 
 def test_plan_with_trace_wrapper_uses_the_public_transport(monkeypatch):

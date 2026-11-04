@@ -7,7 +7,7 @@ from collections.abc import Callable
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
-from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
+from irobot.domain.skills.behaviors.target_tracking import Direction, TargetTrackingMixin
 
 
 class FollowObjectSkill(TargetTrackingMixin, Skill):
@@ -119,7 +119,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         started_at = now()
         last_seen_at = started_at
         search_started_at: float | None = None
-        sweep_direction = "right"
+        sweep_direction: Direction = "right"
         iterations = 0
         reacquisitions = 0
         final_distance_cm: float | None = None

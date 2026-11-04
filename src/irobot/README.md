@@ -64,7 +64,7 @@ parseur, prépare et valide les intents, puis soumet le plan à
 | `interfaces/command_service.py` | Point d'entrée texte, assemblage des services, choix du parseur, traces JSONL et arrêt matériel final |
 | `interfaces/voice_constants.py` | Vocabulaire et valeurs par défaut des plans |
 | `interfaces/voice_llm_transport.py` | Prompts, HTTP, formats de réponse, métriques et cache |
-| `interfaces/intent/llm_intent_parser.py` | `LLMIntentParser`, grounding, repli local et préchauffage |
+| `interfaces/intent/llm_intent_parser.py` | `ask_llm_for_intent_plan_with_trace`, grounding, repli local et préchauffage |
 | `interfaces/intent/text_intent_parser.py` | Parsing déterministe du texte en liste d'intents |
 | `interfaces/intent/intent_parser.py` | Contrat commun des parseurs |
 | `interfaces/intent/plan_validator.py` | Normalisation des noms/cibles, validation et bornage des paramètres |
@@ -78,7 +78,7 @@ parseur, prépare et valide les intents, puis soumet le plan à
 | `hardware/audio/voice_input.py` | Capture ALSA, nettoyage du processus et transcription Vosk |
 | `hardware/runtime_factory.py` | Assemblage moteur/capteur/caméra sur Raspberry Pi |
 
-`LLMIntentParser` et `TextIntentParser` produisent tous deux une liste d'`Intent`.
+Le LLM (`ask_llm_for_intent_plan_with_trace`) et `TextIntentParser` produisent tous deux une liste d'`Intent`.
 `SkillPlanner` développe les commandes composées et produit des `SkillPlanStep`
 qui associent chaque intent exécutable à ses skills. `LanguageController` reçoit
 ces étapes et les exécute ; il ne parse pas de texte et ne choisit pas les skills

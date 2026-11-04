@@ -7,7 +7,7 @@ from typing import Any
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
-from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
+from irobot.domain.skills.behaviors.target_tracking import Direction, TargetTrackingMixin
 
 
 class ApproachTargetSkill(TargetTrackingMixin, Skill):
@@ -191,7 +191,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             phase_since = tracking_started_at
             search_spent_s = 0.0
             last_seen_at: float | None = None
-            sweep_direction = "right"
+            sweep_direction: Direction = "right"
             iterations = 0
 
             while True:

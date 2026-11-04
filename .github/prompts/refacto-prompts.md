@@ -28,8 +28,8 @@ Un commit par prompt (`git commit -m "refacto: simplifie <fichier>"`), tests lan
 |----|---------------|----------|------|
 | 0 | `src/irobot/domain/numbers.py` (nouveau) + 4 fichiers | haute | [ X] |
 | 1 | `src/irobot/interfaces/voice_llm_transport.py` | haute | [ X] |
-| 2 | `src/irobot/interfaces/intent/llm_intent_parser.py` | haute | [ ] |
-| 3 | `src/irobot/domain/skills/behaviors/target_tracking.py` | haute | [ ] |
+| 2 | `src/irobot/interfaces/intent/llm_intent_parser.py` | haute | [ X] |
+| 3 | `src/irobot/domain/skills/behaviors/target_tracking.py` | haute | [ X] |
 | 4 | `src/irobot/domain/skills/primitives/base_motion_primitive.py` | moyenne | [ ] |
 | 5 | `src/irobot/domain/skills/behaviors/follow_object.py` | moyenne | [ ] |
 | 6 | `src/irobot/domain/skills/behaviors/approach_target.py` | haute | [ ] |

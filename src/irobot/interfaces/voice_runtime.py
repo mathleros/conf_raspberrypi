@@ -17,7 +17,7 @@ from irobot.interfaces.command_service import CommandService
 from irobot.interfaces.plan_guards import is_pure_stop, fold
 from irobot.interfaces.intent import llm_intent_parser
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
-from irobot.interfaces.intent.llm_intent_parser import LLMWarmup, warm_up_llm, warm_up_llm_async
+from irobot.interfaces.intent.llm_intent_parser import LLMWarmup, warm_up_llm
 from irobot.interfaces.voice_llm_transport import (
     post_llm_chat,
     llm_warmup_wait_seconds,

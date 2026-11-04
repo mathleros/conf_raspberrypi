@@ -31,6 +31,9 @@ from irobot.interfaces.voice_llm_transport import (
 )
 
 
+LLMPlanParser = Callable[[str], tuple[list[Intent], dict[str, Any]]]
+
+
 def _llm_confidence(value: Any) -> float:
     if value is None or isinstance(value, bool):
         return LLM_DEFAULT_CONFIDENCE
@@ -43,20 +46,28 @@ def _llm_confidence(value: Any) -> float:
     return max(0.0, min(1.0, confidence))
 
 
-def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
-    """Reconstruit un Intent depuis un objet JSON du LLM ; None si l'objet est malformé."""
+def _step_parameters(step: Any) -> dict[str, Any] | None:
+    """Copie des `parameters` d'une étape LLM (absent -> {}) ; None si l'étape ou `parameters` est malformé."""
     if not isinstance(step, dict):
         return None
     parameters = step.get("parameters")
     if parameters is None:
-        parameters = {}
+        return {}
     if not isinstance(parameters, dict):
+        return None
+    return dict(parameters)
+
+
+def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
+    """Reconstruit un Intent depuis un objet JSON du LLM ; None si l'objet est malformé."""
+    parameters = _step_parameters(step)
+    if parameters is None:
         return None
     target = step.get("target")
     return Intent(
         name=str(step.get("intent") or step.get("name") or "unknown").strip(),
         target=str(target) if target is not None else None,
-        parameters=dict(parameters),
+        parameters=parameters,
         confidence=_llm_confidence(step.get("confidence")),
         raw_text=raw_text,
     )
@@ -64,19 +75,29 @@ def _intent_from_llm_step(step: Any, raw_text: str) -> Intent | None:
 
 def _normalize_llm_step(step: Any) -> dict[str, Any] | None:
     """Étape LLM tolérante (target absent -> None, parameters absent -> {}) ; None si malformée."""
-    if not isinstance(step, dict):
-        return None
-    parameters = step.get("parameters")
+    parameters = _step_parameters(step)
     if parameters is None:
-        parameters = {}
-    if not isinstance(parameters, dict):
         return None
     name = str(step.get("intent") or step.get("name") or "unknown").strip().lower()
     return {
         **step,
         "intent": PLAN_INTENT_SYNONYMS.get(name, name),
         "target": step.get("target"),
-        "parameters": dict(parameters),
+        "parameters": parameters,
+    }
+
+
+def _fallback_plan(
+    text: str, normalized_text: str, meta: dict[str, Any], console_reason: str, **trace: Any,
+) -> tuple[list[Intent], dict[str, Any]]:
+    print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
+    return TextIntentParser().parse_plan(text), {
+        "source": "local_parser_fast_fallback",
+        "llm_content": None,
+        "llm_json": None,
+        "normalized_text": normalized_text,
+        **meta,
+        **trace,
     }
 
 
@@ -98,17 +119,6 @@ def ask_llm_for_intent_plan_with_trace(
     payload = llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
     meta: dict[str, Any] = {}
 
-    def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
-        print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
-        return TextIntentParser().parse_plan(text), {
-            "source": "local_parser_fast_fallback",
-            "llm_content": None,
-            "llm_json": None,
-            "normalized_text": normalized_text,
-            **meta,
-            **trace,
-        }
-
     try:
         content = post(
             payload,
@@ -117,28 +127,31 @@ def ask_llm_for_intent_plan_with_trace(
             meta,
         )
     except Exception as exc:
-        return _fallback(
+        return _fallback_plan(
+            text, normalized_text, meta,
             llm_error_reason(exc, settings.read_timeout_seconds),
             error=f"{type(exc).__name__}: {exc}",
             error_type=type(exc).__name__,
         )
 
-    return _interpret_plan_response(text, normalized_text, content, meta, _fallback)
+    return _interpret_plan_response(text, normalized_text, content, meta)
 
 
 def _interpret_plan_response(
     text: str, normalized_text: str, content: str, meta: dict[str, Any],
-    fallback: Callable[..., tuple[list[Intent], dict[str, Any]]],
 ) -> tuple[list[Intent], dict[str, Any]]:
     parsed = parse_llm_json_payload(content)
     if not parsed:
-        return fallback("JSON invalide", llm_content=content, reason="invalid json")
+        return _fallback_plan(text, normalized_text, meta, "JSON invalide", llm_content=content, reason="invalid json")
     if contains_unsupported_follow_step(parsed):
         return [], {"source": "llm_follow_refused", "guard_reason": "unsupported_follow_target"}
 
     raw_steps = parsed.get("steps")
     if not isinstance(raw_steps, list):
-        return fallback("réponse sans « steps »", llm_content=content, llm_json=parsed, reason="missing steps")
+        return _fallback_plan(
+            text, normalized_text, meta, "réponse sans « steps »",
+            llm_content=content, llm_json=parsed, reason="missing steps",
+        )
 
     trace: dict[str, Any] = {"llm_content": content, "llm_json": parsed, "normalized_text": normalized_text, **meta}
     if not raw_steps:
@@ -154,9 +167,9 @@ def _interpret_plan_response(
         steps.append(normalized_step)
 
     if not steps:
-        return fallback(
-            "aucune étape exploitable", llm_content=content, llm_json=parsed, reason="no usable step",
-            skipped_steps=skipped,
+        return _fallback_plan(
+            text, normalized_text, meta, "aucune étape exploitable",
+            llm_content=content, llm_json=parsed, reason="no usable step", skipped_steps=skipped,
         )
 
     # Le LLM propose, le lexique dispose : contrôle sur le texte réellement envoyé au LLM.
@@ -168,23 +181,6 @@ def _interpret_plan_response(
 
     intents = [intent for step in kept if (intent := _intent_from_llm_step(step, text)) is not None]
     return intents, {"source": "llm_plan", **trace}
-
-
-class LLMIntentParser:
-    """LLM-backed parser implementing the shared intent-plan contract."""
-
-    def __init__(
-        self,
-        parse_with_trace: Callable[[str], tuple[list[Intent], dict[str, Any]]] | None = None,
-    ):
-        self._parse_with_trace = parse_with_trace or ask_llm_for_intent_plan_with_trace
-
-    def parse_plan(self, text: str) -> list[Intent]:
-        intents, _ = self.parse_plan_with_trace(text)
-        return intents
-
-    def parse_plan_with_trace(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
-        return self._parse_with_trace(text)
 
 
 def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
@@ -238,10 +234,3 @@ class LLMWarmup:
         if self._thread.is_alive():
             return "running"
         return "done" if self._result else "failed"
-
-
-def warm_up_llm_async() -> threading.Thread:
-    """Lance le préchauffage en arrière-plan (thread daemon) sans bloquer le démarrage."""
-    thread = threading.Thread(target=warm_up_llm, name="llm-warmup", daemon=True)
-    thread.start()
-    return thread

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timezone
 import json
@@ -18,7 +17,11 @@ from irobot.domain.orchestrator.mission_orchestrator import MissionOrchestrator
 from irobot.domain.orchestrator.planner import SkillPlanStep
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.intent.intent_parser import IntentPlanParser
-from irobot.interfaces.intent.llm_intent_parser import LLMIntentParser, LLMWarmup
+from irobot.interfaces.intent.llm_intent_parser import (
+    LLMPlanParser,
+    LLMWarmup,
+    ask_llm_for_intent_plan_with_trace,
+)
 from irobot.interfaces.intent.plan_validator import IntentPlanValidator
 from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.language_controller import LanguageController
@@ -31,9 +34,6 @@ from irobot.interfaces.plan_guards import (
 from irobot.interfaces.text_normalizer import preprocess
 from irobot.interfaces.voice_constants import UNSUPPORTED_PLAN_SOURCES
 from irobot.interfaces.voice_llm_transport import llm_warmup_wait_seconds
-
-
-LLMPlanParser = Callable[[str], tuple[list[Intent], dict[str, Any]]]
 
 
 class CommandService:
@@ -60,14 +60,14 @@ class CommandService:
         )
         self.planner = self.controller.planner
         self.parser: IntentPlanParser = TextIntentParser()
-        self.llm_parser = LLMIntentParser(parse_with_trace=llm_parse_with_trace)
+        self._llm_parse: LLMPlanParser = llm_parse_with_trace or ask_llm_for_intent_plan_with_trace
         self.plan_validator = IntentPlanValidator(self.settings)
         self.mission_orchestrator = MissionOrchestrator(settings=self.settings)
         self.warmup: LLMWarmup | None = None
         self.wait_for_warmup = False
 
     def _ask_plan(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
-        return self.llm_parser.parse_plan_with_trace(text)
+        return self._llm_parse(text)
 
     def _emergency_stop_requested(self) -> bool:
         if self._emergency_event.is_set():

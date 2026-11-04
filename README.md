@@ -12,7 +12,7 @@ Le projet a évolué vers une architecture plus claire :
 
 ```text
 Micro → Vosk →┐
-              ├→ CommandService → LLMIntentParser / TextIntentParser
+              ├→ CommandService → plan LLM / TextIntentParser
 Texte direct ─┘                         ↓
                                 Intent validés
   ↓

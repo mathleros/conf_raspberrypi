@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
+from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import SkillContext
 
 
 FOLLOW_INTENTS = frozenset({"follow_person", "follow_red_ball", "follow_object"})
+
+Direction = Literal["forward", "backward", "left", "right"]
+Position = Literal["left", "right", "center"]
 
 
 class TargetTrackingMixin:
@@ -17,14 +21,16 @@ class TargetTrackingMixin:
     sleep_fn: Callable[[float], None]
 
     @staticmethod
-    def _normalize_position(position: Any) -> str | None:
+    def _normalize_position(position: Any) -> Position | None:
         if position is None:
             return None
         normalized = str(position).strip().lower()
         if normalized in {"center", "centre", "middle"}:
             return "center"
-        if normalized in {"left", "right"}:
-            return normalized
+        if normalized == "left":
+            return "left"
+        if normalized == "right":
+            return "right"
         return None
 
     def _check_obstacle_fail_safe(self, context: SkillContext) -> bool:
@@ -45,10 +51,7 @@ class TargetTrackingMixin:
         return bool(reading)
 
     def _is_emergency_stop_requested(self, context: SkillContext) -> bool:
-        robot = context.robot
-        detector = getattr(robot, "_is_emergency_stop_requested", None) or getattr(
-            robot, "is_emergency_stop_requested", None
-        )
+        detector = getattr(context.robot, "is_emergency_stop_requested", None)
         if not callable(detector):
             return False
         try:
@@ -61,7 +64,8 @@ class TargetTrackingMixin:
         if callable(stop):
             stop()
 
-    def _pulse_motion(self, context: SkillContext, direction: str, duration_s: float) -> None:
+    def _pulse_motion(self, context: SkillContext, direction: Direction, duration_s: float) -> None:
+        """Utilise `<direction>_for(duration)` si le robot l'expose ; sinon appelle `<direction>()` puis `sleep_fn(duration)`."""
         duration = max(0.0, float(duration_s))
         directional_for = getattr(context.robot, f"{direction}_for", None)
         if callable(directional_for):
@@ -77,7 +81,7 @@ class TargetTrackingMixin:
     def _sweep_step(
         self,
         context: SkillContext,
-        direction: str,
+        direction: Direction,
         step_s: float,
         iterations: int,
     ) -> None:
@@ -108,9 +112,5 @@ class TargetTrackingMixin:
         raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")
         position = self._normalize_position(raw_position)
 
-        distance_raw = context.state.get("last_object_distance_cm")
-        try:
-            distance_cm = float(distance_raw) if distance_raw is not None else None
-        except (TypeError, ValueError):
-            distance_cm = None
+        distance_cm = to_float(context.state.get("last_object_distance_cm"))
         return position, distance_cm

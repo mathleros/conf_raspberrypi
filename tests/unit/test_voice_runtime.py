@@ -12,6 +12,7 @@ from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces import voice_runtime as vr
+from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
 from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
@@ -1001,11 +1002,10 @@ def test_unsupported_command_is_rejected_without_parser_or_motion(fake_llm, monk
 def test_warm_up_sends_plan_system_prompt_in_background(fake_llm):
     llm = fake_llm({"steps": []})
 
-    thread = vr.warm_up_llm_async()
-    thread.join(timeout=2.0)
+    warmup = LLMWarmup().start()
 
-    assert not thread.is_alive()
-    assert thread.daemon
+    assert warmup.wait(timeout=2.0) == "done"
+    assert warmup._thread.daemon
     payload = llm.calls[0]["json"]
     assert payload["messages"][0]["content"] == voice_llm_transport.SYSTEM_PROMPT_PLAN
     assert payload["cache_prompt"] is True

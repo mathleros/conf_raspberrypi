@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 
-from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.config.settings import RuntimeSettings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.domain.skills.behaviors.target_tracking import Direction, TargetTrackingMixin
@@ -16,7 +17,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     name = "follow_object"
     description = "Suit une cible visuelle à distance constante jusqu'à un arrêt"
 
-    CONTROL_LOOP_PERIOD_S = 0.02
     DEFAULT_TARGET = "yellow"
     DEFAULT_STAND_OFF_CM = 100.0
     DEFAULT_TOLERANCE_CM = 15.0
@@ -38,12 +38,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         self.time_fn = time_fn
         self.sleep_fn = sleep_fn
 
-    @property
-    def settings(self) -> RuntimeSettings:
-        if self._settings is None:
-            self._settings = load_runtime_settings()
-        return self._settings
-
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
 
@@ -57,7 +51,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
     def _result(
         self,
-        context: SkillContext,
         status: str,
         message: str,
         data: dict,
@@ -106,7 +99,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         )
         tolerance_cm = max(0.0, to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
         continuous = params.get("duration_s") is None
-        duration_s = None if continuous else min(
+        duration_s = math.inf if continuous else min(
             max(0.0, to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
             float(settings.max_follow_duration_sec),
         )
@@ -127,7 +120,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         def set_state(phase: str, **extra) -> None:
             context.state["follow_target_state"] = {"phase": phase, "iterations": iterations, **extra}
 
-        while duration_s is None or now() - started_at < duration_s:
+        while now() - started_at < duration_s:
             iterations += 1
 
             emergency = self._is_emergency_stop_requested(context)
@@ -138,7 +131,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 data = {"obstacle_detected": True, "iterations": iterations, "final_distance_cm": final_distance_cm}
                 if emergency:
                     data["emergency_stop"] = True
-                return self._result(context, "success", "Arrêt de sécurité pendant le suivi.", data, 0.99)
+                return self._result("success", "Arrêt de sécurité pendant le suivi.", data, 0.99)
 
             position, distance_cm = self._detect_target(context)
             current = now()
@@ -155,7 +148,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 if not continuous and current - search_started_at >= search_timeout_s:
                     set_state("lost_target", searched_for_s=round(current - search_started_at, 3))
                     return self._result(
-                        context,
                         "failed",
                         "Cible introuvable : recherche épuisée, arrêt.",
                         {
@@ -202,9 +194,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
         self._stop_robot(context)
         context.state["motion"] = "stop"
-        assert duration_s is not None
         return self._result(
-            context,
             "success",
             f"Suivi terminé après {duration_s:.0f} s.",
             {

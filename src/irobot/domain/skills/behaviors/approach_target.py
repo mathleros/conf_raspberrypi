@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.config.settings import RuntimeSettings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.domain.skills.behaviors.target_tracking import Direction, TargetTrackingMixin
@@ -20,7 +20,6 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
     name = "approach_target"
     description = "Rejoint une cible visuelle jusqu'à sa distance de consigne"
 
-    CONTROL_LOOP_PERIOD_S = 0.02
     DEFAULT_ALIGN_STEP_S = 0.08
     DEFAULT_FORWARD_STEP_S = 0.12
     DEFAULT_MAX_TRACKING_S = 8.0
@@ -40,12 +39,6 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
         self._settings = settings
         self.time_fn = time_fn
         self.sleep_fn = sleep_fn
-
-    @property
-    def settings(self) -> RuntimeSettings:
-        if self._settings is None:
-            self._settings = load_runtime_settings()
-        return self._settings
 
     def _resolve_stand_off_cm(self, params: dict[str, Any]) -> float:
         raw = params.get("approach_threshold_cm")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal
 
+from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import SkillContext
 
@@ -17,8 +18,16 @@ class TargetTrackingMixin:
     """Briques communes aux behaviors de suivi visuel (détection, sécurité, balayage)."""
 
     SEARCH_SETTLE_S = 0.15
+    CONTROL_LOOP_PERIOD_S = 0.02
 
     sleep_fn: Callable[[float], None]
+    _settings: RuntimeSettings | None
+
+    @property
+    def settings(self) -> RuntimeSettings:
+        if self._settings is None:
+            self._settings = load_runtime_settings()
+        return self._settings
 
     @staticmethod
     def _normalize_position(position: Any) -> Position | None:

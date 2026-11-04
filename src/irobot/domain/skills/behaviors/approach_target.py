@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
 
@@ -52,7 +53,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             raw = params.get("stand_off_cm")
         if raw is None:
             return self.DEFAULT_APPROACH_THRESHOLD_CM
-        value = self._to_float(raw, self.DEFAULT_APPROACH_THRESHOLD_CM)
+        value = to_float(raw, self.DEFAULT_APPROACH_THRESHOLD_CM)
         low = float(self.settings.min_stand_off_cm)
         high = float(self.settings.max_stand_off_cm)
         return min(max(value, low), high)
@@ -78,18 +79,18 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                     next_action=None,
                 )
             params = dict(context.state.get("active_intent_parameters") or {})
-            max_tracking_s = self._to_float(params.get("tracking_timeout_s"), self.DEFAULT_MAX_TRACKING_S)
-            max_target_loss_s = self._to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S)
-            align_step_s = self._to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
-            forward_step_s = self._to_float(params.get("forward_step_s"), self.DEFAULT_FORWARD_STEP_S)
-            search_timeout_s = self._to_float(
+            max_tracking_s = to_float(params.get("tracking_timeout_s"), self.DEFAULT_MAX_TRACKING_S)
+            max_target_loss_s = to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S)
+            align_step_s = to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
+            forward_step_s = to_float(params.get("forward_step_s"), self.DEFAULT_FORWARD_STEP_S)
+            search_timeout_s = to_float(
                 params.get("search_timeout_s"),
                 float(self.settings.search_timeout_seconds),
             )
             stand_off_cm = self._resolve_stand_off_cm(params)
             tolerance_cm = max(
                 0.0,
-                self._to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_STAND_OFF_TOLERANCE_CM),
+                to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_STAND_OFF_TOLERANCE_CM),
             )
             reached_threshold_cm = max(1.0, stand_off_cm + tolerance_cm)
             has_live_perception = callable(getattr(context.perception, "detect", None))

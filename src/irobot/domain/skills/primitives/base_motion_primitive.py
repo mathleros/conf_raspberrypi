@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from irobot.config.settings import load_runtime_settings
+from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 
 SETTINGS = load_runtime_settings()
@@ -32,13 +33,6 @@ class BaseMotionPrimitiveSkill(Skill):
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None
 
-    @staticmethod
-    def _to_float(value: Any) -> float | None:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
     def _resolve_motion_parameters(self, context: SkillContext) -> dict[str, Any]:
         params = dict(context.state.get("active_intent_parameters") or {})
 
@@ -46,8 +40,8 @@ class BaseMotionPrimitiveSkill(Skill):
             angle = params.get("angle")
             if angle is None and params.get("full_rotation"):
                 angle = 360
-            angle_value = self._to_float(angle)
-            duration_value = self._to_float(params.get("duration"))
+            angle_value = to_float(angle)
+            duration_value = to_float(params.get("duration"))
             if duration_value is None and angle_value is not None:
                 duration_value = max(0.1, angle_value / SETTINGS.deg_per_second)
             return {
@@ -57,8 +51,8 @@ class BaseMotionPrimitiveSkill(Skill):
 
         distance = params.get("distance", params.get("side"))
         unit = normalize_distance_unit(params.get("unit")) if distance is not None else None
-        distance_value = self._to_float(distance)
-        duration_value = self._to_float(params.get("duration"))
+        distance_value = to_float(distance)
+        duration_value = to_float(params.get("duration"))
         if duration_value is None and distance_value is not None:
             distance_cm = distance_value * 100.0 if unit == "m" else distance_value
             speed = SETTINGS.cm_per_second
@@ -98,7 +92,7 @@ class BaseMotionPrimitiveSkill(Skill):
     def execute(self, context: SkillContext) -> SkillResult:
         try:
             payload = self._resolve_motion_parameters(context)
-            duration_value = self._to_float(payload.get("duration"))
+            duration_value = to_float(payload.get("duration"))
 
             executed, stop_reason = self._execute_motion(context, duration_value)
             if not executed:

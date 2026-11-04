@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import asdict
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.numbers import to_float
 from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.domain.intent import Intent
 from irobot.domain.intent_validator import IntentValidator
@@ -98,28 +98,23 @@ class IntentPlanValidator:
             target = str(parameters["target_object"])
         return target, parameters
 
-    def _to_float(self, value: Any, default: float | None = None) -> float | None:
-        try:
-            number = float(value)
-        except (TypeError, ValueError):
-            return default
-        return number if math.isfinite(number) else default
-
     def _sanitize_object_intent(self, intent: Intent) -> Intent:
         """Borne les paramètres de recherche/approche/suivi ; valeurs invalides -> défauts."""
         params = dict(intent.parameters)
         settings = self.settings
 
         if "stand_off_cm" in params:
-            value = self._to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM)
+            value = to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM, require_finite=True)
             params["stand_off_cm"] = max(
                 float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm))
             )
         if "duration_s" in params:
-            value = self._to_float(params["duration_s"], DEFAULT_FOLLOW_DURATION_SEC)
+            value = to_float(params["duration_s"], DEFAULT_FOLLOW_DURATION_SEC, require_finite=True)
             params["duration_s"] = max(MIN_OBJECT_DURATION_SEC, min(value, float(settings.max_follow_duration_sec)))
         if "search_timeout_s" in params:
-            value = self._to_float(params["search_timeout_s"], float(settings.search_timeout_seconds))
+            value = to_float(
+                params["search_timeout_s"], float(settings.search_timeout_seconds), require_finite=True
+            )
             params["search_timeout_s"] = max(MIN_SEARCH_TIMEOUT_SEC, min(value, MAX_SEARCH_TIMEOUT_SEC))
 
         return Intent(
@@ -134,9 +129,9 @@ class IntentPlanValidator:
         """Normalise et borne les paramètres de primitives pour un plan sûr."""
         params = dict(intent.parameters)
         if intent.name in {"move_forward", "move_backward"}:
-            distance = self._to_float(params.get("distance"), None)
+            distance = to_float(params.get("distance"), require_finite=True)
             unit = normalize_distance_unit(params.get("unit"))
-            duration = self._to_float(params.get("duration"), None)
+            duration = to_float(params.get("duration"), require_finite=True)
 
             if distance is None and duration is None:
                 duration = DEFAULT_MOVE_DURATION_SEC
@@ -153,8 +148,8 @@ class IntentPlanValidator:
                 params["duration"] = max(0.1, min(duration, self.settings.max_duration_sec))
 
         if intent.name in {"turn_left", "turn_right"}:
-            angle = self._to_float(params.get("angle"), None)
-            duration = self._to_float(params.get("duration"), None)
+            angle = to_float(params.get("angle"), require_finite=True)
+            duration = to_float(params.get("duration"), require_finite=True)
             if angle is None and duration is None and not params.get("full_rotation"):
                 angle = DEFAULT_TURN_ANGLE_DEG
             if angle is not None:

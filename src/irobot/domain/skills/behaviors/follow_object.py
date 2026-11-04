@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.domain.skills.behaviors.target_tracking import TargetTrackingMixin
 
@@ -100,18 +101,18 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         default_stand_off_cm = 20.0 if approach_follow else self.DEFAULT_STAND_OFF_CM
         default_tolerance_cm = 10.0 if approach_follow else self.DEFAULT_TOLERANCE_CM
         stand_off_cm = default_stand_off_cm if params.get("stand_off_cm") is None else min(
-            max(self._to_float(params.get("stand_off_cm"), default_stand_off_cm), float(settings.min_stand_off_cm)),
+            max(to_float(params.get("stand_off_cm"), default_stand_off_cm), float(settings.min_stand_off_cm)),
             float(settings.max_stand_off_cm),
         )
-        tolerance_cm = max(0.0, self._to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
+        tolerance_cm = max(0.0, to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
         continuous = params.get("duration_s") is None
         duration_s = None if continuous else min(
-            max(0.0, self._to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
+            max(0.0, to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
             float(settings.max_follow_duration_sec),
         )
-        max_loss_s = max(0.0, self._to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S))
+        max_loss_s = max(0.0, to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S))
         search_timeout_s = max(
-            0.1, self._to_float(params.get("search_timeout_s"), float(settings.search_timeout_seconds))
+            0.1, to_float(params.get("search_timeout_s"), float(settings.search_timeout_seconds))
         )
 
         now = self.time_fn

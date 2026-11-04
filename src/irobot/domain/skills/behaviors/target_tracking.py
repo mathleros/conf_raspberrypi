@@ -17,13 +17,6 @@ class TargetTrackingMixin:
     sleep_fn: Callable[[float], None]
 
     @staticmethod
-    def _to_float(value: Any, default: float) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
     def _normalize_position(position: Any) -> str | None:
         if position is None:
             return None

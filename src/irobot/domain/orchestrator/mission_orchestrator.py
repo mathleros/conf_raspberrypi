@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import math
 import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.intent import Intent
+from irobot.domain.numbers import to_float
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.planner import SkillPlanStep
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
@@ -27,14 +27,6 @@ class MissionOrchestrator:
         self.settings = settings or load_runtime_settings()
         self.state_machine = state_machine or MissionStateMachine()
         self.time_fn = time_fn or time.monotonic
-
-    @staticmethod
-    def _to_float(value: Any, default: float | None = None) -> float | None:
-        try:
-            number = float(value)
-        except (TypeError, ValueError):
-            return default
-        return number if math.isfinite(number) else default
 
     @staticmethod
     def _step_has_failure(step_result: dict[str, Any]) -> bool:
@@ -73,20 +65,20 @@ class MissionOrchestrator:
         if intent.name in FOLLOW_INTENTS and params.get("duration_s") is None:
             return float("inf")
         if intent.name == "search_and_approach_object":
-            tracking_s = ApproachTargetSkill._to_float(
+            tracking_s = to_float(
                 params.get("tracking_timeout_s"), ApproachTargetSkill.DEFAULT_MAX_TRACKING_S
             )
-            search_s = ApproachTargetSkill._to_float(
+            search_s = to_float(
                 params.get("search_timeout_s"), float(self.settings.search_timeout_seconds)
             )
             return max(
                 base,
                 max(0.1, tracking_s) + max(0.1, search_s) + float(self.settings.timeout_margin_seconds),
             )
-        duration_s = self._to_float(params.get("duration_s"))
+        duration_s = to_float(params.get("duration_s"), require_finite=True)
         if duration_s is None:
             return base
-        search_s = self._to_float(params.get("search_timeout_s"))
+        search_s = to_float(params.get("search_timeout_s"), require_finite=True)
         if search_s is None:
             search_s = float(self.settings.search_timeout_seconds)
         return max(base, duration_s + search_s + float(self.settings.timeout_margin_seconds))

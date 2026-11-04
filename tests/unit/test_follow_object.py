@@ -8,7 +8,9 @@ from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from tests.unit.fake_robot import FakeRobot
+
 
 
 class World(FakeRobot):
@@ -54,16 +56,23 @@ class World(FakeRobot):
     def is_emergency_stop_requested(self) -> bool:
         return self.emergency
 
-    def detect(self, target=None):
+    def detect(self, *, target):
         if self.detect_error:
             raise self.detect_error
         if self.hidden[0] <= self.now < self.hidden[1]:
             return None
-        return SimpleNamespace(label=target, position=self.bearing, distance_cm=self.distance_cm)
+        return SimpleNamespace(
+            label=target.value, position=self.bearing, distance_cm=self.distance_cm
+        )
 
 
 def run(world: World, **params):
-    context = SkillContext(robot=world, perception=world, state={"active_intent_parameters": params})
+    context = SkillContext(
+        robot=world,
+        perception=world,
+        perception_target=PerceptionTarget.RED_BALL,
+        state={"active_intent_parameters": params},
+    )
     skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=world.time, sleep_fn=world.sleep)
     return skill.execute(context), context
 
@@ -182,7 +191,12 @@ def test_ends_at_duration():
 
 def test_duration_is_capped_by_settings():
     world = World(distance_cm=100.0)
-    context = SkillContext(robot=world, perception=world, state={"active_intent_parameters": {"duration_s": 5000}})
+    context = SkillContext(
+        robot=world,
+        perception=world,
+        perception_target=PerceptionTarget.RED_BALL,
+        state={"active_intent_parameters": {"duration_s": 5000}},
+    )
     settings = RuntimeSettings(max_follow_duration_sec=2.0)
     result = FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep).execute(context)
 

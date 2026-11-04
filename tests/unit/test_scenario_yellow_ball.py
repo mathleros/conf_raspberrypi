@@ -17,6 +17,7 @@ from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
+
 SENTENCE = "cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min"
 
 LINEAR_CM_S = RuntimeSettings().cm_per_second
@@ -87,7 +88,8 @@ class SimWorld(FakeRobot):
     def distance_cm(self) -> float:
         return INITIAL_DISTANCE_CM + _integral(self.now, 2) - self.x_cm
 
-    def detect(self, *, target=None):
+    def detect(self, *, target):
+        target = target.value
         self.targets.add(target)
         if not self.ball_appears or self.now < APPEAR_AT_S:
             self.observations.append((self.now, None, None))
@@ -131,7 +133,7 @@ def run_scenario(tmp_path: Path, **world_kwargs):
     runtime = VoiceRuntime(
         robot=controller,
         perception=world,
-        registry=registry,
+                registry=registry,
         use_llm=False,
         threaded=False,
         trace_dir=str(tmp_path),
@@ -163,7 +165,7 @@ def test_full_mission_search_approach_and_follow_five_minutes(tmp_path):
     assert result["status"] == "accepted", result
     assert result["mission"]["phase"] == "success"
     assert [s["intent"].name for s in result["steps"]] == ["search_and_approach_object", "follow_object"]
-    assert world.targets == {"yellow"}
+    assert world.targets == {"yellow_ball"}
 
     # 1. Balle absente pendant 4 s, puis vue à droite à 220 cm.
     assert all(pos is None for t, pos, _ in world.observations if t < APPEAR_AT_S)

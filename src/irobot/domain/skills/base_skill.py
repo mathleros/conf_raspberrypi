@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from irobot.domain.skills.blackboard_state import BlackboardState
+
+if TYPE_CHECKING:
+    from irobot.interfaces.perception_contracts import PerceptionTarget
 
 
 @dataclass
@@ -19,6 +22,7 @@ class SkillContext:
     camera: Any | None = None
     sensor: Any | None = None
     perception: Any | None = None
+    perception_target: PerceptionTarget | None = None
     state: BlackboardState = field(default_factory=BlackboardState)
 
     def __post_init__(self) -> None:

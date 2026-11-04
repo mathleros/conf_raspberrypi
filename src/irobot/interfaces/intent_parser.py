@@ -14,6 +14,7 @@ from typing import Any
 
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits
 from irobot.interfaces.plan_guards import fold, follow_request_refusal, supported_follow_target
+from irobot.interfaces.perception_contracts import PerceptionTarget
 
 
 @dataclass
@@ -25,6 +26,13 @@ class Intent:
     parameters: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.0
     raw_text: str = ""
+
+    @property
+    def perception_target(self) -> PerceptionTarget | None:
+        """Return the closed semantic target represented by this intent."""
+        return PerceptionTarget.from_value(
+            self.parameters.get("target_object") or self.target
+        )
 
 
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")

@@ -13,7 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from irobot.config.settings import MarkerIdentity, load_runtime_settings
-from .detector import Detector
+from .base_detector import Detector
 from irobot.interfaces.perception_contracts import ObjectDetection
 
 logger = logging.getLogger(__name__)

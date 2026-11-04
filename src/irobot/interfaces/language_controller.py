@@ -11,7 +11,10 @@ from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
 from irobot.interfaces.intent_parser import Intent, IntentParser, IntentValidator
-from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.interfaces.perception_contracts import (
+    ObjectPerceptionPipeline,
+    PerceptionTarget,
+)
 from irobot.interfaces.plan_guards import follow_request_refusal
 
 
@@ -35,12 +38,9 @@ class LanguageController:
         self.planner = SkillPlanner(registry=registry or SkillRegistry.default())
 
     def _inject_perception_state(self, context: SkillContext) -> None:
-        if self.perception is None:
+        if self.perception is None or context.perception_target is None:
             return
-        params = context.state.get("active_intent_parameters") or {}
-        active_intent = context.state.get("active_intent")
-        target = params.get("target_object") or getattr(active_intent, "target", None)
-        detection = self.perception.detect(target=target)
+        detection = self.perception.detect(target=context.perception_target)
         if detection is None:
             return
         context.state["last_object_position"] = detection.position
@@ -79,6 +79,7 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             perception=self.perception,
+            perception_target=intent.perception_target,
             state=BlackboardState(
                 active_intent=intent,
                 active_intent_name=intent.name,
@@ -140,6 +141,7 @@ class LanguageController:
             camera=self.camera,
             sensor=self.sensor,
             perception=self.perception,
+            perception_target=intent.perception_target,
             state=BlackboardState(
                 active_intent=intent,
                 active_intent_name=intent.name,

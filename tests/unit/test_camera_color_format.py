@@ -10,6 +10,7 @@ from irobot.tools import calibrate_distance
 from irobot.hardware.camera import camera_live_perception_pipeline
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
+from tests.unit.perception_helpers import camera_target
 
 
 @pytest.fixture
@@ -89,11 +90,12 @@ def test_runtime_detects_red_from_picamera_memory_layout(monkeypatch, camera_fac
     camera = camera_factory(0)
     monkeypatch.setattr(camera_live_perception_pipeline, "Picamera2", lambda index: camera)
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
-    pipeline.detect(target="red")
+    strategy = camera_target(pipeline, "red")
+    pipeline.detect(target=strategy)
     camera.on_capture = pipeline._stop_event.set
 
     pipeline._capture_loop()
-    detection = pipeline.detect(target="red")
+    detection = pipeline.detect(target=strategy)
 
     assert camera.config["main"] == {"size": (640, 480), "format": "BGR888"}
     assert camera.controls == {"ExposureValue": 1.0}
@@ -190,7 +192,7 @@ def test_exposure_failure_is_logged_and_releases_runtime_camera(monkeypatch, cam
     monkeypatch.setattr(camera, "set_controls", fail)
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
     pipeline._capture_loop()
-    assert pipeline.detect(target="red") is None
+    assert pipeline.detect(target=camera_target(pipeline, "red")) is None
     assert camera.closed
     assert camera.captures == 0
     assert "exposure rejected" in caplog.text

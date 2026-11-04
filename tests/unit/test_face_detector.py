@@ -12,8 +12,13 @@ from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.hardware.camera import camera_live_perception_pipeline
 from irobot.hardware.camera.detector import FaceDetector
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.interfaces.perception_contracts import ObjectDetection, ObjectPerceptionPipeline
+from irobot.interfaces.perception_contracts import (
+    ObjectDetection,
+    ObjectPerceptionPipeline,
+    PerceptionTarget,
+)
 from tests.unit.fake_robot import FakeRobot
+from tests.unit.perception_helpers import camera_target
 
 
 def _faces(*boxes):
@@ -220,61 +225,65 @@ def test_pipeline_face_routes_enhanced_frame_without_aruco_or_colors(pipeline, m
     camera, net = pipeline
     frame = np.full((640, 480, 3), (90, 10, 5), np.uint8)
     net.faces = _faces((180, 20, 100, 100, 0.9))
+    marker_strategy = camera_target(camera, "marker")
     monkeypatch.setattr(
-        camera._frame_processor._marker_detector, "detect",
+        camera._detector._marker_detector, "detect",
         lambda image: pytest.fail("No ArUco for faces"),
     )
-    for detector in camera._frame_processor._color_detectors.values():
+    for color in ("red", "yellow"):
+        color_strategy = camera_target(camera, color)
         monkeypatch.setattr(
-            detector, "detect",
+            camera._detector._color_detectors[color_strategy], "detect",
             lambda image: pytest.fail("No color detector for faces"),
         )
-    assert camera.detect(target=target) is None
-    detection = camera._process_frame(frame, target=target)
+    strategy = camera_target(camera, target)
+    assert camera.detect(target=strategy) is None
+    detection = camera._process_frame(frame, target=strategy)
     camera._last_detection = detection
-    assert camera.detect(target=target).label == "face"
+    assert camera.detect(target=strategy).label == "face"
     expected = FrameEnhancer(camera._settings).apply(frame)
     np.testing.assert_array_equal(net.inputs[-1], cv2.cvtColor(expected, cv2.COLOR_RGB2BGR))
     assert len(net.creates) == 1
-    assert camera._process_frame(frame, target=target) is not None
+    assert camera._process_frame(frame, target=strategy) is not None
     assert len(net.creates) == 1
 
 
 def test_face_aliases_do_not_change_request_revision(pipeline):
     camera, net = pipeline
     frame = np.zeros((640, 480, 3), np.uint8)
-    camera.detect(target="human")
+    face_strategy = camera_target(camera, "human")
+    camera.detect(target=face_strategy)
     revision = camera._target_revision
     net.faces = _faces((180, 20, 100, 100, 0.9))
-    camera._last_detection = camera._process_frame(frame, target="face")
-    assert camera.detect(target="face").label == "face"
+    camera._last_detection = camera._process_frame(frame, target=camera_target(camera, "face"))
+    assert camera.detect(target=camera_target(camera, "face")).label == "face"
     assert camera._target_revision == revision
     net.faces = None
-    assert camera.detect(target="face") is not None
-    assert camera._process_frame(frame, target="face").label == "face"
+    assert camera.detect(target=face_strategy) is not None
+    assert camera._process_frame(frame, target=face_strategy).label == "face"
 
 
 def test_changing_to_balls_clears_face_memory(pipeline):
     camera, net = pipeline
     frame = np.zeros((640, 480, 3), np.uint8)
     net.faces = _faces((180, 20, 100, 100, 0.9))
-    assert camera._process_frame(frame, target="face") is not None
-    camera._process_frame(frame, target="red")
+    assert camera._process_frame(frame, target=camera_target(camera, "face")) is not None
+    camera._process_frame(frame, target=camera_target(camera, "red"))
     net.faces = None
-    assert camera._process_frame(frame, target="face") is None
+    assert camera._process_frame(frame, target=camera_target(camera, "face")) is None
 
 
 def test_face_model_not_loaded_for_other_targets(pipeline):
     camera, net = pipeline
     frame = np.zeros((640, 480, 3), np.uint8)
     for target in ("red", "yellow", "marker", "me"):
-        camera._process_frame(frame, target=target)
+        camera._process_frame(frame, target=camera_target(camera, target))
     assert net.creates == []
 
 
 def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipeline, monkeypatch):
     camera, net = pipeline
-    camera.detect(target="face")
+    camera.detect(target=camera_target(camera, "face"))
     captures = 0
     closed = []
 
@@ -297,8 +306,8 @@ def test_inflight_frame_and_rapid_target_changes_do_not_restore_old_face(pipelin
                 net.faces = None
             if captures == 2:
                 assert camera._last_detection.label == "face"
-                assert camera.detect(target="red") is None
-                assert camera.detect(target="face") is None
+                assert camera.detect(target=camera_target(camera, "red")) is None
+                assert camera.detect(target=camera_target(camera, "face")) is None
             if captures == 3:
                 camera._stop_event.set()
             return np.zeros((480, 640, 3), np.uint8)
@@ -335,9 +344,12 @@ def test_follow_skill_aligns_approaches_and_holds_face_from_perception_mock(targ
     last_detection = ObjectDetection(label="face", position="center", distance_cm=100, confidence=0.9)
     perception = Mock(spec=ObjectPerceptionPipeline)
     perception.detect.side_effect = lambda **kwargs: next(detections, last_detection)
-    context = SkillContext(robot=robot, perception=perception, state={
-        "active_intent_parameters": {"target_object": target, "duration_s": 1},
-    })
+    context = SkillContext(
+        robot=robot,
+        perception=perception,
+        perception_target=PerceptionTarget.FACE,
+        state={"active_intent_parameters": {"target_object": target, "duration_s": 1}},
+    )
     skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=lambda: clock[0], sleep_fn=sleep)
     result = skill.execute(context)
     assert result.status == "success"

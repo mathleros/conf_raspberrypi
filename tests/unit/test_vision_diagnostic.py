@@ -18,6 +18,7 @@ from irobot.tools.vision_diagnostic import (
     _draw_detection,
     format_detection_status,
 )
+from tests.unit.perception_helpers import camera_target
 
 
 def _project_marker(
@@ -134,13 +135,15 @@ def test_runtime_uses_pose_distance_for_configured_marker(
         MarkerIdentity("aruco", "DICT_4X4_50", identifier), projected.corners_px,
         distance_cm=projected.distance_cm,
     )
-    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    strategy = camera_target(runtime_pipeline, "marker")
+    marker_detector = runtime_pipeline._detector._marker_detector
     monkeypatch.setattr(marker_detector, "identity", detection.identity)
     monkeypatch.setattr(marker_detector, "expected_id", int(identifier))
     _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
     frame = np.zeros((size[1], size[0], 3), dtype=np.uint8)
-    runtime_pipeline.detect(target=target)
-    result = runtime_pipeline._process_frame(frame, target=target)
+    strategy = camera_target(runtime_pipeline, target)
+    runtime_pipeline.detect(target=strategy)
+    result = runtime_pipeline._process_frame(frame, target=strategy)
     expected = math.sqrt(x**2 + 10**2 + 80**2)
     assert result is not None
     assert result.distance_cm == pytest.approx(expected, abs=0.01)
@@ -148,7 +151,7 @@ def test_runtime_uses_pose_distance_for_configured_marker(
     if identifier == "1":
         assert result.distance_cm == projected.distance_cm
     runtime_pipeline._last_detection = result
-    assert runtime_pipeline.detect(target=target).distance_cm == result.distance_cm
+    assert runtime_pipeline.detect(target=strategy).distance_cm == result.distance_cm
 
 
 @pytest.mark.parametrize("disposition", [
@@ -169,7 +172,8 @@ def test_non_detected_status_has_no_distance(disposition):
     ((0, 0), (10, 0), (10, 10)),
 ])
 def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeypatch, caplog):
-    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    strategy = camera_target(runtime_pipeline, "marker")
+    marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, corners)
     frame = np.zeros((640, 480, 3), np.uint8)
     detection = marker_detector.detect(frame)
@@ -179,7 +183,7 @@ def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeyp
     else:
         assert detection.disposition is ObservationDisposition.REJECTED
         assert "rejected" in format_detection_status(detection)
-    assert runtime_pipeline._process_frame(frame, target="marker") is None
+    assert runtime_pipeline._process_frame(frame, target=strategy) is None
     assert "ArUco" in caplog.text
 
 
@@ -193,12 +197,13 @@ def test_failed_pose_does_not_produce_a_distance(
 ):
     monkeypatch.setattr(cv2, "solvePnP", lambda *args, **kwargs: (success, None, translation))
     projected = _project_marker((0, 0, 80))
-    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    strategy = camera_target(runtime_pipeline, "marker")
+    marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
     frame = np.zeros((640, 480, 3), np.uint8)
     detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
-    assert runtime_pipeline._process_frame(frame, target="marker") is None
+    assert runtime_pipeline._process_frame(frame, target=strategy) is None
     assert "Pose ArUco inexploitable" in caplog.text
 
 
@@ -210,12 +215,13 @@ def test_opencv_pose_error_is_logged_without_width_fallback(
 
     monkeypatch.setattr(cv2, "solvePnP", fail)
     projected = _project_marker((0, 0, 80))
-    marker_detector = runtime_pipeline._frame_processor._marker_detector
+    strategy = camera_target(runtime_pipeline, "marker")
+    marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
     frame = np.zeros((640, 480, 3), np.uint8)
     detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
-    assert runtime_pipeline._process_frame(frame, target="marker") is None
+    assert runtime_pipeline._process_frame(frame, target=strategy) is None
     assert "synthetic pose failure" in caplog.text
 
 

@@ -9,7 +9,9 @@ from irobot.interfaces import RobotController
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from tests.unit.fake_robot import FakeRobot
+
 
 
 def build_context(fake_robot: FakeRobot | None = None, **state):
@@ -69,13 +71,13 @@ class ScriptedPerception:
         self.script = list(script)
         self.calls = 0
 
-    def detect(self, target=None):
+    def detect(self, *, target):
         item = self.script[min(self.calls, len(self.script) - 1)]
         self.calls += 1
         if item is None:
             return None
         position, distance = item
-        return SimpleNamespace(label=target, position=position, distance_cm=distance)
+        return SimpleNamespace(label=target.value, position=position, distance_cm=distance)
 
 
 def live_run(script, clock=None, robot=None, **params):
@@ -84,6 +86,7 @@ def live_run(script, clock=None, robot=None, **params):
     context = SkillContext(
         robot=RobotController(fake),
         perception=ScriptedPerception(script),
+        perception_target=PerceptionTarget.YELLOW_BALL,
         state={"active_intent_parameters": {"alignment_step_s": 0.0, "forward_step_s": 0.0, **params}},
     )
     skill = ApproachTargetSkill(settings=RuntimeSettings(), time_fn=clock.time, sleep_fn=clock.sleep)

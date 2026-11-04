@@ -7,6 +7,7 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.hardware.camera import camera_live_perception_pipeline, frame_enhancer
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from tests.unit.perception_helpers import camera_target
 
 
 def _settings(**kwargs):
@@ -80,12 +81,12 @@ def test_runtime_detects_backlit_and_normal_balls(monkeypatch, color, level):
         lambda: RuntimeSettings(camera_clahe_enabled=False, camera_exposure_value=0.0),
     )
     uncorrected = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
-    baseline = uncorrected._process_frame(frame, target=color)
+    baseline = uncorrected._process_frame(frame, target=camera_target(uncorrected, color))
     if level < 80:
         assert baseline is None
     monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _settings)
     corrected = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
-    detection = corrected._process_frame(frame, target=color)
+    detection = corrected._process_frame(frame, target=camera_target(corrected, color))
     assert detection is not None
     assert detection.label == f"{color}_ball"
     assert detection.diameter_px == pytest.approx(49, abs=1)
@@ -107,13 +108,13 @@ def test_runtime_detects_same_aruco_id_after_enhancement(monkeypatch, foreground
         camera_live_perception_pipeline, "load_runtime_settings",
         lambda: RuntimeSettings(camera_clahe_enabled=False, camera_exposure_value=0.0),
     )
-    baseline =     camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)._process_frame(
-        frame, target="marker",
+    baseline_pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    baseline = baseline_pipeline._process_frame(
+        frame, target=camera_target(baseline_pipeline, "marker")
     )
     monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _settings)
-    detection = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)._process_frame(
-        frame, target="marker",
-    )
+    corrected = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
+    detection = corrected._process_frame(frame, target=camera_target(corrected, "marker"))
     assert detection is not None and baseline is not None
     assert detection.label == baseline.label == "marker_1"
     assert detection.position == baseline.position
@@ -125,7 +126,10 @@ def test_runtime_detects_same_aruco_id_after_enhancement(monkeypatch, foreground
 def test_uniform_frames_do_not_create_detections(monkeypatch, level, target):
     monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _settings)
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
-    assert pipeline._process_frame(np.full((480, 640, 3), level, np.uint8), target=target) is None
+    assert pipeline._process_frame(
+        np.full((480, 640, 3), level, np.uint8),
+        target=camera_target(pipeline, target),
+    ) is None
 
 
 def test_exposure_applied_to_supported_camera():

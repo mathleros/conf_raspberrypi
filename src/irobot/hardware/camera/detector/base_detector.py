@@ -1,4 +1,4 @@
-"""Common result contract for camera perception detectors."""
+"""Base contract for camera perception detectors."""
 
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar

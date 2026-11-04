@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from irobot.config.settings import RuntimeSettings
-from .detector import Detector
+from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
 from irobot.interfaces.perception_contracts import ObjectDetection
 

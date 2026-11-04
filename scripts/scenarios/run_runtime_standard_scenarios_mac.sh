@@ -59,7 +59,7 @@ if (
     or follow.data["duration_s"] != FOLLOW_S
     or not FOLLOW_S <= finished - started < FOLLOW_S + 0.5
     or abs(follow.data["final_distance_cm"] - STAND_OFF_CM) > TOLERANCE_CM
-    or world.targets != {"yellow"}
+    or world.targets != {"yellow_ball"}
     or world.commands[-1] != "stop"
 ):
     raise RuntimeError(f"Yellow ball follow validation failed: {follow}")

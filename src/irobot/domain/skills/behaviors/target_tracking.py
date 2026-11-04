@@ -99,18 +99,16 @@ class TargetTrackingMixin:
         self.sleep_fn(self.SEARCH_SETTLE_S)
 
     def _detect_target(self, context: SkillContext) -> tuple[str | None, float | None]:
-        params = dict(context.state.get("active_intent_parameters") or {})
-        target_object = params.get("target_object") or context.state.get("target_object")
         detector = getattr(context.perception, "detect", None)
 
-        if callable(detector):
-            detection = detector(target=target_object)
+        if callable(detector) and context.perception_target is not None:
+            detection = detector(target=context.perception_target)
             if detection is None:
                 context.state["last_object_position"] = None
                 context.state["last_object_distance_cm"] = None
                 context.state["last_ball_position"] = None
             else:
-                context.state["target_object"] = getattr(detection, "label", target_object) or target_object
+                context.state["target_object"] = getattr(detection, "label", None)
                 context.state["last_object_position"] = getattr(detection, "position", None)
                 context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
 

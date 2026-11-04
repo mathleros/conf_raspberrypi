@@ -7,12 +7,18 @@ import pytest
 
 from irobot.config import settings
 from irobot.hardware.camera.detector import color_detector
-from irobot.hardware.camera.camera_live_perception_pipeline import CameraLivePerceptionPipeline
+from irobot.hardware.camera.camera_live_perception_pipeline import (
+    CameraLivePerceptionPipeline,
+    ExponentialSmoother,
+)
 from irobot.hardware.camera.detector import ColorDetector, Detector
 from irobot.hardware.camera.detector.distance_estimator import estimate_distance_cm
-from irobot.hardware.camera.frame_processor import ExponentialSmoother
-from irobot.interfaces.perception_contracts import ObjectDetection
+from irobot.interfaces.perception_contracts import (
+    ObjectDetection,
+    PerceptionTarget,
+)
 from irobot.tools.calibrate_distance import focal_from_known_distance
+from tests.unit.perception_helpers import camera_target
 
 
 def test_estimate_distance_known_values():
@@ -73,25 +79,61 @@ def test_color_detector_returns_visual_distance_and_common_contract():
     assert detection.bbox_px is not None
 
 
-def test_pipeline_smooths_detector_distance_and_resets_on_lost_target():
+def test_pipeline_smooths_color_detector_distance_and_resets_on_lost_target():
     pipe = _pipeline()
-    first = pipe._process_frame(_synthetic_frame(40), target="yellow")
-    second = pipe._process_frame(_synthetic_frame(80), target="yellow")
+    strategy = camera_target(pipe, "yellow")
+    first = pipe._process_frame(_synthetic_frame(40), target=strategy)
+    second = pipe._process_frame(_synthetic_frame(80), target=strategy)
     assert first.distance_cm == pytest.approx(600.0 * 6.5 / first.diameter_px)
     assert second.distance_cm == pytest.approx(
         0.4 * (600.0 * 6.5 / second.diameter_px)
         + 0.6 * (600.0 * 6.5 / first.diameter_px),
     )
-    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target="yellow") is None
-    third = pipe._process_frame(_synthetic_frame(40), target="yellow")
+    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target=strategy) is None
+    third = pipe._process_frame(_synthetic_frame(40), target=strategy)
     assert third.distance_cm == pytest.approx(600.0 * 6.5 / third.diameter_px)
+
+
+def test_pipeline_smooths_distance_for_any_strategy_and_resets_on_lost_detection():
+    class ScriptedDetector:
+        def __init__(self):
+            second_detection = ObjectDetection(distance_cm=200.0, distance_visual_cm=200.0)
+            self.second_detection = second_detection
+            self.original_detections = [
+                ObjectDetection(distance_cm=100.0, distance_visual_cm=100.0),
+                second_detection,
+                None,
+                ObjectDetection(distance_cm=50.0, distance_visual_cm=50.0),
+            ]
+
+        def detect(self, frame_rgb, target):
+            return self.original_detections.pop(0)
+
+        def reset(self, target):
+            pass
+
+    detector = ScriptedDetector()
+    pipe = _pipeline(detector=detector)
+    frame = np.zeros((480, 640, 3), np.uint8)
+    target = PerceptionTarget.FACE
+
+    first = pipe._process_frame(frame, target=target)
+    second = pipe._process_frame(frame, target=target)
+    assert first.distance_cm == 100.0
+    assert second.distance_cm == pytest.approx(140.0)
+    assert second.distance_visual_cm == pytest.approx(140.0)
+    assert detector.second_detection.distance_cm == 200.0
+    assert pipe._process_frame(frame, target=target) is None
+    after_loss = pipe._process_frame(frame, target=target)
+    assert after_loss.distance_cm == 50.0
 
 
 def test_detect_returns_visual_distance_without_mutating_published_detection():
     pipe = _pipeline()
-    pipe.detect(target="yellow")
+    strategy = camera_target(pipe, "yellow")
+    pipe.detect(target=strategy)
     _publish(pipe, _ball())
-    assert pipe.detect(target="yellow").distance_cm == pytest.approx(100.0)
+    assert pipe.detect(target=strategy).distance_cm == pytest.approx(100.0)
     assert pipe._last_detection.distance_cm == pytest.approx(100.0)
 
 
@@ -128,11 +170,12 @@ def test_ball_selection_returns_largest_ball_or_none():
 
 def test_pipeline_process_frame_end_to_end():
     pipe = _pipeline()
-    detection = pipe._process_frame(_synthetic_frame(40), target="yellow")
+    strategy = camera_target(pipe, "yellow")
+    detection = pipe._process_frame(_synthetic_frame(40), target=strategy)
     assert detection is not None and detection.label == "yellow_ball"
     assert detection.diameter_px == pytest.approx(80.0, rel=0.05)
     assert detection.distance_cm == pytest.approx(600.0 * 6.5 / detection.diameter_px)
-    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target="yellow") is None
+    assert pipe._process_frame(np.zeros((480, 640, 3), np.uint8), target=strategy) is None
 
 
 @pytest.mark.parametrize(("center_x", "position"), [
@@ -147,44 +190,33 @@ def test_pipeline_preserves_horizontal_position_thresholds(monkeypatch, center_x
     monkeypatch.setattr(
         color_detector, "detect_colored_balls", lambda *args, **kwargs: [candidate],
     )
-    detection = pipe._process_frame(np.zeros((640, 480, 3), np.uint8), target="red")
+    detection = pipe._process_frame(
+        np.zeros((640, 480, 3), np.uint8), target=camera_target(pipe, "red")
+    )
     assert detection is not None
     assert detection.position == position
 
 
 @pytest.mark.parametrize("target", [None, "", "blue", "object"])
-def test_unknown_target_does_not_try_another_detector(monkeypatch, target):
-    pipe = _pipeline()
-    monkeypatch.setattr(
-        pipe._frame_processor._marker_detector,
-        "detect",
-        lambda image: pytest.fail("Unknown target must not try ArUco"),
-    )
-    for detector in pipe._frame_processor._color_detectors.values():
-        monkeypatch.setattr(
-            detector,
-            "detect",
-            lambda image: pytest.fail("Unknown target must not try color detection"),
-        )
-
-    assert pipe._frame_processor.process_frame(
-        np.zeros((480, 640, 3), np.uint8),
-        target=target,
-    ) is None
+def test_unknown_target_is_rejected_before_selecting_a_strategy(target):
+    assert PerceptionTarget.from_value(target) is None
 
 
 def test_color_target_does_not_try_other_color(monkeypatch):
     pipe = _pipeline()
-    monkeypatch.setattr(pipe._frame_processor._color_detectors["red"], "detect", lambda image: None)
+    red_target = camera_target(pipe, "red")
+    color_detector = pipe._detector._color_detectors[red_target]
+    monkeypatch.setattr(color_detector, "detect", lambda image: None)
+    yellow_target = camera_target(pipe, "yellow")
     monkeypatch.setattr(
-        pipe._frame_processor._color_detectors["yellow"],
+        pipe._detector._color_detectors[yellow_target],
         "detect",
-        lambda image: pytest.fail("Red target must not try yellow detection"),
+        lambda image: pytest.fail("Red strategy must not try yellow detection"),
     )
 
-    assert pipe._frame_processor.process_frame(
+    assert pipe._process_frame(
         np.zeros((480, 640, 3), np.uint8),
-        target="red",
+        target=red_target,
     ) is None
 
 

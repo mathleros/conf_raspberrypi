@@ -8,6 +8,7 @@ from irobot.interfaces.perception_contracts import ObjectDetection
 from tests.unit.fake_robot import FakeRobot
 
 
+
 def test_intent_parser_follow_red_ball():
     intent = IntentParser().parse("va vers la balle rouge")
 
@@ -113,10 +114,15 @@ def test_language_controller_prioritizes_obstacle_stop():
 
 def test_language_controller_injects_perception_detection():
     class FakePerception:
-        def detect(self, *, target=None):
-            return ObjectDetection(label=target or "object", position="center", distance_cm=15.0, confidence=0.9)
+        def detect(self, *, target):
+            return ObjectDetection(
+                label=target.value, position="center", distance_cm=15.0, confidence=0.9
+            )
 
-    controller = LanguageController(robot=FakeRobot(), perception=FakePerception())
-    result = controller.handle_text("cherche un objet puis approche toi")
+    controller = LanguageController(
+        robot=FakeRobot(),
+        perception=FakePerception(),
+            )
+    result = controller.handle_text("cherche la balle rouge puis approche toi")
 
     assert result["status"] == "accepted"

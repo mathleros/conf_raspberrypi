@@ -15,8 +15,10 @@ from irobot.interfaces.intent_parser import (
     _extract_duration,
     _extract_stand_off_cm,
 )
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
+
 
 SENTENCE = "cherche la balle jaune, approche toi à 1m de la balle jaune puis suit la pendant 5 min"
 
@@ -63,6 +65,23 @@ def test_parse_plan_single_segment_matches_parse():
     parser = IntentParser()
     assert [i.name for i in parser.parse_plan("avance")] == [parser.parse("avance").name]
     assert [i.name for i in parser.parse_plan("cherche la balle rouge")] == ["follow_red_ball"]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("red", PerceptionTarget.RED_BALL),
+        ("yellow", PerceptionTarget.YELLOW_BALL),
+        ("red_ball", PerceptionTarget.RED_BALL),
+        ("marker", PerceptionTarget.USER_MARKER),
+        ("me", PerceptionTarget.USER_MARKER),
+        ("human", PerceptionTarget.FACE),
+        ("blue", None),
+        (None, None),
+    ],
+)
+def test_intent_exposes_only_closed_perception_targets(value, expected):
+    assert Intent(name="follow_object", target=value).perception_target is expected
 
 
 def test_parse_plan_decimal_comma_is_not_a_separator():
@@ -201,7 +220,7 @@ class World(FakeRobot):
         super().__init__()
         self.now = 0.0
         self.distance_cm = distance_cm
-        self.targets: list[str | None] = []
+        self.targets: list[PerceptionTarget] = []
 
     def time(self) -> float:
         return self.now
@@ -227,9 +246,11 @@ class World(FakeRobot):
         self.commands.append("right")
         self.sleep(duration)
 
-    def detect(self, *, target=None):
+    def detect(self, *, target):
         self.targets.append(target)
-        return SimpleNamespace(label=target, position="center", distance_cm=self.distance_cm)
+        return SimpleNamespace(
+            label=target.value, position="center", distance_cm=self.distance_cm
+        )
 
 
 def test_full_plan_runs_through_voice_runtime(tmp_path):
@@ -238,7 +259,13 @@ def test_full_plan_runs_through_voice_runtime(tmp_path):
     registry = SkillRegistry.default()
     registry.register(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     registry.register(FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
-    runtime = VoiceRuntime(robot=world, perception=world, registry=registry, use_llm=False, trace_dir=str(tmp_path))
+    runtime = VoiceRuntime(
+        robot=world,
+        perception=world,
+                registry=registry,
+        use_llm=False,
+        trace_dir=str(tmp_path),
+    )
 
     result = runtime.handle_text_as_plan(SENTENCE)
 
@@ -248,7 +275,7 @@ def test_full_plan_runs_through_voice_runtime(tmp_path):
     assert "approach_target" in steps[0]["plan"]
     assert steps[1]["plan"] == ["follow_object"]
     assert steps[1]["intent"].parameters["duration_s"] == 300.0
-    assert set(world.targets) == {"yellow"}
+    assert set(world.targets) == {PerceptionTarget.YELLOW_BALL}
     # Le suivi consomme bien les 5 minutes sur l'horloge virtuelle, sans attente réelle.
     assert world.now >= 300.0
     assert "forward" in world.commands

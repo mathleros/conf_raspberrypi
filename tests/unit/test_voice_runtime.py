@@ -12,11 +12,13 @@ from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces import voice_runtime as vr
 from irobot.interfaces.intent_parser import Intent, IntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
 from irobot.interfaces import voice_llm_transport
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.test_follow_object_wiring import World
+
 
 
 @pytest.mark.parametrize("use_llm", [False, True])
@@ -25,7 +27,7 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
         def __init__(self):
             self.targets = []
 
-        def detect(self, *, target=None):
+        def detect(self, *, target):
             from irobot.interfaces.perception_contracts import ObjectDetection
 
             self.targets.append(target)
@@ -34,7 +36,10 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
     perception = MarkerPerception()
     robot = FakeRobot()
     runtime = VoiceRuntime(
-        robot=robot, perception=perception, use_llm=use_llm, trace_dir=str(tmp_path),
+        robot=robot,
+        perception=perception,
+        use_llm=use_llm,
+        trace_dir=str(tmp_path),
     )
     step_json = {"intent": "search_and_approach_object", "target": "marker", "parameters": {}}
     llm = fake_llm({"steps": [step_json]})
@@ -46,8 +51,8 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
     assert "approach_target" in step["plan"]
     approach_result = step["results"][step["plan"].index("approach_target")]
     assert approach_result.data["close_enough"] is True
-    assert perception.targets[0] == "marker"
-    assert set(perception.targets) <= {"marker", "marker_1"}
+    assert perception.targets[0] is PerceptionTarget.USER_MARKER
+    assert set(perception.targets) == {PerceptionTarget.USER_MARKER}
     assert set(robot.commands) == {"stop"}
     assert len(llm.calls) == int(use_llm)
     if use_llm:
@@ -750,7 +755,13 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     registry = SkillRegistry.default()
     registry.register(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
     registry.register(FollowObjectSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep))
-    runtime = VoiceRuntime(robot=world, perception=world, registry=registry, use_llm=True, trace_dir=str(tmp_path))
+    runtime = VoiceRuntime(
+        robot=world,
+        perception=world,
+                registry=registry,
+        use_llm=True,
+        trace_dir=str(tmp_path),
+    )
 
     result = runtime.handle_text_as_plan(USE_CASE)
 
@@ -777,7 +788,7 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
     assert all(s["intent"].raw_text == USE_CASE for s in steps)
     assert steps[1]["intent"].parameters["duration_s"] == 300
     assert steps[1]["intent"].parameters["stand_off_cm"] == 100
-    assert set(world.targets) == {"yellow"}
+    assert set(world.targets) == {PerceptionTarget.YELLOW_BALL}
     assert world.now >= 300.0
     assert world.commands[-1] == "stop"
 

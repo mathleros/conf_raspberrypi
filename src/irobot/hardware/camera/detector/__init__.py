@@ -1,7 +1,7 @@
 """Camera detector implementations and shared types."""
 
 from .color_detector import ColorDetector
-from .detector import Detector
+from .base_detector import Detector
 from .face_detector import FaceDetector
 from .aruco_detector import (
     ArucoFrameDetection,

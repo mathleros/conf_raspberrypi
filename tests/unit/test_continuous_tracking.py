@@ -8,8 +8,10 @@ from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.base_skill import SkillResult
 from irobot.interfaces.intent_parser import Intent
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
+
 from tests.unit.test_follow_object import World, run
 
 
@@ -22,9 +24,9 @@ class ContinuousWorld(World):
     def is_emergency_stop_requested(self):
         return self.now >= self.stop_at or self.emergency
 
-    def detect(self, target=None):
+    def detect(self, *, target):
         self.targets.append(target)
-        return super().detect(target)
+        return super().detect(target=target)
 
 
 @pytest.mark.parametrize(
@@ -35,7 +37,9 @@ def test_continuous_tracking_survives_old_limits_until_stop(tmp_path, monkeypatc
     world = ContinuousWorld()
     runtime = VoiceRuntime(
         robot=RobotController(world, time_fn=world.time, sleep_fn=world.sleep),
-        perception=world, use_llm=False, trace_dir=str(tmp_path),
+        perception=world,
+        use_llm=False,
+        trace_dir=str(tmp_path),
     )
     runtime.settings = RuntimeSettings()
     runtime.controller.planner.registry.register(
@@ -51,7 +55,7 @@ def test_continuous_tracking_survives_old_limits_until_stop(tmp_path, monkeypatc
     assert steps[0]["attempt"] == 1
     assert steps[0]["plan"] == ["follow_object"]
     assert world.now >= 650
-    assert set(world.targets) == {target}
+    assert set(world.targets) == {PerceptionTarget.from_value(target)}
     assert "right" in world.commands
     assert "forward" in world.commands
     assert world.commands[-1] == "stop"
@@ -73,11 +77,11 @@ def test_permanently_missing_target_keeps_searching_until_stop():
 
 def test_continuous_follow_resumes_after_holding_distance():
     class RecedingWorld(ContinuousWorld):
-        def detect(self, target=None):
+        def detect(self, *, target):
             if self.now >= 1 and not getattr(self, "moved", False):
                 self.distance_cm = 200
                 self.moved = True
-            return super().detect(target)
+            return super().detect(target=target)
 
     world = RecedingWorld(stop_at=3, hidden=(0, 0))
     world.distance_cm = 100

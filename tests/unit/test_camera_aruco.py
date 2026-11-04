@@ -15,6 +15,8 @@ from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisp
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
+from tests.unit.perception_helpers import camera_target
+
 
 def _frame(center_x=240, width=80, image_width=480, marker_id=1):
     dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -47,8 +49,9 @@ def pipeline(monkeypatch):
     [(179, "left"), (181, "center"), (240, "center"), (300, "center"), (301, "right")],
 )
 def test_marker_position_and_distance(pipeline, center_x, position):
-    pipeline.detect(target="marker")
-    detection = pipeline._process_frame(_frame(center_x), target="marker")
+    strategy = camera_target(pipeline, "marker")
+    pipeline.detect(target=strategy)
+    detection = pipeline._process_frame(_frame(center_x), target=strategy)
     assert detection.label == "marker_1"
     assert detection.position == position
     assert detection.confidence == 1.0
@@ -56,11 +59,13 @@ def test_marker_position_and_distance(pipeline, center_x, position):
         8 / 79 * math.sqrt(600**2 + (center_x - 240.5)**2 + 0.5**2),
     )
     pipeline._last_detection = detection
-    assert pipeline.detect(target="me").distance_cm == detection.distance_cm
+    assert pipeline.detect(target=camera_target(pipeline, "me")).distance_cm == detection.distance_cm
 
 
 def test_position_scales_to_image_width(pipeline):
-    assert pipeline._process_frame(_frame(center_x=440, image_width=640), target="marker").position == "right"
+    assert pipeline._process_frame(
+        _frame(center_x=440, image_width=640), target=camera_target(pipeline, "marker")
+    ).position == "right"
 
 
 @pytest.mark.parametrize(
@@ -79,11 +84,11 @@ def test_exact_thresholds_and_grayscale_input(pipeline, monkeypatch, center_x, p
         return corners, np.asarray([[1]], dtype=np.int32), None
 
     monkeypatch.setattr(
-        pipeline._frame_processor._marker_detector,
+        pipeline._detector._marker_detector,
         "_detector",
         SimpleNamespace(detectMarkers=detect_markers),
     )
-    detection = pipeline._process_frame(frame, target="marker")
+    detection = pipeline._process_frame(frame, target=camera_target(pipeline, "marker"))
     assert detection.position == position
     assert detection.distance_cm == pytest.approx(
         8 / 80 * math.hypot(600, center_x - 240),
@@ -99,13 +104,16 @@ def test_configured_identity(monkeypatch):
     pipeline = camera_live_perception_pipeline.CameraLivePerceptionPipeline(
         autostart=False,
     )
-    assert pipeline._frame_processor._marker_detector.identity == identity
-    assert pipeline._process_frame(_frame(marker_id=1), target="marker") is None
-    assert pipeline._process_frame(_frame(marker_id=2), target="marker").label == "marker_1"
+    marker_detector = pipeline._detector._marker_detector
+    assert marker_detector.identity == identity
+    assert pipeline._process_frame(_frame(marker_id=1), target=camera_target(pipeline, "marker")) is None
+    assert pipeline._process_frame(
+        _frame(marker_id=2), target=camera_target(pipeline, "marker")
+    ).label == "marker_1"
 
 
 def test_detect_returns_complete_marker_result(pipeline):
-    detector = pipeline._frame_processor._marker_detector
+    detector = pipeline._detector._marker_detector
 
     assert detector.focal_px == pipeline.focal_px == 600.0
     detected = detector.detect(_frame())
@@ -126,26 +134,27 @@ def test_detect_returns_complete_marker_result(pipeline):
 
 @pytest.mark.parametrize("target", ["marker", "me"])
 def test_requested_target_changes_camera_processing(pipeline, target):
-    assert pipeline.detect(target=target) is None
-    detection = pipeline._process_frame(_frame(), target=target)
+    strategy = camera_target(pipeline, target)
+    assert pipeline.detect(target=strategy) is None
+    detection = pipeline._process_frame(_frame(), target=strategy)
     pipeline._last_detection = detection
-    assert pipeline.detect(target=target).label == "marker_1"
-    assert pipeline.detect(target="red") is None
-    assert pipeline._process_frame(_frame(), target="red") is None
+    assert pipeline.detect(target=strategy).label == "marker_1"
+    red_strategy = camera_target(pipeline, "red")
+    assert pipeline.detect(target=red_strategy) is None
+    assert pipeline._process_frame(_frame(), target=red_strategy) is None
 
 
 def test_marker_and_color_targets_use_only_the_requested_detector(pipeline):
     frame = _frame()
     cv2.circle(frame, (400, 150), 25, (255, 0, 0), -1)
-    assert pipeline._process_frame(frame, target="marker").label == "marker_1"
-    assert pipeline._process_frame(frame, target="red").label == "red_ball"
+    assert pipeline._process_frame(frame, target=camera_target(pipeline, "marker")).label == "marker_1"
+    assert pipeline._process_frame(frame, target=camera_target(pipeline, "red")).label == "red_ball"
 
 
-def test_missing_target_does_not_fall_back_to_a_default(pipeline):
-    pipeline.detect(target="marker")
-    assert pipeline.detect() is None
+def test_missing_strategy_is_not_silently_defaulted(pipeline):
+    with pytest.raises(TypeError):
+        pipeline.detect()
     assert pipeline._requested_target is None
-    assert pipeline._process_frame(_frame()) is None
 
 
 @pytest.mark.parametrize("disposition", [
@@ -154,14 +163,14 @@ def test_missing_target_does_not_fall_back_to_a_default(pipeline):
 ])
 def test_nonvalid_marker_is_not_returned(pipeline, monkeypatch, disposition):
     monkeypatch.setattr(
-        pipeline._frame_processor._marker_detector, "detect",
+        pipeline._detector._marker_detector, "detect",
         lambda image: ArucoFrameDetection(disposition),
     )
-    assert pipeline._process_frame(_frame(), target="marker") is None
+    assert pipeline._process_frame(_frame(), target=camera_target(pipeline, "marker")) is None
 
 
 def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
-    marker_detector = pipeline._frame_processor._marker_detector
+    marker_detector = pipeline._detector._marker_detector
     monkeypatch.setattr(
         marker_detector,
         "_detector",
@@ -169,7 +178,7 @@ def test_degenerate_marker_is_logged(pipeline, monkeypatch, caplog):
             [[(240.0, 300.0)] * 4], [[marker_detector.expected_id]], None,
         )),
     )
-    assert pipeline._process_frame(_frame(), target="marker") is None
+    assert pipeline._process_frame(_frame(), target=camera_target(pipeline, "marker")) is None
     assert "Pose ArUco inexploitable" in caplog.text
 
 
@@ -232,7 +241,8 @@ def live_pipeline(monkeypatch):
 def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
     pipeline, frames, second_capture, wait_started = live_pipeline
     results = []
-    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=target)))
+    strategy = camera_target(pipeline, target)
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=strategy)))
     reader.start()
     try:
         assert wait_started.wait(2)
@@ -263,7 +273,7 @@ def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, m
     original_detect = pipeline.detect
     original_stop = robot.stop
 
-    def detect(*, target=None):
+    def detect(*, target):
         detection = original_detect(target=target)
         if detection is not None and detection.distance_cm <= 30:
             close_seen.set()
@@ -328,7 +338,7 @@ def test_target_frame_wait_is_bounded_and_logged(live_pipeline, caplog, monkeypa
     pipeline, _, _, _ = live_pipeline
     monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0.03)
     started = time.monotonic()
-    assert pipeline.detect(target="marker") is None
+    assert pipeline.detect(target=camera_target(pipeline, "marker")) is None
     elapsed = time.monotonic() - started
     assert 0.025 <= elapsed < 0.5
     assert "Délai dépassé" in caplog.text
@@ -338,7 +348,8 @@ def test_target_frame_wait_is_bounded_and_logged(live_pipeline, caplog, monkeypa
 def test_matching_frame_is_cached_including_absence(live_pipeline, present, monkeypatch):
     pipeline, frames, second_capture, wait_started = live_pipeline
     results = []
-    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target="marker")))
+    strategy = camera_target(pipeline, "marker")
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=strategy)))
     reader.start()
     try:
         assert wait_started.wait(2)
@@ -348,7 +359,7 @@ def test_matching_frame_is_cached_including_absence(live_pipeline, present, monk
         reader.join(2)
         assert not reader.is_alive()
         monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0)
-        cached = pipeline.detect(target="me")
+        cached = pipeline.detect(target=camera_target(pipeline, "me"))
         assert (cached is not None) == present
         assert (results[0] is not None) == present
         assert pipeline._frame_revision == pipeline._target_revision
@@ -363,7 +374,8 @@ def test_matching_frame_is_cached_including_absence(live_pipeline, present, monk
 def test_target_frame_wait_is_released_on_close_or_failure(live_pipeline, failure, caplog):
     pipeline, frames, _, wait_started = live_pipeline
     results = []
-    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target="marker")))
+    strategy = camera_target(pipeline, "marker")
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=strategy)))
     reader.start()
     try:
         assert wait_started.wait(2)

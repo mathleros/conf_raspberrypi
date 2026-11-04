@@ -8,10 +8,12 @@ import pytest
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.test_follow_object import World
+
 
 
 def test_controller_event_and_underlying_detector():
@@ -42,7 +44,12 @@ def test_stop_from_other_thread_interrupts_follow_object(params):
         started.set()
         time.sleep(0.0005)
 
-    context = SkillContext(robot=controller, perception=world, state={"active_intent_parameters": params})
+    context = SkillContext(
+        robot=controller,
+        perception=world,
+        perception_target=PerceptionTarget.RED_BALL,
+        state={"active_intent_parameters": params},
+    )
     skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=world.time, sleep_fn=sleep)
 
     def stopper():

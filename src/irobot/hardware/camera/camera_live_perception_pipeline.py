@@ -5,18 +5,48 @@ import logging
 import threading
 
 import cv2
+import numpy as np
+from numpy.typing import NDArray
 
 try:
     from picamera2 import Picamera2
 except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
-
 from irobot.config.settings import load_runtime_settings
-from irobot.hardware.camera.frame_enhancer import configure_exposure
-from irobot.hardware.camera.frame_processor import CameraFrameProcessor
-from irobot.interfaces.perception_contracts import ObjectDetection, ObjectPerceptionPipeline
+from irobot.hardware.camera.detector.target_detector import CameraTargetDetector
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.interfaces.perception_contracts import (
+    ObjectDetection,
+    ObjectPerceptionPipeline,
+    PerceptionTarget,
+    TargetFrameDetector,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class ExponentialSmoother:
+    """Filtre exponentiel : s = alpha * x + (1 - alpha) * s."""
+
+    def __init__(self, alpha: float = 0.4) -> None:
+        if not 0.0 < alpha <= 1.0:
+            raise ValueError("alpha doit être dans ]0, 1]")
+        self.alpha = float(alpha)
+        self._value: float | None = None
+
+    def update(self, measure: float | None) -> float | None:
+        """Ajoute une mesure ; une mesure None réinitialise le filtre (cible perdue)."""
+        if measure is None:
+            self._value = None
+            return None
+        if self._value is None:
+            self._value = float(measure)
+        else:
+            self._value = self.alpha * float(measure) + (1.0 - self.alpha) * self._value
+        return self._value
+
+    def reset(self) -> None:
+        self._value = None
 
 
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
@@ -38,6 +68,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         ball_diameter_cm: float | None = None,
         focal_px: float | None = None,
         smoothing_alpha: float = 0.4,
+        detector: TargetFrameDetector | None = None,
         sensor: object | None = None,
         autostart: bool = True,
     ) -> None:
@@ -49,14 +80,16 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._settings = settings
         self.ball_diameter_cm = float(settings.camera_ball_diameter_cm if ball_diameter_cm is None else ball_diameter_cm)
         self.focal_px = float(settings.camera_focal_px if focal_px is None else focal_px)
-        self._frame_processor = CameraFrameProcessor(
+        self._detector = detector or CameraTargetDetector(
             settings,
             ball_diameter_cm=self.ball_diameter_cm,
             focal_px=self.focal_px,
-            smoothing_alpha=smoothing_alpha,
         )
+        self._frame_enhancer = FrameEnhancer(settings)
+        self._distance_smoother = ExponentialSmoother(smoothing_alpha)
+        self._active_target: PerceptionTarget | None = None
         self._last_detection: ObjectDetection | None = None
-        self._requested_target: str | None = None
+        self._requested_target: PerceptionTarget | None = None
         self._lock = threading.Lock()
         self._frame_condition = threading.Condition(self._lock)
         self._target_revision = 0
@@ -67,11 +100,33 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         if autostart:
             self._thread.start()
 
-    def _process_frame(self, frame_rgb, *, target: str | None = None) -> ObjectDetection | None:
-        """Traite une image RGB via le composant dédié au routage des détecteurs."""
-        return self._frame_processor.process_frame(
-            frame_rgb,
-            target=target,
+    def _process_frame(
+        self,
+        frame_rgb: NDArray[np.uint8],
+        *,
+        target: PerceptionTarget,
+    ) -> ObjectDetection | None:
+        if target is not self._active_target:
+            if self._active_target is not None:
+                self._detector.reset(self._active_target)
+            self._detector.reset(target)
+            self._active_target = target
+
+        enhanced = self._frame_enhancer.apply(frame_rgb)
+        detection = self._detector.detect(enhanced, target)
+        if detection is None:
+            self._distance_smoother.reset()
+            return None
+
+        distance = self._distance_smoother.update(
+            detection.distance_visual_cm
+            if detection.distance_visual_cm is not None
+            else detection.distance_cm
+        )
+        return dataclasses.replace(
+            detection,
+            distance_visual_cm=distance,
+            distance_cm=distance,
         )
 
     def _capture_loop(self) -> None:
@@ -100,10 +155,17 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     revision = self._target_revision
                 frame_rgb = camera.capture_array()
                 if revision != processed_revision:
-                    self._frame_processor.reset_for_target_change()
+                    if self._active_target is not None:
+                        self._detector.reset(self._active_target)
+                    self._active_target = None
+                    self._distance_smoother.reset()
                     processed_revision = revision
                 rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
-                detection = self._process_frame(rotated_frame_rgb, target=target)
+                detection = (
+                    self._process_frame(rotated_frame_rgb, target=target)
+                    if target is not None
+                    else None
+                )
                 with self._frame_condition:
                     # Une image en vol ne doit pas satisfaire une nouvelle demande de cible.
                     if revision == self._target_revision:
@@ -132,19 +194,12 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 except Exception:
                     logger.exception("Échec de la fermeture de la caméra.")
 
-    def detect(self, *, target: str | None = None) -> ObjectDetection | None:
-        expected = (target or "").strip().lower()
-        if expected == "human":
-            expected = "face"
-        requested = "marker" if expected == "me" else expected
+    def detect(self, *, target: PerceptionTarget) -> ObjectDetection | None:
         with self._frame_condition:
-            if requested != self._requested_target:
+            if target is not self._requested_target:
                 self._target_revision += 1
                 self._last_detection = None
-            self._requested_target = requested or None
-            if requested is None:
-                self._last_detection = None
-                return None
+            self._requested_target = target
             revision = self._target_revision
             if self._thread.is_alive():
                 ready = self._frame_condition.wait_for(
@@ -154,7 +209,10 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     timeout=self.TARGET_FRAME_TIMEOUT_S,
                 )
                 if not ready:
-                    logger.error("Délai dépassé en attendant une image caméra pour la cible %r.", target)
+                    logger.error(
+                        "Délai dépassé en attendant une image caméra pour la cible %s.",
+                        target.value,
+                    )
                     return None
                 if self._frame_revision != revision:
                     return None
@@ -162,13 +220,6 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
 
         if detection is None:
             return None
-        if expected:
-            label = detection.label.lower()
-            if expected in {"marker", "me"}:
-                if label != "marker_1":
-                    return None
-            elif expected not in label and label not in expected:
-                return None
         return dataclasses.replace(detection)
 
     def close(self, timeout_s: float | None = None) -> None:

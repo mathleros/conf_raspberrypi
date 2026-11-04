@@ -59,7 +59,7 @@ class TargetTrackingMixin:
         return bool(reading)
 
     def _is_emergency_stop_requested(self, context: SkillContext) -> bool:
-        detector = getattr(context.robot, "is_emergency_stop_requested", None)
+        detector = getattr(context.robot, "emergency_stop_requested", None)
         if not callable(detector):
             return False
         try:

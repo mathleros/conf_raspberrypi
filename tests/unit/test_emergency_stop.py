@@ -19,18 +19,17 @@ from tests.unit.test_follow_object import World
 def test_controller_event_and_underlying_detector():
     fake = FakeRobot()
     controller = RobotController(fake)
-    assert controller.is_emergency_stop_requested() is False
+    assert controller.emergency_stop_requested() is False
 
     controller.request_emergency_stop()
-    assert controller.is_emergency_stop_requested() is True
-    assert controller._is_emergency_stop_requested() is True
+    assert controller.emergency_stop_requested() is True
     assert fake.commands[-1] == "stop"
 
     controller.clear_emergency_stop()
-    assert controller.is_emergency_stop_requested() is False
+    assert controller.emergency_stop_requested() is False
 
     fake.stop_requested = True
-    assert controller.is_emergency_stop_requested() is True
+    assert controller.emergency_stop_requested() is True
 
 
 @pytest.mark.parametrize("params", [{}, {"duration_s": 300}])
@@ -75,10 +74,10 @@ class BlockingRuntime(VoiceRuntime):
 
     def handle_text_as_plan(self, text):
         self.texts.append(text)
-        self.flag_at_start = self.robot.is_emergency_stop_requested()
+        self.flag_at_start = self.robot.emergency_stop_requested()
         self.entered.set()
         deadline = time.monotonic() + 5
-        while not self.robot.is_emergency_stop_requested() and time.monotonic() < deadline:
+        while not self.robot.emergency_stop_requested() and time.monotonic() < deadline:
             time.sleep(0.001)
         return {"status": "done"}
 
@@ -95,7 +94,7 @@ def test_new_mission_clears_flag_and_stop_phrase_aborts():
     runtime.handle_transcript("arrête-toi")
     runtime._worker.join(2)
     assert not runtime.mission_running()
-    assert controller.is_emergency_stop_requested() is True
+    assert controller.emergency_stop_requested() is True
     assert runtime.texts == ["suis la balle"]
 
 
@@ -108,7 +107,7 @@ def test_non_stop_phrase_ignored_during_mission(capsys):
     runtime.handle_transcript("avance de deux mètres")
 
     assert runtime.texts == ["suis la balle"]
-    assert controller.is_emergency_stop_requested() is False
+    assert controller.emergency_stop_requested() is False
     assert "ignorée" in capsys.readouterr().out
     runtime.close()
 
@@ -130,7 +129,7 @@ def test_sync_path_runs_inline():
     result = runtime.handle_transcript("stop maintenant")
     assert result is None
     assert runtime.command_service.mission_orchestrator.state_machine.state.phase == "aborted"
-    assert runtime.robot.is_emergency_stop_requested()
+    assert runtime.robot.emergency_stop_requested()
     assert not runtime.mission_running()
 
 

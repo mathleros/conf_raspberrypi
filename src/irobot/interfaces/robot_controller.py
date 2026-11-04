@@ -5,7 +5,18 @@ import math
 import threading
 import time
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
+
+LOGGER = logging.getLogger(__name__)
+
+Direction = Literal["forward", "backward", "left", "right"]
+
+
+def _validate_duration(duration_seconds: float) -> None:
+    if (isinstance(duration_seconds, bool)
+            or not isinstance(duration_seconds, (int, float))
+            or not math.isfinite(duration_seconds) or duration_seconds < 0):
+        raise ValueError("Motion duration must be finite and non-negative")
 
 
 class DistanceSensor(Protocol):
@@ -41,11 +52,7 @@ class RobotController:
     def robot(self):
         return self._robot
 
-    @property
-    def speed(self):
-        return self._robot.speed
-
-    def _start_motion(self, method: str) -> None:
+    def _start_motion(self, method: Direction) -> None:
         if self._emergency_event.is_set():
             self.stop()
             return
@@ -80,7 +87,7 @@ class RobotController:
 
     def check_obstacle(self) -> bool:
         if self._distance_sensor is not None:
-            return self._check_distance_sensor()
+            return self._check_distance_sensor(self._distance_sensor)
         if self._require_obstacle_sensor:
             return True
 
@@ -90,29 +97,25 @@ class RobotController:
         try:
             obstacle = check()
         except Exception:
-            logging.getLogger(__name__).exception("Echec du capteur d'obstacle")
+            LOGGER.exception("Echec du capteur d'obstacle")
             return True
         if obstacle is None:
-            logging.getLogger(__name__).error("Capteur d'obstacle indisponible")
+            LOGGER.error("Capteur d'obstacle indisponible")
             return True
         return bool(obstacle)
 
-    def _check_distance_sensor(self) -> bool:
-        sensor = self._distance_sensor
-        if sensor is None:
-            return self._require_obstacle_sensor
-
+    def _check_distance_sensor(self, sensor: DistanceSensor) -> bool:
         for attempt in range(self.SENSOR_READ_ATTEMPTS):
             try:
                 distance_cm = sensor.read_distance_cm()
             except Exception:
-                logging.getLogger(__name__).exception("Echec du capteur d'obstacle")
+                LOGGER.exception("Echec du capteur d'obstacle")
                 return True
             if distance_cm is not None:
                 return distance_cm < self._obstacle_threshold_cm
             if attempt < self.SENSOR_READ_ATTEMPTS - 1:
                 self.sleep_fn(self.SENSOR_RETRY_DELAY_S)
-        logging.getLogger(__name__).error("Capteur d'obstacle indisponible")
+        LOGGER.error("Capteur d'obstacle indisponible")
         return True
 
     def request_emergency_stop(self) -> None:
@@ -122,54 +125,48 @@ class RobotController:
     def clear_emergency_stop(self) -> None:
         self._emergency_event.clear()
 
-    def is_emergency_stop_requested(self) -> bool:
-        return self._is_emergency_stop_requested()
-
-    def _is_emergency_stop_requested(self) -> bool:
+    def emergency_stop_requested(self) -> bool:
         if self._emergency_event.is_set():
             return True
-        for name in (
-            "is_emergency_stop_requested", "check_emergency_stop",
-            "emergency_stop_requested", "stop_requested",
-        ):
+        for name in ("emergency_stop_requested", "stop_requested"):
             detector = getattr(self._robot, name, None)
             if detector is None:
                 continue
             try:
                 value = detector() if callable(detector) else detector
             except Exception:
-                logging.getLogger(__name__).exception("Echec de l'entree d'arret %s", name)
+                LOGGER.exception("Echec de l'entree d'arret %s", name)
                 return True
             if value:
                 return True
         return False
 
+    def _abort_reason(self, check_obstacle: bool) -> str | None:
+        if self.emergency_stop_requested():
+            return "emergency_stop"
+        if check_obstacle and self.check_obstacle():
+            return "obstacle"
+        if self.emergency_stop_requested():
+            return "emergency_stop"
+        return None
+
     def _run_motion_for(
-        self, start_motion: Callable[[], None], duration_seconds: float,
+        self, direction: Direction, duration_seconds: float,
         check_obstacle: bool = True,
     ) -> str | None:
         try:
-            if (isinstance(duration_seconds, bool)
-                    or not isinstance(duration_seconds, (int, float))
-                    or not math.isfinite(duration_seconds) or duration_seconds < 0):
-                raise ValueError("Motion duration must be finite and non-negative")
-            if self._is_emergency_stop_requested():
-                return "emergency_stop"
-            if check_obstacle and self.check_obstacle():
-                return "obstacle"
-            if self._is_emergency_stop_requested():
-                return "emergency_stop"
-            start_motion()
+            _validate_duration(duration_seconds)
+            reason = self._abort_reason(check_obstacle)
+            if reason:
+                return reason
+            self._start_motion(direction)
             if duration_seconds == 0:
                 return None
             deadline = self.time_fn() + duration_seconds
             while True:
-                if self._is_emergency_stop_requested():
-                    return "emergency_stop"
-                if check_obstacle and self.check_obstacle():
-                    return "obstacle"
-                if self._is_emergency_stop_requested():
-                    return "emergency_stop"
+                reason = self._abort_reason(check_obstacle)
+                if reason:
+                    return reason
                 remaining = deadline - self.time_fn()
                 if remaining <= 0.0:
                     return None
@@ -178,16 +175,16 @@ class RobotController:
             self.stop()
 
     def forward_for(self, duration_seconds: float) -> str | None:
-        return self._run_motion_for(self.forward, duration_seconds)
+        return self._run_motion_for("forward", duration_seconds)
 
     def backward_for(self, duration_seconds: float) -> str | None:
-        return self._run_motion_for(self.backward, duration_seconds, check_obstacle=False)
+        return self._run_motion_for("backward", duration_seconds, check_obstacle=False)
 
     def left_for(self, duration_seconds: float) -> str | None:
-        return self._run_motion_for(self.left, duration_seconds)
+        return self._run_motion_for("left", duration_seconds)
 
     def right_for(self, duration_seconds: float) -> str | None:
-        return self._run_motion_for(self.right, duration_seconds)
+        return self._run_motion_for("right", duration_seconds)
 
     def __getattr__(self, name: str):
         return getattr(self._robot, name)

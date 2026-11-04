@@ -72,7 +72,7 @@ class CommandService:
     def _emergency_stop_requested(self) -> bool:
         if self._emergency_event.is_set():
             return True
-        detector = getattr(self.robot, "is_emergency_stop_requested", None)
+        detector = getattr(self.robot, "emergency_stop_requested", None)
         if not callable(detector):
             return False
         try:

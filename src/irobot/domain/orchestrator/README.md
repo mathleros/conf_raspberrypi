@@ -66,7 +66,7 @@ try:
     results, status = mission.execute(
         steps,
         controller.handle_planned_step,
-        stop_requested=robot.is_emergency_stop_requested,
+        stop_requested=robot.emergency_stop_requested,
     )
 finally:
     robot.stop()

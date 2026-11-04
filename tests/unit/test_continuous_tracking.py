@@ -21,7 +21,7 @@ class ContinuousWorld(World):
         self.stop_at = stop_at
         self.targets = []
 
-    def is_emergency_stop_requested(self):
+    def emergency_stop_requested(self):
         return self.now >= self.stop_at or self.emergency
 
     def detect(self, *, target):

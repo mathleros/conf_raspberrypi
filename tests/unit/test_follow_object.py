@@ -53,7 +53,7 @@ class World(FakeRobot):
         self.bearing = "center"
         self.sleep(duration)
 
-    def is_emergency_stop_requested(self) -> bool:
+    def emergency_stop_requested(self) -> bool:
         return self.emergency
 
     def detect(self, *, target):

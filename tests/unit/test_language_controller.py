@@ -81,7 +81,7 @@ def test_intent_parser_recognizes_search_and_approach_object():
 def test_language_controller_handles_text_command():
     controller = LanguageController(robot=FakeRobot())
     intent = TextIntentParser().parse("va vers la balle rouge")
-    result = controller.handle_intent(intent)
+    result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
 
     assert result["status"] == "accepted"
     assert len(result["plan"]) > 0
@@ -98,7 +98,7 @@ def test_language_controller_handles_contour_obstacle_command():
 def test_language_controller_handles_search_and_approach_object_command():
     controller = LanguageController(robot=FakeRobot())
     intent = TextIntentParser().parse("cherche un objet puis approche toi")
-    result = controller.handle_intent(intent)
+    result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
 
     assert result["status"] == "accepted"
     assert result["plan"][0] == "detect_object"
@@ -133,7 +133,8 @@ def test_language_controller_prioritizes_obstacle_stop():
     robot.obstacle_detected = True
     controller = LanguageController(robot=robot)
 
-    result = controller.handle_intent(TextIntentParser().parse("avance"))
+    intent = TextIntentParser().parse("avance")
+    result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
 
     assert result["status"] == "aborted"
     assert result["reason"] == "obstacle prioritized"
@@ -152,6 +153,6 @@ def test_language_controller_injects_perception_detection():
         perception=FakePerception(),
             )
     intent = TextIntentParser().parse("cherche la balle rouge puis approche toi")
-    result = controller.handle_intent(intent)
+    result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
 
     assert result["status"] == "accepted"

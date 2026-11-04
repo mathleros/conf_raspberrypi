@@ -46,12 +46,11 @@ class TargetTrackingMixin:
         if bool(context.state.get("obstacle_detected", False)):
             return True
 
-        checker = getattr(context.robot, "check_obstacle", None)
-        if checker is None:
+        if context.robot is None:
             return False
 
         try:
-            reading = checker()
+            reading = context.robot.check_obstacle()
         except Exception:
             return True
 

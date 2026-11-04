@@ -124,7 +124,9 @@ def test_tracking_failure_is_not_retried(tmp_path, monkeypatch, name, skill_stat
 def test_continuous_tracking_requires_live_perception():
     world = World()
     runtime = VoiceRuntime(robot=world, use_llm=False)
-    result = runtime.command_service.controller.handle_intent(Intent(name="follow_person", target="marker"))
+    controller = runtime.command_service.controller
+    step = controller.planner.plan_intents([Intent(name="follow_person", target="marker")])[0]
+    result = controller.handle_planned_step(step)
 
     assert result["results"][0].status == "failed"
     assert "perception" in result["results"][0].data["error"]

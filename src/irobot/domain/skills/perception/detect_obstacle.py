@@ -14,17 +14,7 @@ class DetectObstacleSkill(Skill):
 
     def execute(self, context: SkillContext) -> SkillResult:
         try:
-            check_obstacle = getattr(context.robot, "check_obstacle", None)
-            if check_obstacle is None:
-                return SkillResult(
-                    status="failed",
-                    message="Le robot ne fournit pas de méthode check_obstacle()",
-                    data={"skill": self.name},
-                    confidence=0.0,
-                    next_action=None,
-                )
-
-            obstacle = bool(check_obstacle())
+            obstacle = bool(context.robot.check_obstacle())
             context.state["obstacle_detected"] = obstacle
 
             if obstacle:

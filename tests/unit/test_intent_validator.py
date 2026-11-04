@@ -50,7 +50,8 @@ def test_lexical_refusal_stays_outside_domain():
     validated, errors = IntentPlanValidator(RuntimeSettings()).validate([intent])
     assert not validated
     assert errors[0]["reason"] == "intent not allowed"
-    result = LanguageController(robot=FakeRobot()).handle_intent(intent)
+    controller = LanguageController(robot=FakeRobot())
+    result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
     assert result["status"] == "rejected"
     assert result["reason"] == "unsupported_follow_target"
 

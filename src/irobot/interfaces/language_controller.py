@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.executor import SkillExecutor
 from irobot.domain.orchestrator.planner import SkillPlanStep, SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.intent import Intent
 from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
@@ -22,9 +22,9 @@ class LanguageController:
 
     def __init__(
         self,
-        robot=None,
-        camera=None,
-        sensor=None,
+        robot: Any | None = None,
+        camera: Any | None = None,
+        sensor: Any | None = None,
         perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
         settings: RuntimeSettings | None = None,
@@ -50,40 +50,21 @@ class LanguageController:
     def _should_prioritize_obstacle_stop(self, context: SkillContext, skill_name: str) -> bool:
         if context.robot is None:
             return False
-        check_obstacle = getattr(context.robot, "check_obstacle", None)
-        if check_obstacle is None:
-            return False
         if skill_name not in {"move_forward", "turn_left", "turn_right", "approach_target", "follow_object"}:
             return False
         try:
-            return bool(check_obstacle())
+            return bool(context.robot.check_obstacle())
         except Exception:
             logging.getLogger(__name__).exception("Echec du capteur d'obstacle")
             return True
 
-    def handle_intent(self, intent: Intent):
-        rejection = self._intent_rejection(intent)
-        if rejection is not None:
-            return rejection
-        skills = self.planner.plan(intent.name)
-        return self._execute_planned_step(SkillPlanStep(intent, tuple(skills)))
-
     def handle_planned_step(self, step: SkillPlanStep):
-        rejection = self._intent_rejection(step.intent)
-        if rejection is not None:
-            return rejection
-        return self._execute_planned_step(step)
-
-    def _intent_rejection(self, intent: Intent):
+        intent = step.intent
         refusal = follow_request_refusal(intent.raw_text)
         if refusal:
             return {"intent": intent, "status": "rejected", "reason": refusal}
         if not self.validator.validate(intent):
             return {"intent": intent, "status": "rejected", "reason": "intent not allowed"}
-        return None
-
-    def _execute_planned_step(self, step: SkillPlanStep):
-        intent = step.intent
         plan = step.skills
         if not plan:
             return {"intent": intent, "status": "rejected", "reason": "no skill plan"}
@@ -101,9 +82,6 @@ class LanguageController:
                     **intent.parameters,
                     **({"target_object": intent.target} if intent.name in FOLLOW_INTENTS and intent.target else {}),
                 },
-                last_camera_position=None,
-                last_object_position=None,
-                last_ball_position=None,
                 camera_ready=self.camera is not None,
             ),
         )

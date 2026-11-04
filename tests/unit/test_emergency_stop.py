@@ -6,9 +6,9 @@ import time
 import pytest
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
@@ -129,7 +129,7 @@ def test_sync_path_runs_inline():
     runtime = VoiceRuntime(robot=RobotController(FakeRobot()), use_llm=False, threaded=False)
     result = runtime.handle_transcript("stop maintenant")
     assert result is None
-    assert runtime.mission.state.phase == "aborted"
+    assert runtime.command_service.mission_orchestrator.state_machine.state.phase == "aborted"
     assert runtime.robot.is_emergency_stop_requested()
     assert not runtime.mission_running()
 
@@ -150,18 +150,18 @@ def test_stop_is_immediate_even_without_a_mission(tmp_path, monkeypatch, text, t
         original_request()
 
     monkeypatch.setattr(runtime, "_request_emergency_stop", request)
-    monkeypatch.setattr(runtime.parser, "parse", lambda _: pytest.fail("parser called"))
-    monkeypatch.setattr(runtime, "_ask_plan", lambda _: pytest.fail("LLM called"))
+    monkeypatch.setattr(runtime.command_service.parser, "parse", lambda _: pytest.fail("parser called"))
+    monkeypatch.setattr(runtime.command_service, "_ask_plan", lambda _: pytest.fail("LLM called"))
     assert runtime.handle_transcript(text) is None
     assert calls == ["request"]
     assert fake.commands[0] == "stop"
-    assert runtime._emergency_stop_requested()
-    assert runtime.mission.state.phase == "aborted"
+    assert runtime.command_service._emergency_stop_requested()
+    assert runtime.command_service.mission_orchestrator.state_machine.state.phase == "aborted"
     assert runtime._worker is None
 
 
 def test_stop_during_llm_planning_prevents_all_motion(tmp_path, monkeypatch):
-    from irobot.interfaces.intent_parser import Intent
+    from irobot.domain.intent import Intent
 
     fake = FakeRobot()
     runtime = VoiceRuntime(robot=RobotController(fake), trace_dir=str(tmp_path))
@@ -172,7 +172,7 @@ def test_stop_during_llm_planning_prevents_all_motion(tmp_path, monkeypatch):
         assert release.wait(2)
         return [Intent(name="move_forward", parameters={"duration": 1})], {"source": "llm_plan"}
 
-    monkeypatch.setattr(runtime, "_ask_plan", plan)
+    monkeypatch.setattr(runtime.command_service, "_ask_plan", plan)
     try:
         runtime.handle_transcript("avance")
         assert entered.wait(2)
@@ -281,8 +281,8 @@ def test_stop_failure_still_requests_cancellation(tmp_path, monkeypatch):
     with pytest.raises(OSError, match="driver stop failed"):
         runtime.handle_transcript("stop")
     assert calls == ["stop", "request"]
-    assert runtime._emergency_stop_requested()
-    assert runtime.mission.state.phase == "aborted"
+    assert runtime.command_service._emergency_stop_requested()
+    assert runtime.command_service.mission_orchestrator.state_machine.state.phase == "aborted"
 
 
 @pytest.mark.parametrize("mode", ["error", "unavailable"])

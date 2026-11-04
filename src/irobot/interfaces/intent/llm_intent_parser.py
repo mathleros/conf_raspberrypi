@@ -8,7 +8,8 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.config.llm_settings import load_llm_settings
-from irobot.interfaces.intent_parser import Intent, IntentParser
+from irobot.domain.intent import Intent
+from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.plan_guards import (
     grounding_check,
     follow_request_refusal,
@@ -87,7 +88,7 @@ def ask_llm_for_intent_plan_with_trace(
     - JSON valide avec `steps: []` -> ([], source "llm_unsupported") : commande hors périmètre ;
     - plan non justifié par la phrase prétraitée (`grounding_check`) -> ([], source "llm_ungrounded") ;
     - timeout, erreur HTTP, JSON invalide, `steps` absent/non liste ou aucune étape exploitable
-      -> repli sur IntentParser (texte d'origine).
+      -> repli sur TextIntentParser (texte d'origine).
     """
     refusal = follow_request_refusal(text)
     if refusal:
@@ -99,7 +100,7 @@ def ask_llm_for_intent_plan_with_trace(
 
     def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
         print(f"[LLM] {console_reason}, repli sur le parseur local", flush=True)
-        return IntentParser().parse_plan(text), {
+        return TextIntentParser().parse_plan(text), {
             "source": "local_parser_fast_fallback",
             "llm_content": None,
             "llm_json": None,
@@ -167,6 +168,23 @@ def _interpret_plan_response(
 
     intents = [intent for step in kept if (intent := _intent_from_llm_step(step, text)) is not None]
     return intents, {"source": "llm_plan", **trace}
+
+
+class LLMIntentParser:
+    """LLM-backed parser implementing the shared intent-plan contract."""
+
+    def __init__(
+        self,
+        parse_with_trace: Callable[[str], tuple[list[Intent], dict[str, Any]]] | None = None,
+    ):
+        self._parse_with_trace = parse_with_trace or ask_llm_for_intent_plan_with_trace
+
+    def parse_plan(self, text: str) -> list[Intent]:
+        intents, _ = self.parse_plan_with_trace(text)
+        return intents
+
+    def parse_plan_with_trace(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
+        return self._parse_with_trace(text)
 
 
 def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:

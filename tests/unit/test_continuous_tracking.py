@@ -5,10 +5,10 @@ import json
 import pytest
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.intent import Intent
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.base_skill import SkillResult
-from irobot.interfaces.intent_parser import Intent
-from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.robot_controller import RobotController
 from irobot.interfaces.voice_runtime import VoiceRuntime
 
@@ -41,14 +41,21 @@ def test_continuous_tracking_survives_old_limits_until_stop(tmp_path, monkeypatc
         use_llm=False,
         trace_dir=str(tmp_path),
     )
-    runtime.settings = RuntimeSettings()
-    runtime.controller.planner.registry.register(
-        FollowObjectSkill(settings=runtime.settings, time_fn=world.time, sleep_fn=world.sleep)
+    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.controller.planner.registry.register(
+        FollowObjectSkill(settings=runtime.command_service.settings, time_fn=world.time, sleep_fn=world.sleep)
     )
-    monkeypatch.setattr("irobot.interfaces.voice_execution.time.time", world.time)
+    runtime.command_service.mission_orchestrator.time_fn = world.time
     trace_path = tmp_path / "continuous.jsonl"
 
-    steps, status = runtime._run_plan([Intent(name=name, target=target)], trace_path)
+    planned = runtime.command_service.planner.plan_intents(
+        [Intent(name=name, target=target)]
+    )
+    steps, status = runtime.command_service.mission_orchestrator.execute(
+        planned, runtime.command_service.controller.handle_planned_step,
+        stop_requested=runtime.command_service._emergency_stop_requested,
+        on_event=lambda event: runtime.command_service._trace_mission_event(trace_path, event),
+    )
 
     assert status == "aborted"
     assert steps[0]["reason"] == "emergency stop"
@@ -98,12 +105,16 @@ def test_tracking_failure_is_not_retried(tmp_path, monkeypatch, name, skill_stat
     runtime = VoiceRuntime(robot=World(), use_llm=False)
     calls = []
 
-    def execute(intent):
-        calls.append(intent)
+    def execute(step):
+        calls.append(step.intent)
         return {"status": "accepted", "results": [SkillResult(status=skill_status, message="camera error")]}
 
-    monkeypatch.setattr(runtime.controller, "handle_intent", execute)
-    result = runtime._execute_intent_with_retry(Intent(name=name), tmp_path / "failure.jsonl")
+    monkeypatch.setattr(runtime.command_service.controller, "handle_planned_step", execute)
+    planned = runtime.command_service.planner.plan_intents([Intent(name=name)])[0]
+    steps, _ = runtime.command_service.mission_orchestrator.execute(
+        [planned], execute, stop_requested=lambda: False,
+    )
+    result = steps[0]
 
     assert result["status"] == "failed"
     assert len(calls) == 1
@@ -113,7 +124,7 @@ def test_tracking_failure_is_not_retried(tmp_path, monkeypatch, name, skill_stat
 def test_continuous_tracking_requires_live_perception():
     world = World()
     runtime = VoiceRuntime(robot=world, use_llm=False)
-    result = runtime.controller.handle_intent(Intent(name="follow_person", target="marker"))
+    result = runtime.command_service.controller.handle_intent(Intent(name="follow_person", target="marker"))
 
     assert result["results"][0].status == "failed"
     assert "perception" in result["results"][0].data["error"]

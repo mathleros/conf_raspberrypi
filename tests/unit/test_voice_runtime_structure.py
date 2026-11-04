@@ -11,14 +11,23 @@ from types import SimpleNamespace
 import pytest
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.intent import Intent
 from irobot.hardware.audio import voice_input
 from irobot.hardware import runtime_factory
-from irobot.interfaces import voice_llm, voice_runtime
-from irobot.interfaces.intent_parser import Intent
+from irobot.interfaces import voice_runtime
+from irobot.interfaces.intent.intent_parser import IntentPlanParser
+from irobot.interfaces.intent.llm_intent_parser import (
+    LLMIntentParser,
+    ask_llm_for_intent_plan_with_trace,
+)
+from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 
 
 PACKAGE = Path(__file__).resolve().parents[2] / "src" / "irobot"
 VOICE_FILES = sorted((PACKAGE / "interfaces").glob("voice*.py")) + [
+    PACKAGE / "interfaces" / "command_service.py",
+    PACKAGE / "interfaces" / "intent" / "plan_validator.py",
+    PACKAGE / "domain" / "orchestrator" / "mission_orchestrator.py",
     PACKAGE / "hardware" / "audio" / "voice_input.py",
     PACKAGE / "hardware" / "runtime_factory.py",
 ]
@@ -272,10 +281,30 @@ def test_llm_interpretation_accepts_an_injected_transport():
         meta["llm_attempts"] = 1
         return '{"steps":[{"intent":"move_forward","parameters":{"distance":20}}]}'
 
-    intents, trace = voice_llm.ask_llm_for_intent_plan_with_trace("avance de 20 cm", post=post)
+    intents, trace = ask_llm_for_intent_plan_with_trace("avance de 20 cm", post=post)
     assert [intent.name for intent in intents] == ["move_forward"]
     assert trace["source"] == "llm_plan"
     assert trace["llm_attempts"] == 1
+
+
+def test_text_and_llm_parsers_share_the_intent_plan_contract():
+    text_parser: IntentPlanParser = TextIntentParser()
+    llm_parser = LLMIntentParser(
+        parse_with_trace=lambda text: (
+            [Intent(name="move_forward", raw_text=text)],
+            {"source": "llm_plan"},
+        )
+    )
+    llm_parser_contract: IntentPlanParser = llm_parser
+
+    text_plan = text_parser.parse_plan("avance")
+    llm_plan = llm_parser_contract.parse_plan("avance")
+    traced_plan, trace = llm_parser.parse_plan_with_trace("avance")
+
+    assert [intent.name for intent in text_plan] == ["move_forward"]
+    assert [intent.name for intent in llm_plan] == ["move_forward"]
+    assert [intent.name for intent in traced_plan] == ["move_forward"]
+    assert trace["source"] == "llm_plan"
 
 
 def test_plan_with_trace_wrapper_uses_the_public_transport(monkeypatch):
@@ -292,7 +321,7 @@ def test_plan_with_trace_wrapper_uses_the_public_transport(monkeypatch):
 def test_expanded_steps_preserve_metadata_and_own_parameters(tmp_path, name):
     runtime = voice_runtime.VoiceRuntime(use_llm=False, trace_dir=str(tmp_path))
     original = Intent(name=name, target="red", confidence=0.7, raw_text="original")
-    steps = runtime._expand_high_level_intents([original])
+    steps = runtime.command_service.planner.expand_intents([original])
     assert len({id(step.parameters) for step in steps}) == len(steps)
     assert all(step.target == "red" and step.confidence == 0.7 for step in steps)
     assert all(step.raw_text == "original" for step in steps)

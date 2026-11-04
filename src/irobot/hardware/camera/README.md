@@ -31,7 +31,7 @@ le contrat `ObjectPerceptionPipeline`. Un consommateur demande une cible avec
 
 ```python
 from irobot.hardware.camera.camera_live_perception_pipeline import CameraLivePerceptionPipeline
-from irobot.interfaces.perception_contracts import PerceptionTarget
+from irobot.domain.perception import PerceptionTarget
 
 camera = CameraLivePerceptionPipeline()
 try:

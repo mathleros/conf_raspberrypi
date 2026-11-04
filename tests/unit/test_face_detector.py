@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.hardware.camera import camera_live_perception_pipeline
@@ -15,7 +16,6 @@ from irobot.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.interfaces.perception_contracts import (
     ObjectDetection,
     ObjectPerceptionPipeline,
-    PerceptionTarget,
 )
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.perception_helpers import camera_target

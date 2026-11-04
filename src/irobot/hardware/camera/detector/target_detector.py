@@ -6,11 +6,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from irobot.config.settings import MarkerIdentity, RuntimeSettings
+from irobot.domain.perception import PerceptionTarget
 from irobot.hardware.camera.detector import ColorDetector, FaceDetector, OpenCVMarkerDetector
-from irobot.interfaces.perception_contracts import (
-    ObjectDetection,
-    PerceptionTarget,
-)
+from irobot.interfaces.perception_contracts import ObjectDetection
 
 
 class CameraTargetDetector:

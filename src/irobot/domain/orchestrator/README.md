@@ -1,6 +1,6 @@
 # Orchestration des skills du robot
 
-Ce package formalise une première couche d'orchestration pour le robot.
+Ce package regroupe la planification, l'exécution et le suivi des missions.
 
 ## Objectif
 
@@ -10,7 +10,8 @@ Le LLM ne doit pas piloter directement les GPIO. Sa fonction est plutôt :
 - transmettre une tâche structurée à l'orchestrateur,
 - éviter les commandes non validées.
 
-L'orchestrateur, lui, exécutera des `Skill` selon un contrat standardisé.
+L'orchestrateur exécute un plan compilé, sans dépendance vers les interfaces
+vocales, le LLM, les traces JSONL ou les pilotes matériels.
 
 ## Composants
 
@@ -19,8 +20,9 @@ L'orchestrateur, lui, exécutera des `Skill` selon un contrat standardisé.
 Exécute une `Skill` dans un `SkillContext` et renvoie un `SkillResult`.
 
 ### `SkillPlanner`
-
-Organise les skills selon l'intention reçue. À ce stade, il est un planificateur simple et explicite.
+Décompose les intents composés en intents exécutables, puis compile chacun en
+un `SkillPlanStep` qui associe l'intent à la séquence de skills enregistrées.
+Le résultat est déterministe et ne laisse pas le LLM décider librement des actions.
 
 ### `MissionStateMachine`
 
@@ -32,34 +34,40 @@ Formalise les phases d'une mission :
 - `failed`
 - `aborted`
 
+### `MissionOrchestrator`
+
+Possède la machine d'état et exécute les `SkillPlanStep` dans l'ordre :
+retries, budgets par étape/mission et abandon à la première étape non terminée.
+Un suivi continu n'a pas d'échéance et n'est pas relancé après erreur.
+L'horloge monotone est injectable pour les tests.
+
+Les dépendances d'exécution sont passées à `execute` : fonction d'exécution d'une
+étape, contrôle d'arrêt et observateur facultatif d'événements.
+`CommandService` adapte ces événements en JSONL et garantit l'arrêt matériel
+dans un `finally`. Une exception d'exécution marque la mission en échec et se
+propage ; un plan vide est une erreur explicite.
+
+Les délais ne préemptent pas une skill bloquante : ils sont vérifiés après
+l'appel et entre étapes. Les contrôles d'urgence des skills/du robot restent
+indispensables.
+
 ## Exemple d'utilisation
 
+Le service d'application injecte ici le contrôleur déjà assemblé :
+
 ```python
-from irobot.skills import DetectObjectSkill, ApproachTargetSkill, StopMotionSkill
-from irobot.orchestrator import SkillExecutor, SkillPlanner, MissionStateMachine
-from irobot.skills.base_skill import SkillContext
+from irobot.domain.intent import Intent
+from irobot.domain.orchestrator import MissionOrchestrator, SkillPlanner
 
-context = SkillContext(
-    robot=robot,
-    state={"camera_ready": True, "last_ball_position": "centre"},
-)
-
-executor = SkillExecutor(context)
-planner = SkillPlanner([DetectObjectSkill(), ApproachTargetSkill(), StopMotionSkill()])
-mission = MissionStateMachine()
-
-mission.start("follow_red_ball", target="red_ball")
-mission.begin_execution()
-
-for skill in planner.plan("follow_red_ball"):
-    result = executor.run(skill)
-    print(result)
+planner = SkillPlanner()
+steps = planner.plan_intents([Intent(name="stop")])
+mission = MissionOrchestrator()
+try:
+    results, status = mission.execute(
+        steps,
+        controller.handle_planned_step,
+        stop_requested=robot.is_emergency_stop_requested,
+    )
+finally:
+    robot.stop()
 ```
-
-## Prochaine évolution recommandée
-
-- validation stricte du plan produit par le LLM,
-- machine d'états plus avancée avec transitions explicites,
-- garde-fou de sécurité par obstacle,
-- boucle de contrôle de suivi visuel,
-- temps d'exécution, timeout et retry sur erreur.

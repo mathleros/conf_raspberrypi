@@ -13,12 +13,12 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - non-Raspberry environments
     Picamera2 = None
 from irobot.config.settings import load_runtime_settings
+from irobot.domain.perception import PerceptionTarget
 from irobot.hardware.camera.detector.target_detector import CameraTargetDetector
 from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.interfaces.perception_contracts import (
     ObjectDetection,
     ObjectPerceptionPipeline,
-    PerceptionTarget,
     TargetFrameDetector,
 )
 

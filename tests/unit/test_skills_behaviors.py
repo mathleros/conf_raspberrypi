@@ -9,7 +9,7 @@ from irobot.interfaces import RobotController
 from irobot.domain.skills import SkillContext
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
-from irobot.interfaces.perception_contracts import PerceptionTarget
+from irobot.domain.perception import PerceptionTarget
 from tests.unit.fake_robot import FakeRobot
 
 

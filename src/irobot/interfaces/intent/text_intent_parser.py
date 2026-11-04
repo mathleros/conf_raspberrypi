@@ -9,32 +9,11 @@ produit un `Intent` validé par le système.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from typing import Any
 
+from irobot.domain.intent import Intent
+from irobot.interfaces.plan_guards import fold, follow_request_refusal
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits
-from irobot.interfaces.plan_guards import fold, follow_request_refusal, supported_follow_target
-from irobot.interfaces.perception_contracts import PerceptionTarget
-
-
-@dataclass
-class Intent:
-    """Représente une intention robotique issue du langage naturel."""
-
-    name: str
-    target: str | None = None
-    parameters: dict[str, Any] = field(default_factory=dict)
-    confidence: float = 0.0
-    raw_text: str = ""
-
-    @property
-    def perception_target(self) -> PerceptionTarget | None:
-        """Return the closed semantic target represented by this intent."""
-        return PerceptionTarget.from_value(
-            self.parameters.get("target_object") or self.target
-        )
-
-
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
 _DECIMAL_MARK = "\ue000"
 
@@ -181,8 +160,8 @@ def _extract_target_object(text: str) -> str | None:
     return None
 
 
-class IntentParser:
-    """Transforme du texte libre en intention métier structurée."""
+class TextIntentParser:
+    """Parse localement du texte libre en intentions métier structurées."""
 
     def parse(self, text: str) -> Intent:
         cleaned = (text or "").strip()
@@ -424,37 +403,3 @@ class IntentParser:
             plan.append(intent)
 
         return plan
-
-
-class IntentValidator:
-    """Valide qu'une intention est cohérente et autorisée."""
-
-    ALLOWED_INTENTS = {
-        "follow_person",
-        "follow_red_ball",
-        "avoid_obstacle",
-        "search_and_approach_object",
-        "follow_object",
-        "contour_obstacle",
-        "spin_360",
-        "move_square",
-        "return_to_start",
-        "move_forward",
-        "move_backward",
-        "turn_left",
-        "turn_right",
-        "stop",
-    }
-
-    def validate(self, intent: Intent) -> bool:
-        if follow_request_refusal(intent.raw_text):
-            return False
-        if intent.name not in self.ALLOWED_INTENTS:
-            return False
-        if intent.name == "follow_red_ball":
-            return (intent.target in {None, "red_ball"}
-                    and supported_follow_target(intent.parameters.get("target_object")))
-        if intent.name == "follow_object":
-            return (intent.target in {None, "red", "yellow"}
-                    and supported_follow_target(intent.parameters.get("target_object")))
-        return True

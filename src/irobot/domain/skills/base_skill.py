@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills.blackboard_state import BlackboardState
-
-if TYPE_CHECKING:
-    from irobot.interfaces.perception_contracts import PerceptionTarget
 
 
 @dataclass

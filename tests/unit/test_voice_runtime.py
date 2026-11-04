@@ -7,12 +7,13 @@ from pathlib import Path
 import pytest
 
 from irobot.config.settings import LLMSettings, RuntimeSettings, load_llm_settings
+from irobot.domain.intent import Intent
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces import voice_runtime as vr
-from irobot.interfaces.intent_parser import Intent, IntentParser
+from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
-from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
 from irobot.interfaces import voice_llm_transport
 from irobot.interfaces.voice_runtime import VoiceRuntime
@@ -290,17 +291,18 @@ def test_voice_runtime_mission_timeout(monkeypatch):
     )
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
-    runtime.settings = runtime.settings.__class__(
-        cm_per_second=runtime.settings.cm_per_second,
-        deg_per_second=runtime.settings.deg_per_second,
+    runtime.command_service.settings = runtime.command_service.settings.__class__(
+        cm_per_second=runtime.command_service.settings.cm_per_second,
+        deg_per_second=runtime.command_service.settings.deg_per_second,
         step_timeout_seconds=0.0,
         mission_timeout_seconds=0.0,
-        max_step_retries=runtime.settings.max_step_retries,
-        max_plan_steps=runtime.settings.max_plan_steps,
-        max_distance_cm=runtime.settings.max_distance_cm,
-        max_angle_deg=runtime.settings.max_angle_deg,
-        max_duration_sec=runtime.settings.max_duration_sec,
+        max_step_retries=runtime.command_service.settings.max_step_retries,
+        max_plan_steps=runtime.command_service.settings.max_plan_steps,
+        max_distance_cm=runtime.command_service.settings.max_distance_cm,
+        max_angle_deg=runtime.command_service.settings.max_angle_deg,
+        max_duration_sec=runtime.command_service.settings.max_duration_sec,
     )
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
 
     result = runtime.handle_text_as_plan("avance")
     assert result["status"] == "aborted"
@@ -319,10 +321,10 @@ def _patch_plan(monkeypatch, intents):
 def test_sanitize_injects_default_duration_and_angle():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
 
-    forward = runtime._sanitize_primitive_intent(Intent(name="move_forward"))
-    backward = runtime._sanitize_primitive_intent(Intent(name="move_backward"))
-    turn = runtime._sanitize_primitive_intent(Intent(name="turn_left"))
-    turn_timed = runtime._sanitize_primitive_intent(Intent(name="turn_right", parameters={"duration": 2}))
+    forward = runtime.command_service.plan_validator._sanitize_primitive_intent(Intent(name="move_forward"))
+    backward = runtime.command_service.plan_validator._sanitize_primitive_intent(Intent(name="move_backward"))
+    turn = runtime.command_service.plan_validator._sanitize_primitive_intent(Intent(name="turn_left"))
+    turn_timed = runtime.command_service.plan_validator._sanitize_primitive_intent(Intent(name="turn_right", parameters={"duration": 2}))
 
     assert forward.parameters["duration"] == 1.0
     assert backward.parameters["duration"] == 1.0
@@ -333,11 +335,12 @@ def test_sanitize_injects_default_duration_and_angle():
 
 def test_sanitize_default_duration_bounded_by_max_duration():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    runtime.settings = runtime.settings.__class__(
-        **{**runtime.settings.__dict__, "max_duration_sec": 0.5}
+    runtime.command_service.settings = runtime.command_service.settings.__class__(
+        **{**runtime.command_service.settings.__dict__, "max_duration_sec": 0.5}
     )
+    runtime.command_service.plan_validator.settings = runtime.command_service.settings
 
-    forward = runtime._sanitize_primitive_intent(Intent(name="move_forward"))
+    forward = runtime.command_service.plan_validator._sanitize_primitive_intent(Intent(name="move_forward"))
 
     assert forward.parameters["duration"] == 0.5
 
@@ -345,10 +348,10 @@ def test_sanitize_default_duration_bounded_by_max_duration():
 def test_sanitize_normalizes_units():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
 
-    meters = runtime._sanitize_primitive_intent(
+    meters = runtime.command_service.plan_validator._sanitize_primitive_intent(
         Intent(name="move_forward", parameters={"distance": 1, "unit": "mètres"})
     )
-    unknown = runtime._sanitize_primitive_intent(
+    unknown = runtime.command_service.plan_validator._sanitize_primitive_intent(
         Intent(name="move_forward", parameters={"distance": 10, "unit": "furlongs"})
     )
 
@@ -392,7 +395,7 @@ def test_voice_runtime_stops_robot_even_after_exception(monkeypatch):
     def _boom(_intent):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(runtime.controller, "handle_intent", _boom)
+    monkeypatch.setattr(runtime.command_service.controller, "handle_planned_step", _boom)
 
     try:
         runtime.handle_text_as_plan("avance")
@@ -430,11 +433,11 @@ def test_voice_runtime_stops_executing_steps_after_failure(monkeypatch):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
     seen: list[str] = []
 
-    def _fail(intent):
-        seen.append(intent.name)
-        return {"intent": intent, "status": "failed", "reason": "nope"}
+    def _fail(step):
+        seen.append(step.intent.name)
+        return {"intent": step.intent, "status": "failed", "reason": "nope"}
 
-    monkeypatch.setattr(runtime.controller, "handle_intent", _fail)
+    monkeypatch.setattr(runtime.command_service.controller, "handle_planned_step", _fail)
 
     result = runtime.handle_text_as_plan("avance puis tourne")
 
@@ -464,28 +467,28 @@ def test_voice_runtime_rejects_whole_plan_when_one_step_invalid(monkeypatch):
 
 def test_effective_step_timeout_with_and_without_duration():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    base = runtime.settings.step_timeout_seconds
-    extra = runtime.settings.search_timeout_seconds + runtime.settings.timeout_margin_seconds
+    base = runtime.command_service.settings.step_timeout_seconds
+    extra = runtime.command_service.settings.search_timeout_seconds + runtime.command_service.settings.timeout_margin_seconds
 
-    assert runtime._effective_step_timeout(Intent(name="stop")) == base
-    assert runtime._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 300})) == 300 + extra
-    assert runtime._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 0})) == max(base, extra)
+    assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name="stop")) == base
+    assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 300})) == 300 + extra
+    assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name="follow_target", parameters={"duration_s": 0})) == max(base, extra)
 
 
 def test_effective_mission_timeout_is_sum_of_steps():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    extra = runtime.settings.search_timeout_seconds + runtime.settings.timeout_margin_seconds
+    extra = runtime.command_service.settings.search_timeout_seconds + runtime.command_service.settings.timeout_margin_seconds
     intents = [
         Intent(name="follow_target", parameters={"duration_s": 300}),
         Intent(name="stop"),
     ]
 
     expected = max(
-        runtime.settings.mission_timeout_seconds,
-        300 + extra + runtime.settings.step_timeout_seconds,
+        runtime.command_service.settings.mission_timeout_seconds,
+        300 + extra + runtime.command_service.settings.step_timeout_seconds,
     )
-    assert runtime._effective_mission_timeout(intents) == expected
-    assert runtime._effective_mission_timeout([Intent(name="stop")]) == runtime.settings.mission_timeout_seconds
+    assert runtime.command_service.mission_orchestrator._effective_mission_timeout(intents) == expected
+    assert runtime.command_service.mission_orchestrator._effective_mission_timeout([Intent(name="stop")]) == runtime.command_service.settings.mission_timeout_seconds
 
 
 @pytest.mark.parametrize("name", ["search_and_approach_object"])
@@ -500,36 +503,40 @@ def test_effective_mission_timeout_is_sum_of_steps():
 )
 def test_approach_timeout_covers_search_tracking_and_margin(name, params, expected):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    runtime.settings = RuntimeSettings()
+    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
 
-    assert runtime._effective_step_timeout(Intent(name=name, parameters=params)) == pytest.approx(expected)
+    assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name=name, parameters=params)) == pytest.approx(expected)
 
 
 def test_approach_timeout_preserves_larger_base():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    runtime.settings = RuntimeSettings(step_timeout_seconds=60)
+    runtime.command_service.settings = RuntimeSettings(step_timeout_seconds=60)
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
 
     for name in ("search_and_approach_object", "stop", "move_forward", "turn_right"):
-        assert runtime._effective_step_timeout(Intent(name=name)) == 60.0
+        assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name=name)) == 60.0
 
 
 @pytest.mark.parametrize("name", ["stop", "move_forward", "move_backward", "turn_left", "turn_right"])
 def test_approach_timeout_does_not_change_simple_command_budgets(name):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    runtime.settings = RuntimeSettings()
+    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
 
-    assert runtime._effective_step_timeout(Intent(name=name)) == 6.0
+    assert runtime.command_service.mission_orchestrator._effective_step_timeout(Intent(name=name)) == 6.0
 
 
 def test_effective_mission_timeout_includes_approach_budget():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    runtime.settings = RuntimeSettings()
+    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
     intents = [
         Intent(name="search_and_approach_object"),
         Intent(name="follow_object", parameters={"duration_s": 300}),
     ]
 
-    assert runtime._effective_mission_timeout(intents) == 43.0 + 335.0
+    assert runtime.command_service.mission_orchestrator._effective_mission_timeout(intents) == 43.0 + 335.0
 
 
 @pytest.mark.parametrize(
@@ -546,20 +553,25 @@ def test_approach_retry_uses_its_own_timeout(
     from irobot.domain.skills.base_skill import SkillResult
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path))
-    runtime.settings = RuntimeSettings()
+    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
     clock = [0.0]
     calls = []
-    monkeypatch.setattr(vr.time, "time", lambda: clock[0])
+    runtime.command_service.mission_orchestrator.time_fn = lambda: clock[0]
 
-    def execute(intent):
-        calls.append(intent.name)
+    def execute(step):
+        calls.append(step.intent.name)
         clock[0] += elapsed
         return {"status": "accepted", "results": [SkillResult(status=skill_status)]}
 
-    monkeypatch.setattr(runtime.controller, "handle_intent", execute)
-    result = runtime._execute_intent_with_retry(
-        Intent(name="search_and_approach_object"), tmp_path / "approach.jsonl"
+    monkeypatch.setattr(runtime.command_service.controller, "handle_planned_step", execute)
+    planned_step = runtime.command_service.planner.plan_intents(
+        [Intent(name="search_and_approach_object")]
+    )[0]
+    steps, _ = runtime.command_service.mission_orchestrator.execute(
+        [planned_step], execute, stop_requested=lambda: False,
     )
+    result = steps[0]
 
     assert result["status"] == expected_status
     assert len(calls) == attempts
@@ -577,21 +589,29 @@ def test_no_retry_on_aborted_or_timeout(tmp_path):
         calls.append(1)
         return {"status": "aborted", "reason": "x", "results": []}
 
-    runtime.controller.handle_intent = aborted
-    result = runtime._execute_intent_with_retry(Intent(name="stop"), tmp_path / "t.jsonl")
+    runtime.command_service.controller.handle_planned_step = aborted
+    planned_step = runtime.command_service.planner.plan_intents([Intent(name="stop")])[0]
+    steps, _ = runtime.command_service.mission_orchestrator.execute(
+        [planned_step], aborted, stop_requested=lambda: False,
+    )
+    result = steps[0]
 
     assert result["status"] == "aborted"
     assert len(calls) == 1
 
     calls.clear()
-    runtime.settings = type(runtime.settings)(step_timeout_seconds=-1.0)
+    runtime.command_service.settings = type(runtime.command_service.settings)(step_timeout_seconds=-1.0)
+    runtime.command_service.mission_orchestrator.settings = runtime.command_service.settings
 
     def failed(_intent):
         calls.append(1)
         return {"status": "accepted", "results": []}
 
-    runtime.controller.handle_intent = failed
-    result = runtime._execute_intent_with_retry(Intent(name="stop"), tmp_path / "t.jsonl")
+    runtime.command_service.controller.handle_planned_step = failed
+    steps, _ = runtime.command_service.mission_orchestrator.execute(
+        [planned_step], failed, stop_requested=lambda: False,
+    )
+    result = steps[0]
     assert result["reason"] == "step timeout"
     assert len(calls) == 1
 
@@ -717,7 +737,7 @@ def test_preprocess_compound_durations_and_distances(text, expected):
 
 
 def test_local_parser_keeps_own_minute_handling():
-    assert IntentParser().parse("avance pendant 1 minute 30 secondes").parameters == {"duration": 90.0}
+    assert TextIntentParser().parse("avance pendant 1 minute 30 secondes").parameters == {"duration": 90.0}
 
 
 def test_normalizer_and_prompt_match_eval_script():
@@ -733,7 +753,7 @@ def test_normalizer_and_prompt_match_eval_script():
 
 
 def test_local_parser_understands_spelled_distances_and_angles():
-    parser = IntentParser()
+    parser = TextIntentParser()
 
     forward = parser.parse("avance de cinquante centimètres")
     turn = parser.parse("tourne à droite de quatre vingt dix degrés")
@@ -959,7 +979,7 @@ def test_unsupported_command_is_rejected_without_parser_or_motion(fake_llm, monk
     def _no_parser(*_args, **_kwargs):
         raise AssertionError("le parseur local ne doit pas être utilisé")
 
-    monkeypatch.setattr(IntentParser, "parse_plan", _no_parser)
+    monkeypatch.setattr(TextIntentParser, "parse_plan", _no_parser)
     robot = FakeRobot()
     runtime = VoiceRuntime(robot=robot, use_llm=True, trace_dir=str(tmp_path))
 
@@ -1011,7 +1031,7 @@ def _forbid_parser(monkeypatch):
     def _no_parser(*_args, **_kwargs):
         raise AssertionError("le parseur local ne doit pas être utilisé")
 
-    monkeypatch.setattr(IntentParser, "parse_plan", _no_parser)
+    monkeypatch.setattr(TextIntentParser, "parse_plan", _no_parser)
 
 
 @pytest.mark.parametrize("text", ["stop", "arrête toi", "halte", "pause"])
@@ -1222,13 +1242,13 @@ def test_read_timeout_default_and_env_override(fake_llm, monkeypatch):
 def test_emergency_listener_checks_pure_stop_before_parser(monkeypatch):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
     calls = []
-    original = runtime.parser.parse
+    original = runtime.command_service.parser.parse
 
     def _spy(text):
         calls.append(text)
         return original(text)
 
-    monkeypatch.setattr(runtime.parser, "parse", _spy)
+    monkeypatch.setattr(runtime.command_service.parser, "parse", _spy)
 
     assert runtime._is_stop_phrase("halte")
     assert calls == []
@@ -1444,7 +1464,7 @@ def test_continuous_mode_does_not_wait_for_warmup(fake_llm, monkeypatch, tmp_pat
     llm = _SlowWarmupLLM(delay=0.5)
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
-    runtime.warmup = vr.LLMWarmup().start()
+    runtime.command_service.warmup = vr.LLMWarmup().start()
 
     result = runtime.handle_text_as_plan("recule")
 

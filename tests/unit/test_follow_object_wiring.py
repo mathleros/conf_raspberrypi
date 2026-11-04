@@ -5,17 +5,17 @@ from types import SimpleNamespace
 import pytest
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.intent import Intent
 from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
-from irobot.interfaces.intent_parser import (
-    Intent,
-    IntentParser,
-    IntentValidator,
+from irobot.domain.intent_validator import IntentValidator
+from irobot.interfaces.intent.text_intent_parser import (
+    TextIntentParser,
     _extract_duration,
     _extract_stand_off_cm,
 )
-from irobot.interfaces.perception_contracts import PerceptionTarget
 from irobot.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
@@ -24,7 +24,7 @@ SENTENCE = "cherche la balle jaune, approche toi à 1m de la balle jaune puis su
 
 
 def _plan(text: str) -> list[Intent]:
-    return IntentParser().parse_plan(text)
+    return TextIntentParser().parse_plan(text)
 
 
 def test_parse_plan_full_sentence():
@@ -62,7 +62,7 @@ def test_parse_plan_spelled_distance_and_cm():
 
 
 def test_parse_plan_single_segment_matches_parse():
-    parser = IntentParser()
+    parser = TextIntentParser()
     assert [i.name for i in parser.parse_plan("avance")] == [parser.parse("avance").name]
     assert [i.name for i in parser.parse_plan("cherche la balle rouge")] == ["follow_red_ball"]
 
@@ -115,13 +115,13 @@ def test_extract_stand_off_cm():
 
 
 def test_primitive_durations_unchanged():
-    intent = IntentParser().parse("avance pendant 3 secondes")
+    intent = TextIntentParser().parse("avance pendant 3 secondes")
     assert intent.name == "move_forward"
     assert intent.parameters == {"duration": 3.0}
 
 
 def test_follow_intent_alone_without_target():
-    intent = IntentParser().parse("suis la balle")
+    intent = TextIntentParser().parse("suis la balle")
     assert intent.name == "follow_object"
     assert intent.target is None
 
@@ -143,11 +143,11 @@ def test_planner_maps_follow_object():
 def test_normalize_synonyms_and_targets():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
     names = ["follow", "track", "track_object", "follow_target", "suivre", "suit"]
-    out = runtime._normalize_plan_intent_names([Intent(name=n, target="balle jaune") for n in names])
+    out = runtime.command_service.plan_validator.normalize([Intent(name=n, target="balle jaune") for n in names])
     assert all(i.name == "follow_object" and i.target == "yellow" for i in out)
     assert all(i.parameters["target_object"] == "yellow" for i in out)
 
-    out = runtime._normalize_plan_intent_names(
+    out = runtime.command_service.plan_validator.normalize(
         [
             Intent(name="search_object", target="Rouge"),
             Intent(name="follow_object", target="red_ball"),
@@ -165,8 +165,8 @@ def test_normalize_synonyms_and_targets():
 
 def test_validate_rejects_follow_object_with_unknown_target():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    plan = runtime._normalize_plan_intent_names([Intent(name="follow", target="blue")])
-    validated, errors = runtime._validate_intent_plan(plan)
+    plan = runtime.command_service.plan_validator.normalize([Intent(name="follow", target="blue")])
+    validated, errors = runtime.command_service.plan_validator.validate(plan)
     assert validated == []
     assert errors[0]["reason"] == "intent not allowed"
 
@@ -174,23 +174,23 @@ def test_validate_rejects_follow_object_with_unknown_target():
 @pytest.mark.parametrize("name", ["follow_object", "search_and_approach_object"])
 def test_sanitize_bounds_parameters(name):
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    settings = runtime.settings
+    settings = runtime.command_service.settings
 
-    high, _ = runtime._validate_intent_plan(
+    high, _ = runtime.command_service.plan_validator.validate(
         [Intent(name=name, target="red", parameters={"stand_off_cm": 9999, "duration_s": 99999, "search_timeout_s": 999})]
     )
     assert high[0].parameters["stand_off_cm"] == settings.max_stand_off_cm
     assert high[0].parameters["duration_s"] == settings.max_follow_duration_sec
     assert high[0].parameters["search_timeout_s"] == 120.0
 
-    low, _ = runtime._validate_intent_plan(
+    low, _ = runtime.command_service.plan_validator.validate(
         [Intent(name=name, target="red", parameters={"stand_off_cm": 1, "duration_s": -5, "search_timeout_s": 0})]
     )
     assert low[0].parameters["stand_off_cm"] == settings.min_stand_off_cm
     assert low[0].parameters["duration_s"] == 1.0
     assert low[0].parameters["search_timeout_s"] == 1.0
 
-    ok, _ = runtime._validate_intent_plan(
+    ok, _ = runtime.command_service.plan_validator.validate(
         [Intent(name=name, target="red", parameters={"stand_off_cm": "100", "duration_s": 300})]
     )
     assert ok[0].parameters["stand_off_cm"] == 100.0
@@ -200,16 +200,16 @@ def test_sanitize_bounds_parameters(name):
 def test_sanitize_non_numeric_falls_back_to_defaults():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
     bad = {"stand_off_cm": "près", "duration_s": None, "search_timeout_s": float("nan")}
-    out, _ = runtime._validate_intent_plan([Intent(name="follow_object", target="yellow", parameters=bad)])
+    out, _ = runtime.command_service.plan_validator.validate([Intent(name="follow_object", target="yellow", parameters=bad)])
 
     assert out[0].parameters["stand_off_cm"] == 100.0
     assert out[0].parameters["duration_s"] == 60.0
-    assert out[0].parameters["search_timeout_s"] == runtime.settings.search_timeout_seconds
+    assert out[0].parameters["search_timeout_s"] == runtime.command_service.settings.search_timeout_seconds
 
 
 def test_sanitize_leaves_absent_keys_absent():
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False)
-    out, _ = runtime._validate_intent_plan([Intent(name="follow_object", target="yellow")])
+    out, _ = runtime.command_service.plan_validator.validate([Intent(name="follow_object", target="yellow")])
     assert out[0].parameters == {}
 
 

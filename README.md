@@ -11,16 +11,23 @@ Le projet a évolué vers une architecture plus claire :
 ## Architecture actuelle
 
 ```text
-Texte / voix
+Micro → Vosk →┐
+              ├→ CommandService → LLMIntentParser / TextIntentParser
+Texte direct ─┘                         ↓
+                                Intent validés
   ↓
-IntentParser + validation du plan
+SkillPlanner → SkillPlanStep(intent + skills) / SkillRegistry
   ↓
-SkillPlanner / SkillRegistry
-  ↓
-SkillExecutor
+MissionOrchestrator → LanguageController → SkillExecutor
   ↓
 Skills → RobotController → adaptateurs matériels
 ```
+
+`VoiceRuntime` gère l'écoute et les arrêts vocaux immédiats. Les commandes texte
+et transcrites convergent vers `CommandService`. `SkillPlanner` compile les
+intents en étapes ; `MissionOrchestrator` pilote leur séquence, les retries,
+les délais et l'état de mission. `LanguageController` exécute les étapes
+compilées ; il ne parse pas de texte.
 
 Les modules sont organisés par responsabilité dans `src/irobot/domain/`,
 `src/irobot/interfaces/`, `src/irobot/hardware/` et `src/irobot/config/`.

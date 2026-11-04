@@ -3,6 +3,10 @@
 ## 1. REGLES DE STRUCTURE ET DE RAILLE DU CODE (STRICT)
 - **FIchiers Python :** Ne jamais dépasser ***500 lignes*** par fichier (idéalement entre 300 et 450 lignes). Si un module grandit, sépare la logique (sépare les responsabilités dans plusieurs fichiers).
 - **Fonctions et Méthodes :** Ne jamais dépasser **50 lignes** par fonction (idéalement entre 10 et 30 lignes). une fonction = une seule responsabilité (Clean code).
+- **Privilégie le code simple et direct :** pas de méthode qui ne fait que déléguer.
+- **Pas de Callable/injection de fonction :** N'utilise pas de Callable/injection de fonction sauf besoin explicite ; préfère un appel direct ou un Protocol.
+- **Pas de nouvelle couche d'abstraction :** Ne crée pas de nouvelle couche d'abstraction sans que je la demande.
+- **Type hints complets et noms explicites :** Utilise des annotations de type complètes et des noms de variables explicites.
 
 ## 2. RÈGLES DE RÉPONSE ÉCONOMIQUES
 - **Pas de prose inutile :** Supprime toute formule de politesse, préambule, introduction ("Voici le code...") ou conclusion.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from irobot.interfaces.perception_contracts import PerceptionTarget
+from irobot.domain.perception import PerceptionTarget
 
 
 def camera_target(pipeline, target: str) -> PerceptionTarget:

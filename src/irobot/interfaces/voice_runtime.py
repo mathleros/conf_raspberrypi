@@ -11,22 +11,23 @@ import time
 from typing import Any
 
 from irobot.config.settings import load_runtime_settings
-from irobot.interfaces.intent_parser import Intent
-from irobot.interfaces.plan_guards import is_pure_stop, fold, follow_request_refusal
-from irobot.interfaces import voice_llm
-from irobot.interfaces.voice_llm import LLMWarmup, warm_up_llm, warm_up_llm_async
+from irobot.domain.intent import Intent
+from irobot.domain.orchestrator.registry import SkillRegistry
+from irobot.interfaces.command_service import CommandService
+from irobot.interfaces.plan_guards import is_pure_stop, fold
+from irobot.interfaces.intent import llm_intent_parser
+from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.interfaces.intent.llm_intent_parser import LLMWarmup, warm_up_llm, warm_up_llm_async
 from irobot.interfaces.voice_llm_transport import (
     _post_llm_chat,
     reset_response_format_cache,
     llm_warmup_wait_seconds,
     llm_response_format_mode,
 )
-from irobot.interfaces.voice_plan import VoicePlanMixin
-from irobot.interfaces.voice_execution import VoiceExecutionMixin
 
 
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
-    return voice_llm.ask_llm_for_intent_plan_with_trace(text, post=_post_llm_chat)
+    return llm_intent_parser.ask_llm_for_intent_plan_with_trace(text, post=_post_llm_chat)
 
 
 def transcribe_loop(device: str):
@@ -54,35 +55,46 @@ def close_hardware_runtime(hardware: dict[str, Any]) -> None:
     close(hardware)
 
 
-class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
-    """Microphone/text -> validated intents -> interruptible skill execution."""
+class VoiceRuntime:
+    """Microphone/text adapter with immediate stop handling."""
 
-    def _ask_plan(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
-        return ask_llm_for_intent_plan_with_trace(text)
-
-    def _emergency_stop_requested(self) -> bool:
-        if self._emergency_event.is_set():
-            return True
-        detector = getattr(self.robot, "is_emergency_stop_requested", None)
-        if not callable(detector):
-            return False
-        try:
-            return bool(detector())
-        except Exception:
-            logging.getLogger(__name__).exception("Impossible de lire l'arret d'urgence")
-            return True
+    def __init__(
+        self,
+        *,
+        robot=None,
+        camera=None,
+        sensor=None,
+        perception: ObjectPerceptionPipeline | None = None,
+        registry: SkillRegistry | None = None,
+        input_device: str = "auto",
+        use_llm: bool = True,
+        trace_dir: str | None = None,
+        threaded: bool = True,
+    ):
+        self.robot = robot
+        self.input_device = input_device
+        self.threaded = threaded
+        self._worker: threading.Thread | None = None
+        self.last_result: Any = None
+        self.camera = camera
+        self.perception = perception
+        self.command_service = CommandService(
+            robot=robot,
+            camera=camera,
+            sensor=sensor,
+            perception=perception,
+            registry=registry,
+            use_llm=use_llm,
+            trace_dir=trace_dir,
+            llm_parse_with_trace=ask_llm_for_intent_plan_with_trace,
+        )
+        self._emergency_event = self.command_service._emergency_event
 
     def _safe_stop(self) -> None:
-        stop = getattr(self.robot, "stop", None)
-        if not callable(stop):
-            return
-        try:
-            stop()
-        except Exception:
-            logging.getLogger(__name__).exception("Impossible d'arreter le robot")
+        self.command_service.safe_stop()
 
     def handle_text_as_plan(self, text: str):
-        return self._handle_text_as_plan(text)
+        return self.command_service.handle_text(text)
 
     def listen_once(self):
         device = resolve_input_device(self.input_device)
@@ -138,12 +150,9 @@ class VoiceRuntime(VoicePlanMixin, VoiceExecutionMixin):
                     self.robot.stop()
             finally:
                 self._request_emergency_stop()
-                self.mission.abort("emergency stop")
+                self.command_service.mission_orchestrator.state_machine.abort("emergency stop")
             print("[RUNTIME] Arrêt d'urgence demandé.", flush=True)
             return None
-        refusal = follow_request_refusal(text)
-        if refusal:
-            return {"status": "rejected", "reason": refusal}
         if self.mission_running():
             print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
             return None
@@ -236,9 +245,9 @@ def main() -> None:
             input_device=args.input_device,
             use_llm=not args.no_llm,
         )
-        runtime.warmup = warmup
+        runtime.command_service.warmup = warmup
         # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.
-        runtime.wait_for_warmup = bool(args.once or args.text)
+        runtime.command_service.wait_for_warmup = bool(args.once or args.text)
         if args.text:
             runtime._clear_emergency_stop()
             result = runtime.handle_text_as_plan(args.text)

@@ -1,8 +1,16 @@
 """Mission orchestration layer."""
 
 from irobot.domain.orchestrator.executor import SkillExecutor
+from irobot.domain.orchestrator.mission_orchestrator import MissionOrchestrator
 from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
-from irobot.domain.orchestrator.planner import SkillPlanner
+from irobot.domain.orchestrator.planner import SkillPlanner, SkillPlanStep
 from irobot.domain.orchestrator.registry import SkillRegistry
 
-__all__ = ["SkillExecutor", "SkillPlanner", "MissionStateMachine", "SkillRegistry"]
+__all__ = [
+    "SkillExecutor",
+    "MissionOrchestrator",
+    "SkillPlanner",
+    "SkillPlanStep",
+    "MissionStateMachine",
+    "SkillRegistry",
+]

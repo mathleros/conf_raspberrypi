@@ -7,6 +7,8 @@ src/irobot/
 ├── README.md
 ├── __init__.py
 ├── domain/
+│   ├── intent.py
+│   ├── perception.py
 │   ├── orchestrator/
 │   └── skills/
 │       ├── base_skill.py
@@ -47,25 +49,50 @@ Le LLM produit une intention de haut niveau ; l'orchestrateur la transforme en
 plan de skills primitives, qui pilotent le robot via `RobotController`.
 Le LLM n'est jamais un pilote matériel.
 
-## Organisation du runtime vocal
+## Organisation du runtime texte et vocal
 
 Le point d'entrée public reste [interfaces/voice_runtime.py](interfaces/voice_runtime.py)
 (`voice-runtime`, `VoiceRuntime`, fonctions LLM et `build_hardware_runtime`).
+`VoiceRuntime` gère le micro, les transcriptions et les arrêts vocaux immédiats.
+Le texte direct et les transcriptions passent ensuite par
+[interfaces/command_service.py](interfaces/command_service.py), qui choisit le
+parseur, prépare et valide les intents, puis soumet le plan à
+[MissionOrchestrator](domain/orchestrator/mission_orchestrator.py).
 
 | Module | Responsabilité |
 | --- | --- |
-| `interfaces/voice_state.py` | État partagé, configuration, annulation, contrôleur et écriture JSONL |
+| `interfaces/command_service.py` | Point d'entrée texte, assemblage des services, choix du parseur, traces JSONL et arrêt matériel final |
 | `interfaces/voice_constants.py` | Vocabulaire et valeurs par défaut des plans |
 | `interfaces/voice_llm_transport.py` | Prompts, HTTP, formats de réponse, métriques et cache |
-| `interfaces/voice_llm.py` | Reconstruction des intentions, grounding, repli local et préchauffage |
-| `interfaces/voice_plan.py` | Normalisation, bornage, expansion et validation déterministes |
-| `interfaces/voice_execution.py` | Séquence de mission, retries, délais et traces d'exécution |
+| `interfaces/intent/llm_intent_parser.py` | `LLMIntentParser`, grounding, repli local et préchauffage |
+| `interfaces/intent/text_intent_parser.py` | Parsing déterministe du texte en liste d'intents |
+| `interfaces/intent/intent_parser.py` | Contrat commun des parseurs |
+| `interfaces/intent/plan_validator.py` | Normalisation des noms/cibles, validation et bornage des paramètres |
+| `interfaces/language_controller.py` | Exécution des étapes compilées avec perception et contrôle d'obstacle |
+| `domain/intent.py` | Modèle métier `Intent`, indépendant des interfaces |
+| `domain/intent_validator.py` | Autorisation des intents et contrôle des cibles structurées normalisées, sans analyse du texte |
+| `domain/perception.py` | Cibles sémantiques de perception (`PerceptionTarget`) |
+| `domain/orchestrator/planner.py` | Décomposition des commandes composées et plan typé intent → skills |
+| `domain/orchestrator/mission_orchestrator.py` | Séquence, retries, délais et transitions de mission ; exécuteur et contrôle d'arrêt injectés |
+| `domain/orchestrator/mission_state_machine.py` | État courant de mission et métadonnées |
 | `hardware/audio/voice_input.py` | Capture ALSA, nettoyage du processus et transcription Vosk |
 | `hardware/runtime_factory.py` | Assemblage moteur/capteur/caméra sur Raspberry Pi |
 
-Les deux mixins de planification et d'exécution utilisent un unique état partagé.
-Les anciens modules de protection, d'admission et de suivi humain ne sont plus
-requis. Les adaptateurs matériels sont importés uniquement lors de leur utilisation :
+`LLMIntentParser` et `TextIntentParser` produisent tous deux une liste d'`Intent`.
+`SkillPlanner` développe les commandes composées et produit des `SkillPlanStep`
+qui associent chaque intent exécutable à ses skills. `LanguageController` reçoit
+ces étapes et les exécute ; il ne parse pas de texte et ne choisit pas les skills
+du plan vocal. Toute commande texte suit le même parcours dans `CommandService`.
+
+`CommandService` utilise la composition, sans mixins ni état vocal partagé.
+Le domaine n'importe ni `interfaces` ni `hardware`. L'orchestrateur reçoit les
+étapes, une fonction d'exécution, un contrôle d'arrêt et un observateur optionnel ;
+il ne connaît ni le micro, ni le LLM, ni les fichiers JSONL, ni les pilotes.
+Les délais sont mesurés avec une horloge monotone injectable. Ils sont vérifiés
+au retour d'une étape et entre étapes, sans interruption forcée d'un appel
+bloquant ; les skills et le contrôleur restent responsables de l'arrêt immédiat.
+Les anciens chemins et mixins supprimés ne sont pas réexportés pour compatibilité.
+Les adaptateurs matériels sont importés uniquement lors de leur utilisation :
 charger le runtime ou traiter du texte n'initialise ni ALSA, ni Vosk, ni GPIO, ni caméra.
 
 La perception caméra attend une image traitée pour la cible demandée au démarrage

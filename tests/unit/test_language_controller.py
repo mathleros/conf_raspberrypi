@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from irobot.interfaces.intent_parser import IntentParser, IntentValidator
+from irobot.domain.intent_validator import IntentValidator
+from irobot.interfaces.intent.text_intent_parser import TextIntentParser
+from irobot.interfaces.command_service import CommandService
+from irobot.domain.orchestrator.planner import SkillPlanner
 from irobot.interfaces.language_controller import LanguageController
 from irobot.interfaces.perception_contracts import ObjectDetection
 from tests.unit.fake_robot import FakeRobot
@@ -10,7 +13,7 @@ from tests.unit.fake_robot import FakeRobot
 
 
 def test_intent_parser_follow_red_ball():
-    intent = IntentParser().parse("va vers la balle rouge")
+    intent = TextIntentParser().parse("va vers la balle rouge")
 
     assert intent.name == "follow_red_ball"
     assert intent.target == "red_ball"
@@ -18,7 +21,7 @@ def test_intent_parser_follow_red_ball():
 
 
 def test_intent_parser_and_planner_follow_person():
-    parser = IntentParser()
+    parser = TextIntentParser()
     validator = IntentValidator()
     for phrase in ("suis-moi", "suis moi", "suivez-moi"):
         intent = parser.parse(phrase)
@@ -37,7 +40,7 @@ def test_intent_parser_and_planner_follow_person():
     "rapproche-toi de moi", "rejoins-moi",
 ])
 def test_intent_parser_approach_me_targets_marker(phrase):
-    intent = IntentParser().parse(phrase)
+    intent = TextIntentParser().parse(phrase)
 
     assert intent.name == "search_and_approach_object"
     assert intent.target == "marker"
@@ -46,20 +49,20 @@ def test_intent_parser_approach_me_targets_marker(phrase):
 
 
 def test_intent_parser_stop():
-    intent = IntentParser().parse("stop maintenant")
+    intent = TextIntentParser().parse("stop maintenant")
 
     assert intent.name == "stop"
 
 
 def test_intent_validator_accepts_known_intent():
-    intent = IntentParser().parse("tourne à gauche pendant 2s")
+    intent = TextIntentParser().parse("tourne à gauche pendant 2s")
     assert IntentValidator().validate(intent) is True
 
 
 def test_intent_parser_recognizes_spin_square_and_return():
-    spin = IntentParser().parse("fais un tour sur toi même")
-    square = IntentParser().parse("forme un carré de 40 cm")
-    back = IntentParser().parse("reviens au point de départ")
+    spin = TextIntentParser().parse("fais un tour sur toi même")
+    square = TextIntentParser().parse("forme un carré de 40 cm")
+    back = TextIntentParser().parse("reviens au point de départ")
 
     assert spin.name == "spin_360"
     assert square.name == "move_square"
@@ -68,7 +71,7 @@ def test_intent_parser_recognizes_spin_square_and_return():
 
 
 def test_intent_parser_recognizes_search_and_approach_object():
-    intent = IntentParser().parse("détecte un objet bouteille puis approche toi")
+    intent = TextIntentParser().parse("détecte un objet bouteille puis approche toi")
 
     assert intent.name == "search_and_approach_object"
     assert intent.parameters["search"] is True
@@ -77,27 +80,52 @@ def test_intent_parser_recognizes_search_and_approach_object():
 
 def test_language_controller_handles_text_command():
     controller = LanguageController(robot=FakeRobot())
-    result = controller.handle_text("va vers la balle rouge")
+    intent = TextIntentParser().parse("va vers la balle rouge")
+    result = controller.handle_intent(intent)
 
     assert result["status"] == "accepted"
     assert len(result["plan"]) > 0
 
 
 def test_language_controller_handles_contour_obstacle_command():
-    controller = LanguageController(robot=FakeRobot())
-    result = controller.handle_text("contourne l'objet devant toi à 20 cm")
+    service = CommandService(robot=FakeRobot(), use_llm=False)
+    result = service.handle_text("contourne l'objet devant toi à 20 cm")
 
     assert result["status"] == "accepted"
-    assert result["plan"][0] == "turn_right"
+    assert result["steps"][0]["plan"][0] == "turn_right"
 
 
 def test_language_controller_handles_search_and_approach_object_command():
     controller = LanguageController(robot=FakeRobot())
-    result = controller.handle_text("cherche un objet puis approche toi")
+    intent = TextIntentParser().parse("cherche un objet puis approche toi")
+    result = controller.handle_intent(intent)
 
     assert result["status"] == "accepted"
     assert result["plan"][0] == "detect_object"
     assert "approach_target" in result["plan"]
+
+
+def test_command_service_is_the_text_entry_point():
+    service = CommandService(robot=FakeRobot(), use_llm=False)
+    result = service.handle_text("avance")
+
+    assert result["status"] == "accepted"
+    assert result["source"] == "local_parser"
+    assert [step["intent"].name for step in result["steps"]] == ["move_forward"]
+
+
+def test_skill_planner_compiles_compound_intents_to_typed_skill_steps():
+    planner = SkillPlanner()
+    parsed = TextIntentParser().parse("forme un carré de 30 cm")
+    expanded = planner.expand_intents([parsed])
+    steps = planner.plan_intents(expanded)
+
+    assert len(steps) == 8
+    assert [step.intent.name for step in steps] == [
+        "move_forward", "turn_right", "move_forward", "turn_right",
+        "move_forward", "turn_right", "move_forward", "turn_right",
+    ]
+    assert all([skill.name for skill in step.skills] == [step.intent.name] for step in steps)
 
 
 def test_language_controller_prioritizes_obstacle_stop():
@@ -105,7 +133,7 @@ def test_language_controller_prioritizes_obstacle_stop():
     robot.obstacle_detected = True
     controller = LanguageController(robot=robot)
 
-    result = controller.handle_text("avance")
+    result = controller.handle_intent(TextIntentParser().parse("avance"))
 
     assert result["status"] == "aborted"
     assert result["reason"] == "obstacle prioritized"
@@ -123,6 +151,7 @@ def test_language_controller_injects_perception_detection():
         robot=FakeRobot(),
         perception=FakePerception(),
             )
-    result = controller.handle_text("cherche la balle rouge puis approche toi")
+    intent = TextIntentParser().parse("cherche la balle rouge puis approche toi")
+    result = controller.handle_intent(intent)
 
     assert result["status"] == "accepted"

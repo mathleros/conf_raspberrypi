@@ -23,11 +23,11 @@ from irobot.interfaces.voice_llm_transport import (
     LLM_DEFAULT_CONFIDENCE,
     LLM_WARMUP_READ_TIMEOUT_SECONDS,
     PLAN_RESPONSE_FORMATS,
-    _llm_payload,
-    _post_llm_chat,
-    _select_formats,
-    _parse_llm_json_payload,
-    _llm_error_reason,
+    llm_payload,
+    post_llm_chat,
+    select_formats,
+    parse_llm_json_payload,
+    llm_error_reason,
 )
 
 
@@ -81,7 +81,7 @@ def _normalize_llm_step(step: Any) -> dict[str, Any] | None:
 
 
 def ask_llm_for_intent_plan_with_trace(
-    text: str, *, post: LLMPost = _post_llm_chat,
+    text: str, *, post: LLMPost = post_llm_chat,
 ) -> tuple[list[Intent], dict[str, Any]]:
     """Demande au LLM un plan ordonné d'intentions et retourne des métadonnées de trace.
 
@@ -95,7 +95,7 @@ def ask_llm_for_intent_plan_with_trace(
         return [], {"source": "llm_follow_refused", "guard_reason": refusal}
     normalized_text = preprocess(text)
     settings = load_llm_settings()
-    payload = _llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
+    payload = llm_payload(SYSTEM_PROMPT_PLAN, normalized_text, settings.max_tokens_plan, settings.model)
     meta: dict[str, Any] = {}
 
     def _fallback(console_reason: str, **trace: Any) -> tuple[list[Intent], dict[str, Any]]:
@@ -113,12 +113,12 @@ def ask_llm_for_intent_plan_with_trace(
         content = post(
             payload,
             (settings.connect_timeout_seconds, settings.read_timeout_seconds),
-            _select_formats(PLAN_RESPONSE_FORMATS),
+            select_formats(PLAN_RESPONSE_FORMATS),
             meta,
         )
     except Exception as exc:
         return _fallback(
-            _llm_error_reason(exc, settings.read_timeout_seconds),
+            llm_error_reason(exc, settings.read_timeout_seconds),
             error=f"{type(exc).__name__}: {exc}",
             error_type=type(exc).__name__,
         )
@@ -130,7 +130,7 @@ def _interpret_plan_response(
     text: str, normalized_text: str, content: str, meta: dict[str, Any],
     fallback: Callable[..., tuple[list[Intent], dict[str, Any]]],
 ) -> tuple[list[Intent], dict[str, Any]]:
-    parsed = _parse_llm_json_payload(content)
+    parsed = parse_llm_json_payload(content)
     if not parsed:
         return fallback("JSON invalide", llm_content=content, reason="invalid json")
     if contains_unsupported_follow_step(parsed):
@@ -190,12 +190,12 @@ class LLMIntentParser:
 def warm_up_llm(timeout: tuple[float, float] | None = None) -> bool:
     """Requête minimale avec le prompt système du plan pour remplir le cache de prompt du serveur."""
     settings = load_llm_settings()
-    payload = _llm_payload(SYSTEM_PROMPT_PLAN, "stop", 1, settings.model)
+    payload = llm_payload(SYSTEM_PROMPT_PLAN, "stop", 1, settings.model)
     try:
-        _post_llm_chat(
+        post_llm_chat(
             payload,
             timeout or (settings.connect_timeout_seconds, LLM_WARMUP_READ_TIMEOUT_SECONDS),
-            _select_formats(PLAN_RESPONSE_FORMATS),
+            select_formats(PLAN_RESPONSE_FORMATS),
         )
         return True
     except Exception as exc:

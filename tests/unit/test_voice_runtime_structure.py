@@ -309,7 +309,7 @@ def test_text_and_llm_parsers_share_the_intent_plan_contract():
 
 def test_plan_with_trace_wrapper_uses_the_public_transport(monkeypatch):
     monkeypatch.setattr(
-        voice_runtime, "_post_llm_chat",
+        voice_runtime, "post_llm_chat",
         lambda *_: '{"steps":[{"intent":"stop","parameters":{}}]}',
     )
     intents, trace = voice_runtime.ask_llm_for_intent_plan_with_trace("stop")

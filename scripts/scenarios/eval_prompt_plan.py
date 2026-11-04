@@ -373,7 +373,7 @@ def grounding_check(sent_text: str, steps: list):
 
 
 def parse_llm_json(content: str):
-    """Même tolérance que _parse_llm_json_payload du runtime (backticks, ```json)."""
+    """Même tolérance que parse_llm_json_payload du runtime (backticks, ```json)."""
     cleaned = (content or "").strip()
     if not cleaned:
         return None

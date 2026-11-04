@@ -19,15 +19,14 @@ from irobot.interfaces.intent import llm_intent_parser
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
 from irobot.interfaces.intent.llm_intent_parser import LLMWarmup, warm_up_llm, warm_up_llm_async
 from irobot.interfaces.voice_llm_transport import (
-    _post_llm_chat,
-    reset_response_format_cache,
+    post_llm_chat,
     llm_warmup_wait_seconds,
     llm_response_format_mode,
 )
 
 
 def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
-    return llm_intent_parser.ask_llm_for_intent_plan_with_trace(text, post=_post_llm_chat)
+    return llm_intent_parser.ask_llm_for_intent_plan_with_trace(text, post=post_llm_chat)
 
 
 def transcribe_loop(device: str):

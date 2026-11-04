@@ -6,20 +6,14 @@ import json
 import math
 import os
 import time
+from collections.abc import Mapping
 from typing import Any, Protocol
 import requests
 
-from irobot.config.llm_settings import load_llm_settings
 from irobot.interfaces.plan_guards import build_formats
 
 
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
-# Valeurs lues au démarrage (informatif) ; chaque appel relit l'environnement via load_llm_settings().
-_LLM_SETTINGS_AT_IMPORT = load_llm_settings()
-LLM_MODEL = _LLM_SETTINGS_AT_IMPORT.model
-LLM_CONNECT_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.connect_timeout_seconds
-LLM_READ_TIMEOUT_SECONDS = _LLM_SETTINGS_AT_IMPORT.read_timeout_seconds
-LLM_HTTP_TIMEOUT = (LLM_CONNECT_TIMEOUT_SECONDS, LLM_READ_TIMEOUT_SECONDS)
 LLM_WARMUP_READ_TIMEOUT_SECONDS = 120.0
 # Attente max du préchauffage en mode une seule commande (--once / --text), surchargeable par env.
 LLM_WARMUP_WAIT_SECONDS = 60.0
@@ -53,7 +47,7 @@ Exemples :
 « fais un salto arrière » -> {"steps":[]}"""
 
 
-def _parse_llm_json_payload(content: str) -> dict[str, Any] | None:
+def parse_llm_json_payload(content: str) -> dict[str, Any] | None:
     """Extrait un objet JSON depuis une réponse LLM, y compris si elle est entourée de backticks."""
     cleaned = content.strip()
     if not cleaned:
@@ -71,7 +65,7 @@ def _parse_llm_json_payload(content: str) -> dict[str, Any] | None:
     return None
 
 
-def _llm_payload(system_prompt: str, user_text: str, max_tokens: int, model: str) -> dict[str, Any]:
+def llm_payload(system_prompt: str, user_text: str, max_tokens: int, model: str) -> dict[str, Any]:
     return {
         "model": model,
         "messages": [
@@ -114,18 +108,14 @@ class LLMPost(Protocol):
     ) -> str: ...
 
 
-def reset_response_format_cache() -> None:
-    PLAN_RESPONSE_FORMATS.reset()
-
-
-def llm_response_format_mode(environ: Any = None) -> str:
+def llm_response_format_mode(environ: Mapping[str, str] | None = None) -> str:
     """Lit LLM_RESPONSE_FORMAT (schema | json_object | none) ; valeur absente ou inconnue -> schema."""
     env = os.environ if environ is None else environ
     mode = (env.get("LLM_RESPONSE_FORMAT") or "").strip().lower()
     return mode if mode in LLM_RESPONSE_FORMAT_MODES else "schema"
 
 
-def _select_formats(schema_chain: ResponseFormatChain) -> ResponseFormatChain:
+def select_formats(schema_chain: ResponseFormatChain) -> ResponseFormatChain:
     mode = llm_response_format_mode()
     if mode == "json_object":
         return ResponseFormatChain([{"type": "json_object"}])
@@ -144,7 +134,7 @@ def _response_format_kind(fmt: dict[str, Any] | None) -> str:
     return kind
 
 
-def llm_warmup_wait_seconds(environ: Any = None) -> float:
+def llm_warmup_wait_seconds(environ: Mapping[str, str] | None = None) -> float:
     """Lit LLM_WARMUP_WAIT_SECONDS (>= 0) ; valeur absente ou invalide -> 60 s."""
     env = os.environ if environ is None else environ
     try:
@@ -154,7 +144,7 @@ def llm_warmup_wait_seconds(environ: Any = None) -> float:
     return value if math.isfinite(value) and value >= 0 else LLM_WARMUP_WAIT_SECONDS
 
 
-def _post_llm_chat(
+def post_llm_chat(
     payload: dict[str, Any],
     timeout: tuple[float, float],
     formats: ResponseFormatChain,
@@ -204,7 +194,7 @@ def _post_llm_chat(
         meta["llm_latency_seconds"] = round(time.monotonic() - started, 3)
 
 
-def _llm_error_reason(exc: Exception, read_timeout: float) -> str:
+def llm_error_reason(exc: Exception, read_timeout: float) -> str:
     if isinstance(exc, requests.exceptions.ConnectionError):
         return "serveur LLM injoignable"
     if isinstance(exc, requests.exceptions.Timeout):

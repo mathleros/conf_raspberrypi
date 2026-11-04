@@ -98,7 +98,7 @@ Audit v2 du 4 novembre 2026 (réanalyse complète), en lecture seule. Aucune sou
 
 | Indicateur | v1 | v2 | Cause |
 |---|---|---|---|
-| PP | 15 | 17 | Deux relais de [voice_runtime.py](src/irobot/interfaces/voice_runtime.py) sont désormais comptés : `ask_llm_for_intent_plan_with_trace` injecte `post=_post_llm_chat`, qui est déjà la valeur par défaut de la cible ; `build_hardware_runtime` charge des réglages que la cible charge déjà quand `settings=None`. |
+| PP | 15 | 17 | Deux relais de [voice_runtime.py](src/irobot/interfaces/voice_runtime.py) sont désormais comptés : `ask_llm_for_intent_plan_with_trace` injecte `post=post_llm_chat`, qui est déjà la valeur par défaut de la cible ; `build_hardware_runtime` charge des réglages que la cible charge déjà quand `settings=None`. |
 | C | 1 | 6 | Le critère « tous les appelants passent la même valeur » est appliqué strictement, avec références Pylance. La v1 avait classé ces paramètres en bloc comme injection légitime. |
 | G | 47 | 47 | Inchangé, désormais ventilé : 30 littéraux et 17 dynamiques ; 1 seul est appelé directement (`getattr(self._robot, method)()`). |
 | Priorités | 4 / 12 / 54 | 4 / 13 / 53 | [interfaces/\_\_init\_\_.py](src/irobot/interfaces/__init__.py) définit un `__getattr__` de module (réexport paresseux de 4 classes par nom de chaîne), non repéré en v1. |
@@ -119,8 +119,8 @@ Références = occurrences dans `src/` d'après Pylance, hors déclaration. « 0
 | `RobotController.clear_emergency_stop` | délégation | 0 statique | Appelée par `VoiceRuntime._call_robot("clear_emergency_stop")`, donc par chaîne. |
 | `RobotController.is_emergency_stop_requested` | paire publique / privée | 0 statique | Lue par chaîne dans `command_service.py:75` et `target_tracking.py:56`. Fusion possible avec `_is_emergency_stop_requested`. |
 | `RobotController.__getattr__` | délégation magique | n/a | Voir section 4 ; pas de suppression sans accord. |
-| `reset_response_format_cache` ([voice_llm_transport.py](src/irobot/interfaces/voice_llm_transport.py)) | relais vers `PLAN_RESPONSE_FORMATS.reset()` | 0 appel ; 1 import de réexport (`voice_runtime.py:23`) | Aucun appel dans `src/` : API de compatibilité éventuelle. |
-| `ask_llm_for_intent_plan_with_trace` ([voice_runtime.py](src/irobot/interfaces/voice_runtime.py)) | argument redondant | 1 : `voice_runtime.py:89` | `post=_post_llm_chat` est déjà la valeur par défaut de la cible. |
+| `reset_response_format_cache` supprimée (ancien [voice_llm_transport.py](src/irobot/interfaces/voice_llm_transport.py)) | relais vers `PLAN_RESPONSE_FORMATS.reset()` | 0 appel ; 1 import de réexport (`voice_runtime.py:23`) | Aucun appel dans `src/` : API de compatibilité éventuelle. |
+| `ask_llm_for_intent_plan_with_trace` ([voice_runtime.py](src/irobot/interfaces/voice_runtime.py)) | argument redondant | 1 : `voice_runtime.py:89` | `post=post_llm_chat` est déjà la valeur par défaut de la cible. |
 | `build_hardware_runtime` (voice_runtime.py) | argument redondant | 1 : `voice_runtime.py:239` | La cible appelle `load_runtime_settings()` si `settings` est `None`. |
 | `transcribe_loop`, `resolve_input_device`, `close_hardware_runtime` (voice_runtime.py) | import différé puis délégation | — | Les imports différés isolent les dépendances matérielles : ne pas les remplacer par des imports au chargement. |
 | `VoiceRuntime._safe_stop` | relais privé | 3 : `voice_runtime.py:126, 143, 189` | |
@@ -138,10 +138,10 @@ La recherche a trouvé 28 déclarations `Callable` ou `LLMPost` ; 6 sont retenue
 | 2 | `stop_requested` | mission_orchestrator.py | 1 : `command_service.py:187` | `self._emergency_stop_requested` | Même question, dans 5 signatures ; concerne l'arrêt d'urgence, donc ne pas modifier l'ordre des vérifications. |
 | 3 | `llm_parse_with_trace` | [command_service.py](src/irobot/interfaces/command_service.py) | 1 construction : `voice_runtime.py:81` | wrapper `ask_llm_for_intent_plan_with_trace` de `voice_runtime.py` | Valeur unique en production. Même paramètre logique que le n° 4. |
 | 4 | `parse_with_trace` | [llm_intent_parser.py](src/irobot/interfaces/intent/llm_intent_parser.py) | 1 construction : `command_service.py:63` | valeur du n° 3, ou la fonction par défaut | Chaîne de trois niveaux pour une seule valeur. |
-| 5 | `post` | llm_intent_parser.py | 2 : wrapper `voice_runtime.py:30` et valeur par défaut (`llm_intent_parser.py:180`) | `_post_llm_chat` dans les deux cas | Point d'injection plausible pour les tests (hors périmètre). |
+| 5 | `post` | llm_intent_parser.py | 2 : wrapper `voice_runtime.py:30` et valeur par défaut (`llm_intent_parser.py:180`) | `post_llm_chat` dans les deux cas | Point d'injection plausible pour les tests (hors périmètre). |
 | 6 | `fallback` | llm_intent_parser.py | 1 : `llm_intent_parser.py:126` | fermeture locale `_fallback` | L'annotation `Callable[..., ...]` ne documente pas les arguments réels. |
 
-Précaution : le wrapper de `voice_runtime.py` résout `_post_llm_chat` dans l'espace de noms de `voice_runtime` au moment de l'appel, alors que la valeur par défaut est liée à la définition. Si un test remplace `voice_runtime._post_llm_chat`, le wrapper n'est pas redondant. Cela n'a pas pu être vérifié dans le périmètre `src/`.
+Précaution : le wrapper de `voice_runtime.py` résout `post_llm_chat` dans l'espace de noms de `voice_runtime` au moment de l'appel, alors que la valeur par défaut est liée à la définition. Si un test remplace `voice_runtime.post_llm_chat`, le wrapper n'est pas redondant. Cela n'a pas pu être vérifié dans le périmètre `src/`.
 
 Non retenus : `time_fn` et `sleep_fn` (`RobotController`, `HC_SR04`, `ApproachTargetSkill`, `FollowObjectSkill`, `MissionOrchestrator.time_fn`), `on_event` (lambda propre à chaque mission), `RobotController._run_motion_for.start_motion` (quatre valeurs distinctes), alias `LLMPlanParser` et attribut annoté `sleep_fn` (ce ne sont pas des paramètres).
 

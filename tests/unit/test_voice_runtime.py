@@ -677,7 +677,7 @@ def fake_llm(monkeypatch):
         monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
         return llm
 
-    vr.reset_response_format_cache()
+    voice_llm_transport.PLAN_RESPONSE_FORMATS.reset()
 
     for key in ("LLM_MODEL", "LLM_CONNECT_TIMEOUT_SECONDS", "LLM_READ_TIMEOUT_SECONDS",
                 "LLM_MAX_TOKENS_PLAN", "LLM_RESPONSE_FORMAT",

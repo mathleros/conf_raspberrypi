@@ -26,8 +26,8 @@ Un commit par prompt (`git commit -m "refacto: simplifie <fichier>"`), tests lan
 
 | N° | Fichier cible | Priorité | Fait |
 |----|---------------|----------|------|
-| 0 | `src/irobot/domain/numbers.py` (nouveau) + 4 fichiers | haute | [ ] |
-| 1 | `src/irobot/interfaces/voice_llm_transport.py` | haute | [ ] |
+| 0 | `src/irobot/domain/numbers.py` (nouveau) + 4 fichiers | haute | [ X] |
+| 1 | `src/irobot/interfaces/voice_llm_transport.py` | haute | [ X] |
 | 2 | `src/irobot/interfaces/intent/llm_intent_parser.py` | haute | [ ] |
 | 3 | `src/irobot/domain/skills/behaviors/target_tracking.py` | haute | [ ] |
 | 4 | `src/irobot/domain/skills/primitives/base_motion_primitive.py` | moyenne | [ ] |
@@ -269,7 +269,7 @@ Autorisé : la méthode _rejection.
 ```text
 Simplifie src/irobot/interfaces/voice_runtime.py.
 1. Les fonctions de module ask_llm_for_intent_plan_with_trace, transcribe_loop, resolve_input_device, build_hardware_runtime et close_hardware_runtime sont des passe-plats avec import local. Vérifie pour chacune si l'import local est nécessaire (dépendances matérielles absentes hors Raspberry Pi). Si oui, garde l'import paresseux mais retire la fonction intermédiaire quand c'est possible ; sinon supprime-la. Fais une recherche de références : les tests peuvent les mocker.
-2. Supprime les imports inutilisés : reset_response_format_cache, llm_response_format_mode, warm_up_llm_async, et _post_llm_chat s'il n'est plus utilisé.
+2. Supprime les imports inutilisés : llm_response_format_mode, warm_up_llm_async, et post_llm_chat s'il n'est plus utilisé après le point 1. (Prompt 1 déjà fait : reset_response_format_cache n'existe plus et _post_llm_chat s'appelle désormais post_llm_chat dans voice_llm_transport.py. Le test test_voice_runtime_structure.py monkeypatche `voice_runtime.post_llm_chat` : si tu retires cet import, adapte le test pour patcher `llm_intent_parser` ou `voice_llm_transport`.)
 3. VoiceRuntime._safe_stop et handle_text_as_plan sont des passe-plats vers command_service : remplace les appels par self.command_service.safe_stop() et handle_text(), sauf si un test les mocke.
 4. _call_robot(method: str) appelle getattr(self.robot, nom) par chaîne : remplace par deux appels directs justifiés, en gardant le try/except et le log d'erreur.
 5. `self._emergency_event = self.command_service._emergency_event` accède à un attribut privé : ne le change pas sans mon accord (lié au prompt 11).

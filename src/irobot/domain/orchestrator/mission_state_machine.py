@@ -25,8 +25,6 @@ class MissionState:
 class MissionStateMachine:
     """Machine d'états pour orchestrer une mission robotique."""
 
-    VALID_PHASES = {"idle", "planning", "executing", "success", "failed", "aborted"}
-
     def __init__(self):
         self.state = MissionState()
 

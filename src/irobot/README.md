@@ -51,8 +51,10 @@ Le LLM n'est jamais un pilote matériel.
 
 ## Organisation du runtime texte et vocal
 
-Le point d'entrée public reste [interfaces/voice_runtime.py](interfaces/voice_runtime.py)
-(`voice-runtime`, `VoiceRuntime`, fonctions LLM et `build_hardware_runtime`).
+Le point d'entrée `voice-runtime` est [app.py](app.py) : il assemble le matériel
+(`build_hardware_runtime`) puis le `VoiceRuntime` de
+[interfaces/voice_runtime.py](interfaces/voice_runtime.py), et ferme toujours le matériel
+(`close_hardware_runtime`) dans son `finally`.
 `VoiceRuntime` gère le micro, les transcriptions et les arrêts vocaux immédiats.
 Le texte direct et les transcriptions passent ensuite par
 [interfaces/command_service.py](interfaces/command_service.py), qui choisit le

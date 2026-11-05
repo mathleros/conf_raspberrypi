@@ -24,7 +24,7 @@ class _StepRunner:
     stop_requested: Callable[[], bool]
     on_event: Callable[[dict[str, Any]], None] | None = None
 
-    def _emit(self, event: dict[str, Any]) -> None:
+    def emit(self, event: dict[str, Any]) -> None:
         if self.on_event is not None:
             self.on_event(event)
 
@@ -145,14 +145,14 @@ class MissionOrchestrator:
         result = runner.execute_step(step)
         duration = self.time_fn() - started
         result.update(attempt=attempt, step_duration_seconds=round(duration, 4))
-        runner._emit({
+        runner.emit({
             "event": "step_result", "intent": step.intent, "result": result,
             "duration_seconds": duration, "attempt": attempt,
         })
         reason = self._safety_stop_reason(result, runner.stop_requested)
         if reason is not None:
             result.update(status="aborted", reason=reason)
-            runner._emit({
+            runner.emit({
                 "event": "emergency_stop" if reason == "emergency stop" else "obstacle_stop",
                 "reason": reason, "intent": step.intent,
             })
@@ -204,7 +204,7 @@ class MissionOrchestrator:
                 step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
                 steps.append(step_result)
                 self.state_machine.abort("mission timeout")
-                runner._emit({"event": "mission_timeout", "intent": intent})
+                runner.emit({"event": "mission_timeout", "intent": intent})
                 break
 
             step_result = self._execute_planned_step_with_retry(planned_step, runner)

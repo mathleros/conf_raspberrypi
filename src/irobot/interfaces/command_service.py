@@ -66,6 +66,10 @@ class CommandService:
         self.warmup: LLMWarmup | None = None
         self.wait_for_warmup = False
 
+    @property
+    def emergency_event(self) -> threading.Event:
+        return self._emergency_event
+
     def _ask_plan(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
         return self._llm_parse(text)
 

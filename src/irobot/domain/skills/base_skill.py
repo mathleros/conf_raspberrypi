@@ -63,7 +63,7 @@ class Skill(ABC):
         """Exécute la skill et retourne un résultat structuré."""
         raise NotImplementedError
 
-    def validate(self, context: SkillContext) -> bool:
+    def validate(self, context: SkillContext) -> bool: # noqa: ARG002 - hook surchargé par les sous-classes
         """Vérifie si la skill peut être exécutée dans le contexte courant."""
         return True
 

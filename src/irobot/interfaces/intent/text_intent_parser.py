@@ -9,6 +9,7 @@ produit un `Intent` validé par le système.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 from irobot.domain.intent import Intent
@@ -160,6 +161,143 @@ def _extract_target_object(text: str) -> str | None:
     return None
 
 
+_FOLLOW_RE = re.compile(r"\b(?:suis|suit|suivre|suivez|follow)\b")
+
+
+def _follow_object(cleaned: str, text: str) -> Intent:
+    color = _extract_color(cleaned)
+    parameters: dict[str, Any] = {}
+    if color:
+        parameters["target_object"] = color
+    duration_s = _extract_duration(cleaned)
+    if duration_s is not None:
+        parameters["duration_s"] = duration_s
+    stand_off_cm = _extract_stand_off_cm(cleaned)
+    if stand_off_cm is not None:
+        parameters["stand_off_cm"] = stand_off_cm
+    return Intent(name="follow_object", target=color, parameters=parameters, confidence=0.88, raw_text=text)
+
+
+def _move_square(cleaned: str, text: str) -> Intent:
+    distance = _extract_distance(cleaned)
+    side = distance[0] if distance else 40.0
+    unit = distance[1] if distance else "cm"
+    return Intent(
+        name="move_square",
+        parameters={"side": side, "unit": unit, "turn_direction": "right"},
+        confidence=0.86,
+        raw_text=text,
+    )
+
+
+def _contour_obstacle(cleaned: str, text: str) -> Intent:
+    distance = _extract_distance(cleaned)
+    parameters: dict[str, Any] = {"direction": "right", "clearance": 20.0, "unit": "cm"}
+    if distance:
+        parameters["clearance"] = distance[0]
+        parameters["unit"] = distance[1]
+    return Intent(name="contour_obstacle", parameters=parameters, confidence=0.84, raw_text=text)
+
+
+def _detect_object(cleaned: str, text: str) -> Intent:
+    target_object = _extract_target_object(cleaned)
+    parameters: dict[str, Any] = {"search": True, "approach": True}
+    if target_object:
+        parameters["target_object"] = target_object
+    return Intent(
+        name="search_and_approach_object",
+        target=target_object,
+        parameters=parameters,
+        confidence=0.87,
+        raw_text=text,
+    )
+
+
+# Règles ordonnées (la première qui correspond gagne) : mots-clés cherchés dans le texte en minuscules
+# (sous-chaîne) ou regex, puis constructeur (texte nettoyé, texte brut) -> Intent.
+_Rule = tuple["tuple[str, ...] | re.Pattern[str]", Callable[[str, str], Intent]]
+
+_RULES_BEFORE_APPROACH: tuple[_Rule, ...] = (
+    (
+        ("stop", "arrêt", "arrete", "halt", "pause"),
+        lambda cleaned, text: Intent(name="stop", confidence=0.95, raw_text=text),
+    ),
+    (
+        ("retour au point de départ", "reviens au point de départ", "point de départ", "point de depart"),
+        lambda cleaned, text: Intent(name="return_to_start", confidence=0.9, raw_text=text),
+    ),
+    (_FOLLOW_RE, _follow_object),
+    (
+        ("tour sur toi", "tourne sur toi", "rotation complète", "rotation complete", "360"),
+        lambda cleaned, text: Intent(
+            name="spin_360", parameters={"angle": 360, "unit": "degrees"}, confidence=0.9, raw_text=text,
+        ),
+    ),
+    (("carré", "carre", "forme un carré", "forme un carre"), _move_square),
+    (
+        ("contourne", "contourner", "évite l'objet", "evite l'objet", "évite objet", "evite objet"),
+        _contour_obstacle,
+    ),
+    (
+        (
+            "détecte", "detecte", "chercher un objet", "cherche un objet", "trouve un objet",
+            "approche l'objet", "approcher l'objet", "s'en approcher", "s en approcher",
+            "detect and approach", "find object", "approach object",
+        ),
+        _detect_object,
+    ),
+)
+
+_RULES_AFTER_APPROACH: tuple[_Rule, ...] = (
+    (
+        ("balle rouge", "rouge", "cible rouge", "red ball"),
+        lambda cleaned, text: Intent(
+            name="follow_red_ball", target="red_ball", parameters={"speed": 0.5}, confidence=0.9, raw_text=text,
+        ),
+    ),
+    (
+        ("évite", "evite", "avoid", "obstacle"),
+        lambda cleaned, text: Intent(
+            name="avoid_obstacle", parameters={"speed": 0.4}, confidence=0.85, raw_text=text,
+        ),
+    ),
+    (
+        ("avance", "avancer", "go forward", "forward", "move forward", "va tout droit"),
+        lambda cleaned, text: Intent(
+            name="move_forward", parameters=_motion_parameters(cleaned), confidence=0.88, raw_text=text,
+        ),
+    ),
+    (
+        ("recule", "reculer", "go back", "backward", "move backward", "arriere", "arrière"),
+        lambda cleaned, text: Intent(
+            name="move_backward", parameters=_motion_parameters(cleaned), confidence=0.88, raw_text=text,
+        ),
+    ),
+    (
+        ("gauche", "turn left", "left turn", "tourne à gauche", "tourne a gauche"),
+        lambda cleaned, text: Intent(
+            name="turn_left", parameters=_turn_parameters(cleaned), confidence=0.88, raw_text=text,
+        ),
+    ),
+    (
+        ("droite", "turn right", "right turn", "tourne à droite", "tourne a droite"),
+        lambda cleaned, text: Intent(name="turn_right", parameters=_turn_parameters(cleaned), raw_text=text),
+    ),
+    (
+        ("cherche", "recherche", "look for", "find"),
+        lambda cleaned, text: Intent(name="follow_red_ball", target="red_ball", confidence=0.7, raw_text=text),
+    ),
+)
+
+
+def _apply_rules(rules: tuple[_Rule, ...], lowered: str, cleaned: str, text: str) -> Intent | None:
+    for matcher, build in rules:
+        matched = matcher.search(lowered) if isinstance(matcher, re.Pattern) else any(k in lowered for k in matcher)
+        if matched:
+            return build(cleaned, text)
+    return None
+
+
 class TextIntentParser:
     """Parse localement du texte libre en intentions métier structurées."""
 
@@ -176,8 +314,7 @@ class TextIntentParser:
         ):
             return Intent(name="search_and_approach_object", target="marker", confidence=1.0, raw_text=text)
 
-        refusal = follow_request_refusal(cleaned)
-        if refusal:
+        if follow_request_refusal(cleaned):
             return Intent(name="unknown", raw_text=text)
 
         # "arrête-toi quand tu vois X" est une condition d'arrêt, pas un ordre d'arrêt immédiat.
@@ -197,88 +334,15 @@ class TextIntentParser:
                 raw_text=text,
             )
 
-        if any(token in lowered for token in ["stop", "arrêt", "arrete", "halt", "pause"]):
-            return Intent(name="stop", confidence=0.95, raw_text=text)
-
-        if any(token in lowered for token in ["retour au point de départ", "reviens au point de départ", "point de départ", "point de depart"]):
-            return Intent(name="return_to_start", confidence=0.9, raw_text=text)
-
-        if re.search(r"\b(?:suis|suit|suivre|suivez|follow)\b", lowered):
-            color = _extract_color(lowered)
-            parameters: dict[str, Any] = {}
-            if color:
-                parameters["target_object"] = color
-            duration_s = _extract_duration(cleaned)
-            if duration_s is not None:
-                parameters["duration_s"] = duration_s
-            stand_off_cm = _extract_stand_off_cm(cleaned)
-            if stand_off_cm is not None:
-                parameters["stand_off_cm"] = stand_off_cm
-            return Intent(
-                name="follow_object",
-                target=color,
-                parameters=parameters,
-                confidence=0.88,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["tour sur toi", "tourne sur toi", "rotation complète", "rotation complete", "360"]):
-            return Intent(
-                name="spin_360",
-                parameters={"angle": 360, "unit": "degrees"},
-                confidence=0.9,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["carré", "carre", "forme un carré", "forme un carre"]):
-            distance = _extract_distance(cleaned)
-            side = distance[0] if distance else 40.0
-            unit = distance[1] if distance else "cm"
-            return Intent(
-                name="move_square",
-                parameters={"side": side, "unit": unit, "turn_direction": "right"},
-                confidence=0.86,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["contourne", "contourner", "évite l'objet", "evite l'objet", "évite objet", "evite objet"]):
-            distance = _extract_distance(cleaned)
-            parameters: dict[str, Any] = {"direction": "right", "clearance": 20.0, "unit": "cm"}
-            if distance:
-                parameters["clearance"] = distance[0]
-                parameters["unit"] = distance[1]
-            return Intent(
-                name="contour_obstacle",
-                parameters=parameters,
-                confidence=0.84,
-                raw_text=text,
-            )
-
-        if any(
-            token in lowered
-            for token in [
-                "détecte", "detecte", "chercher un objet", "cherche un objet", "trouve un objet",
-                "approche l'objet", "approcher l'objet", "s'en approcher", "s en approcher",
-                "detect and approach", "find object", "approach object",
-            ]
-        ):
-            target_object = _extract_target_object(cleaned)
-            parameters: dict[str, Any] = {"search": True, "approach": True}
-            if target_object:
-                parameters["target_object"] = target_object
-            return Intent(
-                name="search_and_approach_object",
-                target=target_object,
-                parameters=parameters,
-                confidence=0.87,
-                raw_text=text,
-            )
+        intent = _apply_rules(_RULES_BEFORE_APPROACH, lowered, cleaned, text)
+        if intent is not None:
+            return intent
 
         color = _extract_color(lowered)
         has_approach_verb = re.search(r"\b(?:approche|approcher|rapproche|rapprocher)\b", lowered)
         has_search_verb_local = re.search(r"\b(?:cherche|chercher|recherche|trouve|look for|find)\b", lowered)
         if has_approach_verb or (color == "yellow" and has_search_verb_local):
-            parameters = {"search": True, "approach": True}
+            parameters: dict[str, Any] = {"search": True, "approach": True}
             if color:
                 parameters["target_object"] = color
             stand_off_cm = _extract_stand_off_cm(cleaned) if has_approach_verb else None
@@ -292,63 +356,9 @@ class TextIntentParser:
                 raw_text=text,
             )
 
-        if any(token in lowered for token in ["balle rouge", "rouge", "cible rouge", "red ball"]):
-            return Intent(
-                name="follow_red_ball",
-                target="red_ball",
-                parameters={"speed": 0.5},
-                confidence=0.9,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["évite", "evite", "avoid", "obstacle"]):
-            return Intent(
-                name="avoid_obstacle",
-                parameters={"speed": 0.4},
-                confidence=0.85,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["avance", "avancer", "go forward", "forward", "move forward", "va tout droit"]):
-            return Intent(
-                name="move_forward",
-                parameters=_motion_parameters(cleaned),
-                confidence=0.88,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["recule", "reculer", "go back", "backward", "move backward", "arriere", "arrière"]):
-            return Intent(
-                name="move_backward",
-                parameters=_motion_parameters(cleaned),
-                confidence=0.88,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["gauche", "turn left", "left turn", "tourne à gauche", "tourne a gauche"]):
-            return Intent(
-                name="turn_left",
-                parameters=_turn_parameters(cleaned),
-                confidence=0.88,
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["droite", "turn right", "right turn", "tourne à droite", "tourne a droite"]):
-            return Intent(
-                name="turn_right",
-                parameters=_turn_parameters(cleaned),
-                raw_text=text,
-            )
-
-        if any(token in lowered for token in ["cherche", "recherche", "look for", "find"]):
-            return Intent(
-                name="follow_red_ball",
-                target="red_ball",
-                confidence=0.7,
-                raw_text=text,
-            )
-
-        return Intent(name="unknown", confidence=0.0, raw_text=text)
+        return _apply_rules(_RULES_AFTER_APPROACH, lowered, cleaned, text) or Intent(
+            name="unknown", confidence=0.0, raw_text=text,
+        )
 
     _SEGMENT_SPLIT_RE = re.compile(r"\s*(?:(?<!\d),(?!\d)|\bet puis\b|\bpuis\b|\bensuite\b)\s*")
     _PRONOUN_RE = re.compile(r"\b(?:la|le|l'|lui)\b|-(?:la|le|lui)\b")

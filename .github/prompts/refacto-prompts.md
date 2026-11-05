@@ -40,7 +40,7 @@ Un commit par prompt (`git commit -m "refacto: simplifie <fichier>"`), tests lan
 | 11 | `src/irobot/interfaces/command_service.py` | haute | [ X] |
 | 12 | `src/irobot/interfaces/voice_runtime.py` | haute | [ X] |
 | 13 | `src/irobot/domain/orchestrator/executor.py` | basse | [ X] |
-| 14 | `src/irobot/domain/skills/blackboard_state.py` | basse | [ ] |
+| 14 | `src/irobot/domain/skills/blackboard_state.py` | basse | [ X] |
 
 Fais le prompt 0 en premier : les prompts 3, 4, 6 et 10 s'appuient sur la fonction `to_float` qu'il crée. Ensuite, suis l'ordre des numéros (des fichiers feuilles vers les couches hautes).
 
@@ -304,3 +304,83 @@ Simplifie src/irobot/domain/skills/blackboard_state.py.
 3. Type `active_intent: Intent | None` et `last_skill_result: SkillResult | None` au lieu de Any, avec TYPE_CHECKING pour éviter les imports circulaires.
 4. Ne change pas le comportement de __getitem__, __setitem__, __delitem__ (un champ connu supprimé repasse à None).
 ```
+
+---
+
+## Prompt 15
+
+Nettoie le code mort signalé par vulture. Analyse d'abord, ne modifie rien sans mon accord.
+1. src/irobot/domain/orchestrator/mission_state_machine.py:28 (VALID_PHASES) et src/irobot/interfaces/voice_constants.py:36 (HUMAN_RESUME_COMMANDS) : recherche de références dans src, tests et docs, y compris les usages par chaîne de caractères. Supprime-les si rien ne les lit.
+2. src/irobot/hardware/camera/detector/aruco_detector.py:113 (argument `image`) et src/irobot/hardware/camera/frame_enhancer.py:20 (argument `controls`) ne sont pas utilisés dans le corps de la fonction. Regarde si la signature est imposée (interface, callback, méthode surchargée). Sinon, supprime l'argument et mets à jour les appelants.
+3. src/irobot/hardware/camera/detector/color_detector.py:16 (`bbox`) : vérifie si le champ est lu quelque part. Sinon, propose de le supprimer.
+4. src/irobot/domain/skills/blackboard_state.py : pour chacun des champs signalés (active_intent, active_intent_name, active_intent_parameters, active_skill, camera_ready, last_camera_position, last_object_position, last_ball_position, last_object_distance_cm, obstacle_detected, follow_target_state, last_skill_result), cherche leurs usages par attribut, par chaîne ("champ"), par clé et dans KNOWN_FIELDS. Liste ceux qui ne sont jamais lus. Ne touche pas à ceux lus via getattr ou set_state.
+5. Ne touche pas : l'attribut `description` des skills, `next_action`, le `__getattr__` de interfaces/__init__.py, et forward_for/backward_for/left_for/right_for de robot_controller.py (appelées par nom dynamique).
+
+---
+
+## Prompt 16
+
+Supprime les accès à des membres privés d'une autre classe ou d'un autre module.
+1. Lance `uvx ruff check src --select SLF001 --output-format concise` et liste les résultats dans un tableau : fichier | membre privé accédé | classe propriétaire | raison de l'accès.
+2. Pour chaque cas, propose : (a) rendre le membre public si c'est une vraie API, (b) ajouter une méthode publique explicite sur la classe propriétaire (ex. request_stop() / clear_stop() plutôt que lire _emergency_event), ou (c) laisser tel quel avec `# noqa: SLF001` et une raison si l'accès est légitime (tests, mixin).
+3. Ne touche pas aux tests qui lisent des attributs privés pour vérifier un état interne, sauf si je te le demande : signale-les seulement.
+4. Après mon accord, applique un cas à la fois et relance la commande pour confirmer que le compteur baisse.
+Autorisé : des méthodes publiques sur les classes existantes, aucune nouvelle classe.
+
+---
+
+## Prompt 17
+
+Corrige les accès à des membres privés signalés par `uvx ruff check src --select SLF001 --output-format concise`. Analyse d'abord, ne modifie rien sans mon accord.
+1. mission_orchestrator.py (3 appels `_emit`, lignes ~148, 155, 207) : _emit est apparemment une méthode du _StepRunner créé au prompt 10, appelée depuis MissionOrchestrator. Renomme-la `emit` et mets à jour les appelants.
+2. src/irobot/hardware/smart_car/cli.py:135 : `lgpio._notify_close(thread._notify)` est un contournement d'un défaut de la bibliothèque lgpio. Ne le modifie pas : ajoute `# noqa: SLF001` avec un commentaire d'une ligne expliquant pourquoi.
+3. voice_runtime.py :
+   a. ligne ~221 : une fonction de module appelle `runtime._clear_emergency_stop()`. Renomme la méthode en `clear_emergency_stop` et mets à jour tous les appelants, tests inclus.
+   b. ligne ~52 : VoiceRuntime lit `command_service._emergency_event`. Propose soit une propriété publique `emergency_event` en lecture seule sur CommandService, soit des méthodes publiques request/clear, et dis-moi laquelle est la plus simple. Ne fusionne pas les états d'arrêt de RobotController, CommandService et VoiceRuntime sans mon accord.
+Après chaque changement, relance la commande SLF001 pour confirmer que le compteur baisse.
+
+---
+
+## Prompt 18
+
+Clarifie les imports de src/irobot/interfaces/voice_runtime.py. Analyse d'abord, ne modifie rien sans mon accord.
+1. `resolve_input_device` et `transcribe_loop` (hardware.audio.*) sont importés à deux endroits (lignes ~58-59 et ~137-138). Regroupe-les en un seul endroit, en conservant le chargement paresseux si la dépendance audio n'existe pas hors Raspberry Pi.
+2. voice_runtime.py (couche interfaces) importe hardware.runtime_factory (lignes ~158 et ~201) alors que runtime_factory.py importe interfaces.robot_controller : c'est une dépendance circulaire entre couches masquée par des imports locaux. Regarde la fonction de module de la ligne ~201 (point d'entrée ?) et propose de la déplacer dans un module de composition (par exemple src/irobot/app.py) pour que VoiceRuntime ne dépende plus de hardware. N'ajoute ni Callable injecté ni nouvelle classe. Mets à jour les points d'entrée déclarés dans pyproject.toml ([project.scripts]) et les commandes de lancement. Montre-moi le plan avant de l'appliquer.
+3. Conserve le comportement d'arrêt : close_hardware_runtime doit toujours être appelé, même en cas d'erreur.
+
+Autorisé : un seul nouveau module de composition (point d'entrée).
+
+---
+
+## Prompt 19
+
+Simplifie la validation dans src/irobot/config/settings.py. Analyse d'abord : liste les 2 fonctions signalées par C901/PLR0912 (probablement des __post_init__) avec leur nombre de branches.
+1. Remplace les séries de `if valeur < min: raise ValueError(...)` par une petite fonction privée de validation (par exemple `_require_range(name, value, minimum=None, maximum=None)`) ou par une boucle sur un tuple de contraintes.
+2. Conserve EXACTEMENT les mêmes messages d'erreur (des tests peuvent les vérifier) et les mêmes conditions.
+3. Ne change ni les valeurs par défaut, ni les noms de champs, ni les variables d'environnement lues.
+
+Autorisé : une fonction privée de validation.
+
+---
+
+## Prompt 20
+
+Analyse src/irobot/interfaces/intent/text_intent_parser.py (5 fonctions signalées) et src/irobot/interfaces/text_normalizer.py (2). Ne modifie rien avant mon accord.
+1. Liste les fonctions signalées par C901/PLR0912/PLR0915/PLR0911 : nom, nombre de branches, rôle.
+2. Pour chacune, dis si la complexité vient d'une cascade de if/elif sur des mots-clés ou des regex (candidat à une table `(motif, constructeur d'intent)` parcourue dans l'ordre) ou d'une vraie logique (à laisser).
+3. Avant toute modification, écris une liste d'au moins 10 phrases d'exemple avec l'intent actuellement produit, pour comparer avant et après. Garde l'ORDRE de priorité des règles.
+4. N'ajoute aucune dépendance (pas de bibliothèque NLP).
+
+Autorisé : une table de règles par fonction refactorée.
+
+## Prompt 21
+
+Réduis la complexité des fonctions signalées dans approach_target.py (3 règles) et follow_object.py (3 règles). Analyse d'abord ; ne modifie qu'une fonction à la fois, tests lancés entre chaque.
+1. Pour chaque fonction signalée, liste les phases d'une itération de la boucle (lecture perception, décisions d'arrêt, calcul de commande, pulse moteur, mise à jour d'état) avec leurs numéros de ligne.
+2. Extrais uniquement une phase en méthode privée quand elle est autonome (entrées et sorties claires). Ne change ni l'ordre des phases, ni l'ordre arrêt d'urgence puis obstacle, ni les status et confidences.
+3. Si une extraction nécessite de passer plus de 5 variables, ne la fais pas et signale-le-moi.
+4. Ne touche ni à follow_target_state ni aux messages.
+
+Autorisé : des méthodes privées par phase, aucune nouvelle classe.
+
+

@@ -11,8 +11,7 @@ from irobot.domain.intent import Intent
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
-from irobot.interfaces import voice_runtime as vr
-from irobot.hardware import runtime_factory
+from irobot import app
 from irobot.interfaces.intent.llm_intent_parser import (
     LLMWarmup,
     ask_llm_for_intent_plan_with_trace,
@@ -1390,11 +1389,11 @@ class _SlowWarmupLLM:
 
 def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
-    monkeypatch.setattr(runtime_factory, "build_hardware_runtime",
+    monkeypatch.setattr(app, "build_hardware_runtime",
                         lambda settings: {"robot": FakeRobot(), "camera": None, "sensor": None})
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
-    vr.main()
+    app.main()
     traces = sorted((tmp_path / "target" / "logs").glob("runtime_trace_*.jsonl"))
     assert len(traces) == 1
     events = [json.loads(line) for line in traces[0].read_text(encoding="utf-8").splitlines()]
@@ -1442,14 +1441,53 @@ def test_main_cleans_hardware_if_runtime_construction_fails(monkeypatch):
     def fail_runtime_construction(**kwargs):
         raise RuntimeError("runtime construction failed")
 
-    monkeypatch.setattr(runtime_factory, "build_hardware_runtime", lambda settings: {
+    monkeypatch.setattr(app, "build_hardware_runtime", lambda settings: {
         "robot": Robot(), "camera": Camera(), "sensor": None,
     })
-    monkeypatch.setattr(vr, "VoiceRuntime", fail_runtime_construction)
+    monkeypatch.setattr(app, "VoiceRuntime", fail_runtime_construction)
     monkeypatch.setattr("sys.argv", ["voice-runtime", "--no-llm"])
 
     with pytest.raises(SystemExit):
-        vr.main()
+        app.main()
+
+    assert calls == ["stop", "robot cleanup", "camera close"]
+
+
+def test_main_closes_hardware_even_if_runtime_close_fails(monkeypatch):
+    calls = []
+
+    class Robot:
+        def stop(self):
+            calls.append("stop")
+
+        def cleanup(self):
+            calls.append("robot cleanup")
+
+    class Camera:
+        def close(self):
+            calls.append("camera close")
+
+    class FailingRuntime:
+        def __init__(self, **kwargs):
+            self.command_service = type("CommandService", (), {})()
+
+        def clear_emergency_stop(self):
+            pass
+
+        def handle_text_as_plan(self, text):
+            return {"status": "ok"}
+
+        def close(self):
+            raise RuntimeError("abort impossible")
+
+    monkeypatch.setattr(app, "build_hardware_runtime", lambda settings: {
+        "robot": Robot(), "camera": Camera(), "sensor": None,
+    })
+    monkeypatch.setattr(app, "VoiceRuntime", FailingRuntime)
+    monkeypatch.setattr("sys.argv", ["voice-runtime", "--no-llm", "--text", "avance"])
+
+    with pytest.raises(RuntimeError, match="abort impossible"):
+        app.main()
 
     assert calls == ["stop", "robot cleanup", "camera close"]
 

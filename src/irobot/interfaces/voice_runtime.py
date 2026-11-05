@@ -1,20 +1,16 @@
-"""Public voice runtime and CLI; hardware and language services stay isolated."""
+"""Public voice runtime; the CLI and hardware assembly live in irobot.app."""
 
 from __future__ import annotations
 
-import argparse
 import logging
 import re
-import sys
 import threading
 from typing import Any
 
-from irobot.config.settings import load_runtime_settings
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.command_service import CommandService
 from irobot.interfaces.plan_guards import is_pure_stop, fold
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
-from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
 
 
 class VoiceRuntime:
@@ -49,25 +45,28 @@ class VoiceRuntime:
             use_llm=use_llm,
             trace_dir=trace_dir,
         )
-        self._emergency_event = self.command_service._emergency_event
+        self._emergency_event = self.command_service.emergency_event
 
     def handle_text_as_plan(self, text: str):
         return self.command_service.handle_text(text)
 
-    def listen_once(self):
+    def _transcripts(self):
+        # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
         from irobot.hardware.audio.audio_utils import resolve_input_device
         from irobot.hardware.audio.voice_input import transcribe_loop
 
-        device = resolve_input_device(self.input_device)
-        for text in transcribe_loop(device):
+        return transcribe_loop(resolve_input_device(self.input_device))
+
+    def listen_once(self):
+        for text in self._transcripts():
             print(f"\n[VOIX] {text}", flush=True)
-            self._clear_emergency_stop()
+            self.clear_emergency_stop()
             result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {result}", flush=True)
             return result
         return {"status": "no_transcript"}
 
-    def _clear_emergency_stop(self) -> None:
+    def clear_emergency_stop(self) -> None:
         self._emergency_event.clear()
         clear = getattr(self.robot, "clear_emergency_stop", None)
         if callable(clear):
@@ -120,7 +119,7 @@ class VoiceRuntime:
             return None
 
         # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
-        self._clear_emergency_stop()
+        self.clear_emergency_stop()
         if not self.threaded:
             self.last_result = self.handle_text_as_plan(text)
             print(f"[RUNTIME] {self.last_result}", flush=True)
@@ -134,12 +133,8 @@ class VoiceRuntime:
         return None
 
     def listen_forever(self):
-        from irobot.hardware.audio.audio_utils import resolve_input_device
-        from irobot.hardware.audio.voice_input import transcribe_loop
-
-        device = resolve_input_device(self.input_device)
         try:
-            for text in transcribe_loop(device):
+            for text in self._transcripts():
                 print(f"\n[VOIX] {text}", flush=True)
                 self.handle_transcript(text)
         except KeyboardInterrupt:
@@ -154,87 +149,5 @@ class VoiceRuntime:
         self.command_service.safe_stop()
 
     def close(self) -> None:
-        """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
-        from irobot.hardware.runtime_factory import close_hardware_runtime
-
-        try:
-            self._abort_mission()
-        except Exception:
-            logging.getLogger(__name__).exception("Impossible d'interrompre la mission avant la fermeture")
-            try:
-                close_hardware_runtime({"robot": self.robot, "camera": self.perception})
-            except Exception:
-                logging.getLogger(__name__).exception("Échec de la fermeture des ressources après interruption")
-            raise
-        close_hardware_runtime({"robot": self.robot, "camera": self.perception})
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Runtime vocal complet : Vosk → intent → skills -> robot."
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Ecoute une seule phrase puis s'arrête.",
-    )
-    parser.add_argument(
-        "--no-llm",
-        action="store_true",
-        help="Utilise le parseur local au lieu du LLM pour interpréter la commande.",
-    )
-    parser.add_argument(
-        "--input-device",
-        default="auto",
-        choices=["auto", "bluetooth", "wm8960", "default"],
-        help="Source audio utilisée pour l'enregistrement.",
-    )
-    parser.add_argument(
-        "--text",
-        default=None,
-        help="Traite cette phrase (sans micro) puis s'arrête.",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    from irobot.hardware.runtime_factory import build_hardware_runtime, close_hardware_runtime
-
-    args = _parse_args()
-    runtime = None
-    hardware = None
-    try:
-        warmup = LLMWarmup().start() if not args.no_llm else None
-        hardware = build_hardware_runtime(settings=load_runtime_settings())
-        runtime = VoiceRuntime(
-            robot=hardware["robot"],
-            camera=hardware["camera"],
-            sensor=hardware["sensor"],
-            perception=hardware["camera"],
-            input_device=args.input_device,
-            use_llm=not args.no_llm,
-        )
-        runtime.command_service.warmup = warmup
-        # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.
-        runtime.command_service.wait_for_warmup = bool(args.once or args.text)
-        if args.text:
-            runtime._clear_emergency_stop()
-            result = runtime.handle_text_as_plan(args.text)
-            print(f"[RUNTIME] {result}", flush=True)
-            return
-        if args.once:
-            runtime.listen_once()
-            return
-        runtime.listen_forever()
-    except RuntimeError as exc:
-        print(f"Erreur : {exc}")
-        sys.exit(1)
-    finally:
-        if runtime is not None:
-            runtime.close()
-        elif hardware is not None:
-            close_hardware_runtime(hardware)
-
-
-if __name__ == "__main__":
-    main()
+        """Interrompt la mission en cours ; la fermeture du matériel est faite par app.main()."""
+        self._abort_mission()

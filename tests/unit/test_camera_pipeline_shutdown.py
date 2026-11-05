@@ -81,33 +81,14 @@ def test_capture_failure_is_logged_and_camera_is_released(monkeypatch, caplog):
     assert "configuration invalide" in caplog.text
 
 
-def test_runtime_reports_camera_shutdown_failure_and_still_stops_robot(tmp_path):
+def test_runtime_close_stops_robot_and_leaves_hardware_to_the_entry_point(tmp_path):
     class Perception:
         def close(self):
-            raise RuntimeError("fermeture caméra impossible")
+            raise AssertionError("la caméra est fermée par app.main()")
 
     robot = FakeRobot()
     runtime = VoiceRuntime(robot=robot, perception=Perception(), use_llm=False, trace_dir=str(tmp_path))
 
-    with pytest.raises(RuntimeError, match="fermeture caméra"):
-        runtime.close()
-
-    assert robot.commands[-1] == "stop"
-
-
-def test_runtime_cleans_up_robot_after_camera_shutdown(tmp_path):
-    class Robot(FakeRobot):
-        def __init__(self):
-            super().__init__()
-            self.cleanup_calls = 0
-
-        def cleanup(self):
-            self.cleanup_calls += 1
-
-    robot = Robot()
-    runtime = VoiceRuntime(robot=robot, use_llm=False, trace_dir=str(tmp_path))
-
     runtime.close()
 
-    assert robot.cleanup_calls == 1
     assert robot.commands[-1] == "stop"

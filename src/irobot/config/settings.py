@@ -49,6 +49,22 @@ class MarkerIdentity:
             raise ValueError("human_marker identity values must be strings") from exc
 
 
+def _require_number(
+    name: str, value: object, expected: str, *, integer: bool = False, positive: bool = False, non_negative: bool = False,
+) -> None:
+    """Lève ValueError « {name} must be {expected} » sauf si value est un nombre valide (jamais un bool)."""
+    valid = not isinstance(value, bool) and isinstance(value, int if integer else (int, float))
+    if valid and not integer:
+        try:
+            valid = math.isfinite(value)
+        except OverflowError:
+            valid = False
+    if valid and ((positive and value <= 0) or (non_negative and value < 0)):
+        valid = False
+    if not valid:
+        raise ValueError(f"{name} must be {expected}")
+
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     cm_per_second: float = 33.0
@@ -96,39 +112,25 @@ class RuntimeSettings:
         if self.obstacle_threshold_cm < 0:
             raise ValueError("obstacle_threshold_cm must be non-negative")
         for name in ("camera_face_width_cm", "camera_face_score_threshold"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-                raise ValueError(f"{name} must be a finite positive number")
-            if value <= 0:
-                raise ValueError(f"{name} must be a finite positive number")
+            _require_number(name, getattr(self, name), "a finite positive number", positive=True)
         if self.camera_face_score_threshold > 1:
             raise ValueError("camera_face_score_threshold must be at most 1")
-        if (isinstance(self.camera_face_grace_frames, bool)
-                or not isinstance(self.camera_face_grace_frames, int)
-                or self.camera_face_grace_frames < 0):
-            raise ValueError("camera_face_grace_frames must be a non-negative integer")
+        _require_number(
+            "camera_face_grace_frames", self.camera_face_grace_frames, "a non-negative integer",
+            integer=True, non_negative=True,
+        )
         if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
             raise ValueError("camera_face_model_path must be a non-empty path string")
         if not isinstance(self.camera_clahe_enabled, bool):
             raise ValueError("camera_clahe_enabled must be a boolean")
         for name in ("camera_clahe_clip_limit", "camera_exposure_value"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-                raise ValueError(f"{name} must be a finite number")
+            _require_number(name, getattr(self, name), "a finite number")
         if self.camera_clahe_clip_limit <= 0:
             raise ValueError("camera_clahe_clip_limit must be positive")
         if not -8.0 <= self.camera_exposure_value <= 8.0:
             raise ValueError("camera_exposure_value must be between -8 and 8 EV")
         for name in ("human_max_age_seconds", "human_announcement_timeout_seconds"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"{name} must be a finite positive number")
-            try:
-                finite = math.isfinite(value)
-            except OverflowError as exc:
-                raise ValueError(f"{name} must be a finite positive number") from exc
-            if not finite or value <= 0:
-                raise ValueError(f"{name} must be a finite positive number")
+            _require_number(name, getattr(self, name), "a finite positive number", positive=True)
 
 
 def _config_file() -> Path:

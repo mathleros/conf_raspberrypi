@@ -2,25 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, MutableMapping
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Any, ClassVar
-
-if TYPE_CHECKING:
-    from irobot.domain.intent import Intent
-    from irobot.domain.skills.base_skill import SkillResult
+from typing import Any, ClassVar
 
 
 @dataclass
 class BlackboardState(MutableMapping[str, Any]):
     """État partagé typé entre perception, planification et action."""
 
-    active_intent: Intent | None = None
     active_intent_name: str | None = None
     active_intent_parameters: dict[str, Any] = field(default_factory=dict)
-    active_skill: str | None = None
 
     camera_ready: bool = False
     target_object: str | None = None
-    last_camera_position: Any | None = None
     last_object_position: str | None = None
     last_ball_position: str | None = None
     last_object_distance_cm: float | None = None
@@ -29,7 +22,6 @@ class BlackboardState(MutableMapping[str, Any]):
 
     motion: str | None = None
     follow_target_state: dict[str, Any] | None = None
-    last_skill_result: SkillResult | None = None
 
     extra: dict[str, Any] = field(default_factory=dict)
 

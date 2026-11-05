@@ -132,7 +132,8 @@ def _stop_lgpio_notify_thread() -> None:
         thread.stop()
         if Device.pin_factory is not None:
             Device.pin_factory.close()
-        lgpio._notify_close(thread._notify)
+        # Contournement d'un défaut de lgpio : le thread de notification n'est pas fermé proprement par l'API publique.
+        lgpio._notify_close(thread._notify)  # noqa: SLF001
         thread.join(1.0)
     except Exception:
         pass

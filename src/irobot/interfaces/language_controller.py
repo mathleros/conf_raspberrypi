@@ -76,7 +76,6 @@ class LanguageController:
             perception=self.perception,
             perception_target=intent.perception_target,
             state=BlackboardState(
-                active_intent=intent,
                 active_intent_name=intent.name,
                 active_intent_parameters={
                     **intent.parameters,
@@ -101,7 +100,6 @@ class LanguageController:
                     "plan": [skill.name for skill in plan],
                     "results": results,
                 }
-            context.state["active_skill"] = skill.name
             results.append(executor.run(skill))
         return {
             "intent": intent,

@@ -81,23 +81,71 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             except Exception:
                 logging.getLogger(__name__).exception("Impossible d'arreter le robot apres le suivi")
 
-    def _run(self, context: SkillContext) -> SkillResult:
+    def _prepare_params(self, context: SkillContext) -> dict:
         params = dict(context.state.get("active_intent_parameters") or {})
-        settings = self.settings
         if not callable(getattr(context.perception, "detect", None)):
             raise RuntimeError("Le suivi nécessite une perception visuelle active")
         if not params.get("target_object"):
             params["target_object"] = self.DEFAULT_TARGET
             context.state["active_intent_parameters"] = params
+        return params
 
-        approach_follow = context.state.get("active_intent_name") in {"follow_person", "follow_red_ball"}
+    def _resolve_stand_off(self, params: dict, approach_follow: bool) -> tuple[float, float]:
+        """Distance de consigne et tolérance (cm) ; valeurs par défaut réduites pour follow_person/follow_red_ball."""
         default_stand_off_cm = 20.0 if approach_follow else self.DEFAULT_STAND_OFF_CM
         default_tolerance_cm = 10.0 if approach_follow else self.DEFAULT_TOLERANCE_CM
         stand_off_cm = default_stand_off_cm if params.get("stand_off_cm") is None else min(
-            max(to_float(params.get("stand_off_cm"), default_stand_off_cm), float(settings.min_stand_off_cm)),
-            float(settings.max_stand_off_cm),
+            max(
+                to_float(params.get("stand_off_cm"), default_stand_off_cm),
+                float(self.settings.min_stand_off_cm),
+            ),
+            float(self.settings.max_stand_off_cm),
         )
         tolerance_cm = max(0.0, to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
+        return stand_off_cm, tolerance_cm
+
+    def _safety_stop(
+        self, context: SkillContext, emergency: bool, iterations: int, final_distance_cm: float | None,
+    ) -> SkillResult:
+        self._stop_robot(context)
+        context.state["motion"] = "stop"
+        context.state["follow_target_state"] = {
+            "phase": "blocked",
+            "iterations": iterations,
+            "reason": "emergency_stop" if emergency else "obstacle_detected",
+        }
+        data = {"obstacle_detected": True, "iterations": iterations, "final_distance_cm": final_distance_cm}
+        if emergency:
+            data["emergency_stop"] = True
+        return self._result("success", "Arrêt de sécurité pendant le suivi.", data, 0.99)
+
+    def _finish(
+        self,
+        context: SkillContext,
+        duration_s: float,
+        iterations: int,
+        final_distance_cm: float | None,
+        reacquisitions: int,
+    ) -> SkillResult:
+        self._stop_robot(context)
+        context.state["motion"] = "stop"
+        return self._result(
+            "success",
+            f"Suivi terminé après {duration_s:.0f} s.",
+            {
+                "iterations": iterations,
+                "duration_s": duration_s,
+                "final_distance_cm": final_distance_cm,
+                "reacquisitions": reacquisitions,
+            },
+            0.9,
+        )
+
+    def _run(self, context: SkillContext) -> SkillResult:
+        settings = self.settings
+        params = self._prepare_params(context)
+        approach_follow = context.state.get("active_intent_name") in {"follow_person", "follow_red_ball"}
+        stand_off_cm, tolerance_cm = self._resolve_stand_off(params, approach_follow)
         continuous = params.get("duration_s") is None
         duration_s = math.inf if continuous else min(
             max(0.0, to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
@@ -125,13 +173,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
             emergency = self._is_emergency_stop_requested(context)
             if emergency or self._check_obstacle_fail_safe(context):
-                self._stop_robot(context)
-                context.state["motion"] = "stop"
-                set_state("blocked", reason="emergency_stop" if emergency else "obstacle_detected")
-                data = {"obstacle_detected": True, "iterations": iterations, "final_distance_cm": final_distance_cm}
-                if emergency:
-                    data["emergency_stop"] = True
-                return self._result("success", "Arrêt de sécurité pendant le suivi.", data, 0.99)
+                return self._safety_stop(context, emergency, iterations, final_distance_cm)
 
             position, distance_cm = self._detect_target(context)
             current = now()
@@ -192,16 +234,4 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 set_state("holding", distance_cm=distance_cm)
             self.sleep_fn(self.CONTROL_LOOP_PERIOD_S)
 
-        self._stop_robot(context)
-        context.state["motion"] = "stop"
-        return self._result(
-            "success",
-            f"Suivi terminé après {duration_s:.0f} s.",
-            {
-                "iterations": iterations,
-                "duration_s": duration_s,
-                "final_distance_cm": final_distance_cm,
-                "reacquisitions": reacquisitions,
-            },
-            0.9,
-        )
+        return self._finish(context, duration_s, iterations, final_distance_cm, reacquisitions)

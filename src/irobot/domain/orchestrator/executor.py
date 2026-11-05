@@ -19,8 +19,6 @@ class SkillExecutor:
         return None
 
     def run(self, skill: Skill) -> SkillResult:
-        if callable(getattr(self.context.robot, "is_protected_result_current", None)):
-            self.context.state["last_skill_result"] = None
         if fault := self._supervision_fault("Contexte invalidé par la supervision."):
             return fault
         if not skill.validate(self.context):
@@ -37,5 +35,4 @@ class SkillExecutor:
         result = skill.execute(self.context)
         if fault := self._supervision_fault("Résultat invalidé par la supervision."):
             return fault
-        self.context.state["last_skill_result"] = result
         return result

@@ -19,7 +19,7 @@ pythonpath = ["src"]
 test = "irobot:main"
 vision-detect-live = "irobot.tools.vision_diagnostic:main"
 calibrate-distance = "irobot.tools.calibrate_distance:main"
-voice-runtime = "irobot.interfaces.voice_runtime:main"
+voice-runtime = "irobot.app:main"
 smart-car = "irobot.hardware.smart_car.cli:main"
 hc-sr04 = "irobot.hardware.sensors.hc_sr04:main"
 
@@ -30,3 +30,33 @@ hc-sr04 = "irobot.hardware.sensors.hc_sr04:main"
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint]
+extend-select = ["F401", "F841", "ARG", "SLF001", "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.pylint]
+max-args = 7
+
+[tool.ruff.lint.per-file-ignores]
+"src/irobot/hardware/**" = ["PLC0415"] # imports paresseux matériels
+"tests/**" = ["SLF001", "ARG"]
+
+# Lancer la commande : uv run --with import-linter lint-imports
+
+[tool.importlinter]
+root_package = "irobot"
+
+[[tool.importlinter.contracts]]
+name = "domain ne dépend ni d'interfaces ni de hardware"
+type = "forbidden"
+source_modules = ["irobot.domain"]
+forbidden_modules = ["irobot.interfaces", "irobot.hardware"]
+
+[[tool.importlinter.contracts]]
+name = "interfaces ne dépend pas de hardware"
+type = "forbidden"
+source_modules = ["irobot.interfaces"]
+forbidden_modules = ["irobot.hardware"]

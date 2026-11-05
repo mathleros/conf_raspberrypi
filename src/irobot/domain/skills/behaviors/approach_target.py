@@ -159,6 +159,51 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             next_action="detect_object",
         )
 
+    def _safety_halt(self, context: SkillContext, iterations: int) -> SkillResult | None:
+        """Arrêt d'urgence d'abord, puis obstacle ; None si aucun des deux."""
+        # Même convention que follow_object : arrêt d'urgence = "success" + data["emergency_stop"].
+        if self._is_emergency_stop_requested(context):
+            return self._halt(
+                context,
+                phase="blocked",
+                message="Arrêt d'urgence demandé pendant le suivi.",
+                data={"emergency_stop": True, "iterations": iterations},
+                confidence=0.99,
+                iterations=iterations,
+                reason="emergency_stop",
+            )
+
+        if self._check_obstacle_fail_safe(context):
+            return self._halt(
+                context,
+                phase="blocked",
+                message="Arrêt de sécurité : obstacle détecté pendant le suivi.",
+                data={"target_position": context.state.get("last_object_position"), "obstacle_detected": True},
+                confidence=0.99,
+                iterations=iterations,
+                reason="obstacle_detected",
+            )
+        return None
+
+    def _tracking_timeout_result(self, context: SkillContext, iterations: int, max_tracking_s: float) -> SkillResult:
+        self._stop_robot(context)
+        context.state["follow_target_state"] = {
+            "phase": "tracking_timeout",
+            "iterations": iterations,
+            "timeout_s": max_tracking_s,
+        }
+        return SkillResult(
+            status="in_progress",
+            message="Suivi interrompu par timeout de tracking ; nouvelle acquisition requise.",
+            data={
+                "target_position": context.state.get("last_object_position"),
+                "tracking_timeout": True,
+                "iterations": iterations,
+            },
+            confidence=0.5,
+            next_action="detect_object",
+        )
+
     def _track_loop(
         self,
         context: SkillContext,
@@ -187,28 +232,9 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 break
             iterations += 1
 
-            # Même convention que follow_object : arrêt d'urgence = "success" + data["emergency_stop"].
-            if self._is_emergency_stop_requested(context):
-                return self._halt(
-                    context,
-                    phase="blocked",
-                    message="Arrêt d'urgence demandé pendant le suivi.",
-                    data={"emergency_stop": True, "iterations": iterations},
-                    confidence=0.99,
-                    iterations=iterations,
-                    reason="emergency_stop",
-                )
-
-            if self._check_obstacle_fail_safe(context):
-                return self._halt(
-                    context,
-                    phase="blocked",
-                    message="Arrêt de sécurité : obstacle détecté pendant le suivi.",
-                    data={"target_position": context.state.get("last_object_position"), "obstacle_detected": True},
-                    confidence=0.99,
-                    iterations=iterations,
-                    reason="obstacle_detected",
-                )
+            halted = self._safety_halt(context, iterations)
+            if halted is not None:
+                return halted
 
             target_position, distance_cm = self._detect_target(context)
             current = now()
@@ -284,23 +310,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
 
             self._sweep_step(context, sweep_direction, align_step_s, iterations)
 
-        self._stop_robot(context)
-        context.state["follow_target_state"] = {
-            "phase": "tracking_timeout",
-            "iterations": iterations,
-            "timeout_s": max_tracking_s,
-        }
-        return SkillResult(
-            status="in_progress",
-            message="Suivi interrompu par timeout de tracking ; nouvelle acquisition requise.",
-            data={
-                "target_position": context.state.get("last_object_position"),
-                "tracking_timeout": True,
-                "iterations": iterations,
-            },
-            confidence=0.5,
-            next_action="detect_object",
-        )
+        return self._tracking_timeout_result(context, iterations, max_tracking_s)
 
     def validate(self, context: SkillContext) -> bool:
         return context.robot is not None

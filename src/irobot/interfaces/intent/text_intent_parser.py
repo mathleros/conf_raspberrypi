@@ -314,6 +314,11 @@ class TextIntentParser:
             r"(?:(?:approche|rapproche)(?: toi)? (?:de|vers) moi|rejoins moi)", fold(cleaned).strip(),
         ):
             return Intent(name="search_and_approach_object", target="face", confidence=1.0, raw_text=text)
+        if re.fullmatch(
+            r"(?:approche|rapproche)[ -]toi (?:du|de la|de l|de|vers) (?:visage|humain|humaine|personne|moi)",
+            fold(cleaned).strip(),
+        ):
+            return Intent(name="search_and_approach_object", target="face", confidence=1.0, raw_text=text)
 
         if follow_request_refusal(cleaned):
             return Intent(name="unknown", raw_text=text)

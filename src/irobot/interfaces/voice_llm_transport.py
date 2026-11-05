@@ -35,9 +35,10 @@ Intents :
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
 Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
-« moi », « humain », « personne », « visage » désignent la personne : target "face", jamais une couleur ni "marker". « tag » et « marker » désignent le marqueur ArUco : target "marker". Pour rejoindre ou approcher la personne, utilise search_and_approach_object. N'invente pas de distance.
+« moi », « humain », « personne », « visage » désignent la personne : target "face", jamais une couleur ni "marker". « tag » et « marker » désignent le marqueur ArUco : target "marker". Pour rejoindre ou approcher la personne (« approche », « rapproche », « rejoins »), utilise search_and_approach_object, jamais follow_person : follow_person est réservé à « suis ». N'invente pas de distance.
 Exemples :
 « approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
+« approche toi du visage » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
 « rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
 « suis-moi » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{}}]}
 « cherche la balle jaune approche toi à 100 centimètres de la balle jaune puis suis la pendant 300 secondes » -> {"steps":[{"intent":"search_and_approach_object","target":"yellow","parameters":{"stand_off_cm":100}},{"intent":"follow_object","target":"yellow","parameters":{"stand_off_cm":100,"duration_s":300}}]}

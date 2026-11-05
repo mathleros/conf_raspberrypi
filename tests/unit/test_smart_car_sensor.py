@@ -74,6 +74,9 @@ def _hc_sr04(monkeypatch, clock):
         SimpleNamespace(DigitalOutputDevice=_Pin, DigitalInputDevice=_Pin),
     )
     module = importlib.import_module("irobot.hardware.sensors.hc_sr04")
+    # Le module peut déjà être importé avec le vrai gpiozero (ex. via cli.py sur Raspberry Pi).
+    monkeypatch.setattr(module, "DigitalOutputDevice", _Pin)
+    monkeypatch.setattr(module, "DigitalInputDevice", _Pin)
     return module.HC_SR04(time_fn=clock, sleep_fn=clock.sleep)
 
 

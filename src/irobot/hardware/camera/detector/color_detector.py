@@ -7,9 +7,10 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
+from irobot.interfaces.perception_contracts import ObjectDetection
+
 from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
-from irobot.interfaces.perception_contracts import ObjectDetection
 
 
 class BallCandidate(TypedDict):

@@ -1,8 +1,8 @@
 """YuNet face detection on already enhanced RGB frames; no identity recognition."""
 
-from dataclasses import replace
 import logging
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -10,9 +10,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from irobot.config.settings import RuntimeSettings
+from irobot.interfaces.perception_contracts import ObjectDetection
+
 from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
-from irobot.interfaces.perception_contracts import ObjectDetection
 
 logger = logging.getLogger(__name__)
 

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
-from datetime import datetime, timezone
 import json
 import logging
-from pathlib import Path
 import threading
 import time
+from dataclasses import asdict
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
@@ -109,11 +109,11 @@ class CommandService:
         return status
 
     def _trace_path(self) -> Path:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         return self.trace_dir / f"runtime_trace_{stamp}.jsonl"
 
     def _write_trace_event(self, trace_path: Path, event: dict[str, Any]) -> None:
-        payload = {"timestamp": datetime.now(timezone.utc).isoformat(), **event}
+        payload = {"timestamp": datetime.now(UTC).isoformat(), **event}
         with trace_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 

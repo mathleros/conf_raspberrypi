@@ -7,7 +7,6 @@ from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import SkillContext
 
-
 FOLLOW_INTENTS = frozenset({"follow_person", "follow_red_ball", "follow_object"})
 
 Direction = Literal["forward", "backward", "left", "right"]

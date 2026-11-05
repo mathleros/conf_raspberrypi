@@ -7,7 +7,10 @@ from typing import Any
 from irobot.config.settings import RuntimeSettings
 from irobot.domain.numbers import to_float
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
-from irobot.domain.skills.behaviors.target_tracking import Direction, TargetTrackingMixin
+from irobot.domain.skills.behaviors.target_tracking import (
+    Direction,
+    TargetTrackingMixin,
+)
 
 
 class ApproachTargetSkill(TargetTrackingMixin, Skill):

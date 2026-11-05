@@ -1,23 +1,23 @@
 """Camera detector implementations and shared types."""
 
-from .color_detector import ColorDetector
-from .base_detector import Detector
-from .face_detector import FaceDetector
 from .aruco_detector import (
-    ArucoFrameDetection,
     MARKER_SIDE_CM,
+    ArucoFrameDetection,
     MarkerDetectorBackend,
     ObservationDisposition,
     OpenCVMarkerDetector,
     estimate_marker_distance_cm,
 )
+from .base_detector import Detector
+from .color_detector import ColorDetector
+from .face_detector import FaceDetector
 
 __all__ = [
+    "MARKER_SIDE_CM",
     "ArucoFrameDetection",
     "ColorDetector",
     "Detector",
     "FaceDetector",
-    "MARKER_SIDE_CM",
     "MarkerDetectorBackend",
     "ObservationDisposition",
     "OpenCVMarkerDetector",

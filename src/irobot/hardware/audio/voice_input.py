@@ -1,9 +1,9 @@
 """ALSA capture and lazy Vosk transcription; no planning or motor logic."""
 
-from contextlib import contextmanager
 import json
 import os
 import subprocess
+from contextlib import contextmanager
 
 RATE = 16000
 MODEL_PATH = os.path.expanduser("~/models/vosk-model-small-fr-0.22")

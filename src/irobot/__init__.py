@@ -6,10 +6,10 @@ assistant vocal et orchestration des skills.
 
 __all__ = [
     "camera",
-    "smart_car",
+    "orchestrator",
     "sensors",
     "skills",
-    "orchestrator",
+    "smart_car",
 ]
 
 

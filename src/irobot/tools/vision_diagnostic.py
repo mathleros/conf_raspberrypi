@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from irobot.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
-from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.config.settings import (
+    MarkerIdentity,
+    RuntimeSettings,
+    load_runtime_settings,
+)
 from irobot.hardware.camera.detector import (
+    MARKER_SIDE_CM,
     ArucoFrameDetection,
     ColorDetector,
     FaceDetector,
-    MARKER_SIDE_CM,
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
+from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from irobot.interfaces.perception_contracts import ObjectDetection
+
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"
 

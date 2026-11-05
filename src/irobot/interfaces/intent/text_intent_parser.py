@@ -15,6 +15,7 @@ from typing import Any
 from irobot.domain.intent import Intent
 from irobot.interfaces.plan_guards import fold, follow_request_refusal
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits
+
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
 _DECIMAL_MARK = "\ue000"
 

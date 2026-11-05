@@ -6,23 +6,27 @@ from dataclasses import asdict
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings
-from irobot.domain.numbers import to_float
-from irobot.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
 from irobot.domain.intent import Intent
 from irobot.domain.intent_validator import IntentValidator
+from irobot.domain.numbers import to_float
+from irobot.domain.skills.primitives.base_motion_primitive import (
+    normalize_distance_unit,
+)
 from irobot.interfaces.plan_guards import (
-    contains_unsupported_follow_step, follow_request_refusal, TARGET_COLOR_SYNONYMS,
+    TARGET_COLOR_SYNONYMS,
+    contains_unsupported_follow_step,
+    follow_request_refusal,
 )
 from irobot.interfaces.voice_constants import (
-    DEFAULT_MOVE_DURATION_SEC,
-    DEFAULT_TURN_ANGLE_DEG,
-    PLAN_INTENT_SYNONYMS,
-    OBJECT_INTENTS,
-    DEFAULT_STAND_OFF_CM,
     DEFAULT_FOLLOW_DURATION_SEC,
+    DEFAULT_MOVE_DURATION_SEC,
+    DEFAULT_STAND_OFF_CM,
+    DEFAULT_TURN_ANGLE_DEG,
+    MAX_SEARCH_TIMEOUT_SEC,
     MIN_OBJECT_DURATION_SEC,
     MIN_SEARCH_TIMEOUT_SEC,
-    MAX_SEARCH_TIMEOUT_SEC,
+    OBJECT_INTENTS,
+    PLAN_INTENT_SYNONYMS,
 )
 
 

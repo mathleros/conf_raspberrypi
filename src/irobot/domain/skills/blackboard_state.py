@@ -28,7 +28,7 @@ class BlackboardState(MutableMapping[str, Any]):
     KNOWN_FIELDS: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
-    def from_mapping(cls, data: Mapping[str, Any] | None) -> "BlackboardState":
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> BlackboardState:
         state = cls()
         if not data:
             return state

@@ -6,13 +6,13 @@ import logging
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings
+from irobot.domain.intent_validator import IntentValidator
 from irobot.domain.orchestrator.executor import SkillExecutor
-from irobot.domain.orchestrator.planner import SkillPlanStep, SkillPlanner
+from irobot.domain.orchestrator.planner import SkillPlanner, SkillPlanStep
 from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.base_skill import SkillContext
 from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
-from irobot.domain.intent_validator import IntentValidator
+from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
 from irobot.interfaces.plan_guards import follow_request_refusal
 

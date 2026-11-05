@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from irobot.domain.skills.primitives.base_motion_primitive import BaseMotionPrimitiveSkill
+from irobot.domain.skills.primitives.base_motion_primitive import (
+    BaseMotionPrimitiveSkill,
+)
 
 
 class MoveBackwardSkill(BaseMotionPrimitiveSkill):

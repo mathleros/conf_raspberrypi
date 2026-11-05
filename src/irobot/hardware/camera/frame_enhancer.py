@@ -1,7 +1,7 @@
 """Shared backlight correction for RGB camera frames."""
 
-from collections.abc import Mapping
 import logging
+from collections.abc import Mapping
 from typing import Protocol
 
 import cv2

@@ -7,10 +7,10 @@ Organisation claire :
 """
 
 from irobot.domain.skills.base_skill import Skill, SkillContext, SkillResult
-from irobot.domain.skills.blackboard_state import BlackboardState
-from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
+from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.domain.skills.blackboard_state import BlackboardState
 from irobot.domain.skills.perception.detect_object import DetectObjectSkill
 from irobot.domain.skills.perception.detect_obstacle import DetectObstacleSkill
 from irobot.domain.skills.primitives.move_backward import MoveBackwardSkill
@@ -20,18 +20,18 @@ from irobot.domain.skills.primitives.turn_left import TurnLeftSkill
 from irobot.domain.skills.primitives.turn_right import TurnRightSkill
 
 __all__ = [
-    "Skill",
-    "SkillContext",
-    "SkillResult",
+    "ApproachTargetSkill",
     "BlackboardState",
-    "MoveForwardSkill",
-    "MoveBackwardSkill",
-    "TurnLeftSkill",
-    "TurnRightSkill",
-    "StopMotionSkill",
     "DetectObjectSkill",
     "DetectObstacleSkill",
     "FollowObjectSkill",
-    "ApproachTargetSkill",
+    "MoveBackwardSkill",
     "MoveCircleSkill",
+    "MoveForwardSkill",
+    "Skill",
+    "SkillContext",
+    "SkillResult",
+    "StopMotionSkill",
+    "TurnLeftSkill",
+    "TurnRightSkill",
 ]

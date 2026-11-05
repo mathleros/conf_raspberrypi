@@ -6,7 +6,10 @@ import argparse
 import sys
 
 from irobot.config.settings import load_runtime_settings
-from irobot.hardware.runtime_factory import build_hardware_runtime, close_hardware_runtime
+from irobot.hardware.runtime_factory import (
+    build_hardware_runtime,
+    close_hardware_runtime,
+)
 from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
 from irobot.interfaces.voice_runtime import VoiceRuntime
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import math
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-import math
 from pathlib import Path
-import tomllib
 
 from irobot.config.llm_settings import LLMSettings, load_llm_settings
 
@@ -31,7 +31,7 @@ class MarkerIdentity:
             raise ValueError("Marker identity fields must be non-empty canonical strings")
 
     @classmethod
-    def from_mapping(cls, value: object) -> "MarkerIdentity | None":
+    def from_mapping(cls, value: object) -> MarkerIdentity | None:
         if value is None:
             return None
         if not isinstance(value, Mapping):

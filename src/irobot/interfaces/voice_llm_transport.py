@@ -8,10 +8,10 @@ import os
 import time
 from collections.abc import Mapping
 from typing import Any, Protocol
+
 import requests
 
 from irobot.interfaces.plan_guards import build_formats
-
 
 LLM_URL = "http://127.0.0.1:8080/v1/chat/completions"
 LLM_WARMUP_READ_TIMEOUT_SECONDS = 120.0

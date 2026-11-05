@@ -4,12 +4,12 @@ Ce sous-package regroupe les tâches plus complexes, construites à partir de
 skills primitives et de compétences de perception.
 """
 
-from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
+from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
 from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
 
 __all__ = [
-    "FollowObjectSkill",
     "ApproachTargetSkill",
+    "FollowObjectSkill",
     "MoveCircleSkill",
 ]

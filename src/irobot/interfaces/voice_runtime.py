@@ -9,8 +9,8 @@ from typing import Any
 
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.command_service import CommandService
-from irobot.interfaces.plan_guards import is_pure_stop, fold
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.interfaces.plan_guards import fold, is_pure_stop
 
 
 class VoiceRuntime:

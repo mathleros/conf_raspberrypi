@@ -11,25 +11,24 @@ from irobot.config.llm_settings import load_llm_settings
 from irobot.domain.intent import Intent
 from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.plan_guards import (
-    grounding_check,
-    follow_request_refusal,
     contains_unsupported_follow_step,
+    follow_request_refusal,
+    grounding_check,
 )
 from irobot.interfaces.text_normalizer import preprocess
 from irobot.interfaces.voice_constants import PLAN_INTENT_SYNONYMS
 from irobot.interfaces.voice_llm_transport import (
-    LLMPost,
-    SYSTEM_PROMPT_PLAN,
     LLM_DEFAULT_CONFIDENCE,
     LLM_WARMUP_READ_TIMEOUT_SECONDS,
     PLAN_RESPONSE_FORMATS,
+    SYSTEM_PROMPT_PLAN,
+    LLMPost,
+    llm_error_reason,
     llm_payload,
+    parse_llm_json_payload,
     post_llm_chat,
     select_formats,
-    parse_llm_json_payload,
-    llm_error_reason,
 )
-
 
 LLMPlanParser = Callable[[str], tuple[list[Intent], dict[str, Any]]]
 
@@ -210,7 +209,7 @@ class LLMWarmup:
         self._result: bool | None = None
         self._timed_out = False
 
-    def start(self) -> "LLMWarmup":
+    def start(self) -> LLMWarmup:
         self._thread = threading.Thread(target=self._run, name="llm-warmup", daemon=True)
         self._thread.start()
         return self

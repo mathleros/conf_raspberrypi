@@ -1,8 +1,8 @@
 """Interface en ligne de commande pour piloter une Smart Car."""
 
 import argparse
-from contextlib import ExitStack, suppress
 import time
+from contextlib import ExitStack, suppress
 
 from irobot.config.settings import load_runtime_settings
 from irobot.hardware.smart_car.smart_car import SmartCar2WD

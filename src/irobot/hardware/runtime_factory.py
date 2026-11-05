@@ -64,7 +64,9 @@ def build_hardware_runtime(*, settings: RuntimeSettings | None = None) -> dict[s
                 obstacle_threshold_cm=runtime_settings.obstacle_threshold_cm,
             )
 
-            from irobot.hardware.camera.camera_live_perception_pipeline import CameraLivePerceptionPipeline
+            from irobot.hardware.camera.camera_live_perception_pipeline import (
+                CameraLivePerceptionPipeline,
+            )
 
             runtime["camera"] = CameraLivePerceptionPipeline(sensor=sensor)
     except BaseException:

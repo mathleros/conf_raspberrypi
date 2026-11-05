@@ -16,6 +16,10 @@ from irobot.interfaces.perception_contracts import ObjectDetection
 
 logger = logging.getLogger(__name__)
 
+_POSITION_REFERENCE_WIDTH = 480
+_POSITION_LEFT_MAX = 180
+_POSITION_RIGHT_MIN = 300
+
 
 class FaceDetector(Detector[ObjectDetection]):
     def __init__(self, settings: RuntimeSettings, *, focal_px: float | None = None) -> None:
@@ -81,33 +85,53 @@ class FaceDetector(Detector[ObjectDetection]):
     ) -> ObjectDetection | None:
         if faces is None or faces.size == 0:
             return None
+        self._validate_faces(faces)
+        best = self._pick_largest_face(faces, size)
+        if best is None:
+            return None
+        return self._build_detection(best, size)
+
+    @staticmethod
+    def _validate_faces(faces: NDArray[np.float32]) -> None:
         if faces.ndim != 2 or faces.shape[1] != 15 or not np.isfinite(faces).all():
             raise ValueError("YuNet must return finite rows of 15 values")
+        for face in faces:
+            width, height = float(face[2]), float(face[3])
+            if width <= 0 or height <= 0 or not 0 <= float(face[-1]) <= 1:
+                raise ValueError("YuNet returned invalid face geometry or confidence")
+
+    def _pick_largest_face(
+        self, faces: NDArray[np.float32], size: tuple[int, int],
+    ) -> NDArray[np.float32] | None:
+        threshold = float(np.float32(self._settings.camera_face_score_threshold))
         best = None
         for face in faces:
             x, y, width, height = map(float, face[:4])
-            confidence = float(face[-1])
-            if width <= 0 or height <= 0 or not 0 <= confidence <= 1:
-                raise ValueError("YuNet returned invalid face geometry or confidence")
-            if confidence < float(np.float32(self._settings.camera_face_score_threshold)):
+            if float(face[-1]) < threshold:
                 continue
             if x + width <= 0 or y + height <= 0 or x >= size[0] or y >= size[1]:
                 logger.warning("Visage YuNet hors image ignoré.")
                 continue
             if best is None or width > float(best[2]):
                 best = face
-        if best is None:
-            return None
+        return best
+
+    def _build_detection(self, best: NDArray[np.float32], size: tuple[int, int]) -> ObjectDetection:
         x, _, width, _ = map(float, best[:4])
         distance = estimate_distance_cm(width, self._settings.camera_face_width_cm, self._focal_px)
         if distance is None or not math.isfinite(distance):
             raise ValueError("Distance visage inexploitable")
         bounding_box = (float(best[0]), float(best[1]), width, float(best[3]))
         self._bounding_box = bounding_box
-        center_x = (x + width / 2) * 480 / size[0]
-        position = "left" if center_x < 180 else "right" if center_x > 300 else "center"
+        position = _position_from_center_x((x + width / 2) * _POSITION_REFERENCE_WIDTH / size[0])
         return ObjectDetection(
             label="face", position=position, distance_cm=distance,
             distance_visual_cm=distance, confidence=float(best[-1]), diameter_px=width,
             bbox_px=tuple(map(int, bounding_box)),
         )
+
+
+def _position_from_center_x(center_x: float) -> str:
+    if center_x < _POSITION_LEFT_MAX:
+        return "left"
+    return "right" if center_x > _POSITION_RIGHT_MIN else "center"

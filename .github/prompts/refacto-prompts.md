@@ -36,7 +36,7 @@ Un commit par prompt (`git commit -m "refacto: simplifie <fichier>"`), tests lan
 | 7 | `src/irobot/domain/orchestrator/planner.py` | moyenne | [ X] |
 | 8 | `src/irobot/interfaces/language_controller.py` | moyenne | [ X] |
 | 9 | `src/irobot/interfaces/robot_controller.py` | haute | [ X] |
-| 10 | `src/irobot/domain/orchestrator/mission_orchestrator.py` | haute | [ ] |
+| 10 | `src/irobot/domain/orchestrator/mission_orchestrator.py` | haute | [ X] |
 | 11 | `src/irobot/interfaces/command_service.py` | haute | [ ] |
 | 12 | `src/irobot/interfaces/voice_runtime.py` | haute | [ ] |
 | 13 | `src/irobot/domain/orchestrator/executor.py` | basse | [ ] |

@@ -13,9 +13,11 @@ Direction = Literal["forward", "backward", "left", "right"]
 
 
 def _validate_duration(duration_seconds: float) -> None:
-    if (isinstance(duration_seconds, bool)
-            or not isinstance(duration_seconds, (int, float))
-            or not math.isfinite(duration_seconds) or duration_seconds < 0):
+    is_number = (
+        isinstance(duration_seconds, (int, float))
+        and not isinstance(duration_seconds, bool)
+    )
+    if not is_number or not math.isfinite(duration_seconds) or duration_seconds < 0:
         raise ValueError("Motion duration must be finite and non-negative")
 
 
@@ -52,14 +54,18 @@ class RobotController:
     def robot(self):
         return self._robot
 
+    def _stop_if_emergency(self) -> bool:
+        if not self._emergency_event.is_set():
+            return False
+        self.stop()
+        return True
+
     def _start_motion(self, method: Direction) -> None:
-        if self._emergency_event.is_set():
-            self.stop()
+        if self._stop_if_emergency():
             return
         getattr(self._robot, method)()
         # A stop may arrive while the driver is starting the motion.
-        if self._emergency_event.is_set():
-            self.stop()
+        self._stop_if_emergency()
 
     def forward(self) -> None:
         self._start_motion("forward")
@@ -78,12 +84,10 @@ class RobotController:
         self._robot.stop()
 
     def set_speed(self, speed: float) -> None:
-        if speed != 0 and self._emergency_event.is_set():
-            self.stop()
+        if speed != 0 and self._stop_if_emergency():
             return
         self._robot.set_speed(speed)
-        if self._emergency_event.is_set():
-            self.stop()
+        self._stop_if_emergency()
 
     def check_obstacle(self) -> bool:
         if self._distance_sensor is not None:

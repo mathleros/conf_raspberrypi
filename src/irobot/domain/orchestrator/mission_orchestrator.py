@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
@@ -13,6 +14,19 @@ from irobot.domain.orchestrator.mission_state_machine import MissionStateMachine
 from irobot.domain.orchestrator.planner import SkillPlanStep
 from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
+
+
+@dataclass(frozen=True)
+class _StepRunner:
+    """Callbacks shared by every step of one mission execution."""
+
+    execute_step: Callable[[SkillPlanStep], dict[str, Any]]
+    stop_requested: Callable[[], bool]
+    on_event: Callable[[dict[str, Any]], None] | None = None
+
+    def _emit(self, event: dict[str, Any]) -> None:
+        if self.on_event is not None:
+            self.on_event(event)
 
 
 class MissionOrchestrator:
@@ -90,9 +104,7 @@ class MissionOrchestrator:
     def _execute_planned_step_with_retry(
         self,
         step: SkillPlanStep,
-        execute_step: Callable[[SkillPlanStep], dict[str, Any]],
-        stop_requested: Callable[[], bool],
-        on_event: Callable[[dict[str, Any]], None] | None = None,
+        runner: _StepRunner,
     ) -> dict[str, Any]:
         intent = step.intent
         following = intent.name in FOLLOW_INTENTS
@@ -101,11 +113,9 @@ class MissionOrchestrator:
         attempt = 0
         last_result: dict[str, Any] | None = None
         while attempt <= max_retries:
-            if stop_requested():
+            if runner.stop_requested():
                 return {"intent": intent, "status": "aborted", "reason": "emergency stop"}
-            result = self._execute_attempt(
-                step, execute_step, stop_requested, on_event, attempt + 1, step_timeout,
-            )
+            result = self._execute_attempt(step, runner, attempt + 1, step_timeout)
             if result.get("status") in {"aborted", "stopped"}:
                 return result
             if following and (self._step_has_failure(result) or self._step_in_progress(result)):
@@ -128,29 +138,24 @@ class MissionOrchestrator:
         return last_result
 
     def _execute_attempt(
-        self, step: SkillPlanStep,
-        execute_step: Callable[[SkillPlanStep], dict[str, Any]],
-        stop_requested: Callable[[], bool],
-        on_event: Callable[[dict[str, Any]], None] | None,
+        self, step: SkillPlanStep, runner: _StepRunner,
         attempt: int, step_timeout: float,
     ) -> dict[str, Any]:
         started = self.time_fn()
-        result = execute_step(step)
+        result = runner.execute_step(step)
         duration = self.time_fn() - started
         result.update(attempt=attempt, step_duration_seconds=round(duration, 4))
-        if on_event is not None:
-            on_event({
-                "event": "step_result", "intent": step.intent, "result": result,
-                "duration_seconds": duration, "attempt": attempt,
-            })
-        reason = self._safety_stop_reason(result, stop_requested)
+        runner._emit({
+            "event": "step_result", "intent": step.intent, "result": result,
+            "duration_seconds": duration, "attempt": attempt,
+        })
+        reason = self._safety_stop_reason(result, runner.stop_requested)
         if reason is not None:
             result.update(status="aborted", reason=reason)
-            if on_event is not None:
-                on_event({
-                    "event": "emergency_stop" if reason == "emergency stop" else "obstacle_stop",
-                    "reason": reason, "intent": step.intent,
-                })
+            runner._emit({
+                "event": "emergency_stop" if reason == "emergency stop" else "obstacle_stop",
+                "reason": reason, "intent": step.intent,
+            })
         elif duration > step_timeout:
             result.update(status="aborted", reason="step timeout")
         return result
@@ -173,7 +178,8 @@ class MissionOrchestrator:
         )
         self.state_machine.begin_execution()
         try:
-            steps, status = self._run_steps(planned_steps, execute_step, stop_requested, on_event)
+            runner = _StepRunner(execute_step, stop_requested, on_event)
+            steps, status = self._run_steps(planned_steps, runner)
         except Exception as exc:
             self.state_machine.fail(f"{type(exc).__name__}: {exc}")
             raise
@@ -182,10 +188,7 @@ class MissionOrchestrator:
         return steps, status
 
     def _run_steps(
-        self, planned_steps: Sequence[SkillPlanStep],
-        execute_step: Callable[[SkillPlanStep], dict[str, Any]],
-        stop_requested: Callable[[], bool],
-        on_event: Callable[[dict[str, Any]], None] | None,
+        self, planned_steps: Sequence[SkillPlanStep], runner: _StepRunner,
     ) -> tuple[list[dict[str, Any]], str]:
         execution_started_at = self.time_fn()
         intents = [step.intent for step in planned_steps]
@@ -201,16 +204,10 @@ class MissionOrchestrator:
                 step_result = {"intent": intent, "status": "aborted", "reason": "mission timeout"}
                 steps.append(step_result)
                 self.state_machine.abort("mission timeout")
-                if on_event is not None:
-                    on_event({"event": "mission_timeout", "intent": intent})
+                runner._emit({"event": "mission_timeout", "intent": intent})
                 break
 
-            step_result = self._execute_planned_step_with_retry(
-                planned_step,
-                execute_step,
-                stop_requested,
-                on_event,
-            )
+            step_result = self._execute_planned_step_with_retry(planned_step, runner)
             if step_result.get("status") == "stopped":
                 global_status = "stopped"
                 steps.append(step_result)

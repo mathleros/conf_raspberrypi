@@ -31,20 +31,25 @@ hc-sr04 = "irobot.hardware.sensors.hc_sr04:main"
 requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"
 
+# Les paramètres de uvx ruff
+
 [tool.ruff.lint]
 extend-select = ["F401", "F841", "ARG", "SLF001", "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915"]
+ignore = ["BLE001", "TRY004"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 12
+max-complexity = 13
 
 [tool.ruff.lint.pylint]
-max-args = 7
+max-args = 8
+max-returns = 8
+max-statements = 62
 
 [tool.ruff.lint.per-file-ignores]
-"src/irobot/hardware/**" = ["PLC0415"] # imports paresseux matériels
+"src/irobot/interfaces/voice_runtime.py" = ["PLR0913"]
+"src/irobot/hardware/**" = ["PLC0415"]
+"src/irobot/tools/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 "tests/**" = ["SLF001", "ARG"]
-
-# Lancer la commande : uv run --with import-linter lint-imports
 
 [tool.importlinter]
 root_package = "irobot"

@@ -18,7 +18,6 @@ from irobot.domain.orchestrator.planner import SkillPlanStep
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.intent.intent_parser import IntentPlanParser
 from irobot.interfaces.intent.llm_intent_parser import (
-    LLMPlanParser,
     LLMWarmup,
     ask_llm_for_intent_plan_with_trace,
 )
@@ -45,7 +44,6 @@ class CommandService:
         registry: SkillRegistry | None = None,
         use_llm: bool = True,
         trace_dir: str | None = None,
-        llm_parse_with_trace: LLMPlanParser | None = None,
         settings: RuntimeSettings | None = None,
     ) -> None:
         self.robot = robot
@@ -60,7 +58,6 @@ class CommandService:
         )
         self.planner = self.controller.planner
         self.parser: IntentPlanParser = TextIntentParser()
-        self._llm_parse: LLMPlanParser = llm_parse_with_trace or ask_llm_for_intent_plan_with_trace
         self.plan_validator = IntentPlanValidator(self.settings)
         self.mission_orchestrator = MissionOrchestrator(settings=self.settings)
         self.warmup: LLMWarmup | None = None
@@ -71,7 +68,7 @@ class CommandService:
         return self._emergency_event
 
     def _ask_plan(self, text: str) -> tuple[list[Intent], dict[str, Any]]:
-        return self._llm_parse(text)
+        return ask_llm_for_intent_plan_with_trace(text)
 
     def _emergency_stop_requested(self) -> bool:
         if self._emergency_event.is_set():

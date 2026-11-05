@@ -48,7 +48,8 @@ def main() -> None:
     hardware = None
     try:
         warmup = LLMWarmup().start() if not args.no_llm else None
-        hardware = build_hardware_runtime(settings=load_runtime_settings())
+        settings = load_runtime_settings()
+        hardware = build_hardware_runtime(settings=settings)
         runtime = VoiceRuntime(
             robot=hardware["robot"],
             camera=hardware["camera"],
@@ -56,6 +57,7 @@ def main() -> None:
             perception=hardware["camera"],
             input_device=args.input_device,
             use_llm=not args.no_llm,
+            settings=settings,
         )
         runtime.command_service.warmup = warmup
         # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import threading
-from collections.abc import Callable
 from typing import Any
 
 from irobot.config.llm_settings import load_llm_settings
@@ -29,8 +28,6 @@ from irobot.interfaces.voice_llm_transport import (
     post_llm_chat,
     select_formats,
 )
-
-LLMPlanParser = Callable[[str], tuple[list[Intent], dict[str, Any]]]
 
 
 def _llm_confidence(value: Any) -> float:

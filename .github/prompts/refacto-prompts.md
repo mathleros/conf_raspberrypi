@@ -439,3 +439,15 @@ Corrige les petits avertissements ruff. Lance `uvx ruff check src --select RUF01
 - ARG005 : lambda avec argument inutilisé -> renomme l'argument `_`, ou remplace par une fonction nommée si c'est un callback réutilisé.
 - PLC0105 : renomme le TypeVar avec le suffixe _co ou _contra selon sa variance.
 - UP046 : applique la syntaxe PEP 695 seulement si requires-python >= 3.12 ; sinon ignore la règle.
+
+---
+
+## Prompt 27
+
+Réduis le nombre de paramètres de CommandService.__init__ (src/irobot/interfaces/command_service.py:42, 9 paramètres) et de VoiceRuntime.__init__ (src/irobot/interfaces/voice_runtime.py:19, 9 paramètres). Analyse d'abord, ne modifie rien sans mon accord.
+1. Pour chaque paramètre : nom, type, valeur par défaut et, par recherche de références dans src ET tests, quels appelants le passent réellement avec une valeur autre que celle par défaut.
+2. Classe chaque paramètre : (a) jamais passé par personne : candidat à suppression, en gardant la valeur par défaut en dur ou en constante ; (b) passé seulement par les tests (time_fn, sleep_fn, écriture de trace...) : à garder ; (c) passé par le code de production : à garder.
+3. Parmi les paramètres de type Callable, indique ceux dont la valeur par défaut est la seule utilisée partout : ce sont des Callable inutiles, à remplacer par un appel direct.
+4. Si plusieurs paramètres restants forment un groupe cohérent (par exemple les réglages du LLM), propose de les regrouper dans le dataclass de configuration existant (réglages LLM ou RuntimeSettings), sans créer de nouvelle classe.
+5. Ne change aucune signature utilisée par un autre module sans mettre à jour ses appelants, tests inclus.
+Autorisé : aucune nouvelle classe.

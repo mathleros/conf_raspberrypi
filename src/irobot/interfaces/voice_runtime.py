@@ -7,6 +7,7 @@ import re
 import threading
 from typing import Any
 
+from irobot.config.settings import RuntimeSettings
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.command_service import CommandService
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
@@ -28,6 +29,7 @@ class VoiceRuntime:
         use_llm: bool = True,
         trace_dir: str | None = None,
         threaded: bool = True,
+        settings: RuntimeSettings | None = None,
     ):
         self.robot = robot
         self.input_device = input_device
@@ -44,6 +46,7 @@ class VoiceRuntime:
             registry=registry,
             use_llm=use_llm,
             trace_dir=trace_dir,
+            settings=settings,
         )
         self._emergency_event = self.command_service.emergency_event
 

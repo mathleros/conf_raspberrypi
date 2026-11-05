@@ -7,51 +7,14 @@ import logging
 import re
 import sys
 import threading
-import time
 from typing import Any
 
 from irobot.config.settings import load_runtime_settings
-from irobot.domain.intent import Intent
 from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.interfaces.command_service import CommandService
 from irobot.interfaces.plan_guards import is_pure_stop, fold
-from irobot.interfaces.intent import llm_intent_parser
 from irobot.interfaces.perception_contracts import ObjectPerceptionPipeline
-from irobot.interfaces.intent.llm_intent_parser import LLMWarmup, warm_up_llm
-from irobot.interfaces.voice_llm_transport import (
-    post_llm_chat,
-    llm_warmup_wait_seconds,
-    llm_response_format_mode,
-)
-
-
-def ask_llm_for_intent_plan_with_trace(text: str) -> tuple[list[Intent], dict[str, Any]]:
-    return llm_intent_parser.ask_llm_for_intent_plan_with_trace(text, post=post_llm_chat)
-
-
-def transcribe_loop(device: str):
-    from irobot.hardware.audio.voice_input import transcribe_loop as transcribe
-
-    yield from transcribe(device)
-
-
-def resolve_input_device(device: str) -> str:
-    from irobot.hardware.audio.audio_utils import resolve_input_device as resolve
-
-    return resolve(device)
-
-
-def build_hardware_runtime() -> dict[str, Any]:
-    settings = load_runtime_settings()
-    from irobot.hardware.runtime_factory import build_hardware_runtime as build
-
-    return build(settings=settings)
-
-
-def close_hardware_runtime(hardware: dict[str, Any]) -> None:
-    from irobot.hardware.runtime_factory import close_hardware_runtime as close
-
-    close(hardware)
+from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
 
 
 class VoiceRuntime:
@@ -85,17 +48,16 @@ class VoiceRuntime:
             registry=registry,
             use_llm=use_llm,
             trace_dir=trace_dir,
-            llm_parse_with_trace=ask_llm_for_intent_plan_with_trace,
         )
         self._emergency_event = self.command_service._emergency_event
-
-    def _safe_stop(self) -> None:
-        self.command_service.safe_stop()
 
     def handle_text_as_plan(self, text: str):
         return self.command_service.handle_text(text)
 
     def listen_once(self):
+        from irobot.hardware.audio.audio_utils import resolve_input_device
+        from irobot.hardware.audio.voice_input import transcribe_loop
+
         device = resolve_input_device(self.input_device)
         for text in transcribe_loop(device):
             print(f"\n[VOIX] {text}", flush=True)
@@ -105,24 +67,25 @@ class VoiceRuntime:
             return result
         return {"status": "no_transcript"}
 
-    def _call_robot(self, method: str) -> None:
-        func = getattr(self.robot, method, None)
-        if callable(func):
-            try:
-                func()
-            except Exception:
-                logging.getLogger(__name__).exception("Echec de la commande robot %s", method)
-
     def _clear_emergency_stop(self) -> None:
         self._emergency_event.clear()
-        self._call_robot("clear_emergency_stop")
+        clear = getattr(self.robot, "clear_emergency_stop", None)
+        if callable(clear):
+            try:
+                clear()
+            except Exception:
+                logging.getLogger(__name__).exception("Echec de la commande robot clear_emergency_stop")
 
     def _request_emergency_stop(self) -> None:
         self._emergency_event.set()
-        if callable(getattr(self.robot, "request_emergency_stop", None)):
-            self._call_robot("request_emergency_stop")
+        request = getattr(self.robot, "request_emergency_stop", None)
+        if callable(request):
+            try:
+                request()
+            except Exception:
+                logging.getLogger(__name__).exception("Echec de la commande robot request_emergency_stop")
         else:
-            self._safe_stop()
+            self.command_service.safe_stop()
 
     def mission_running(self) -> bool:
         return self._worker is not None and self._worker.is_alive()
@@ -139,7 +102,7 @@ class VoiceRuntime:
         except Exception as exc:
             self.last_result = {"status": "failed", "error": str(exc)}
             print(f"[RUNTIME] erreur mission : {exc}", flush=True)
-            self._safe_stop()
+            self.command_service.safe_stop()
 
     def handle_transcript(self, text: str):
         """Stop immédiat pendant une mission, sinon démarre une nouvelle mission."""
@@ -171,6 +134,9 @@ class VoiceRuntime:
         return None
 
     def listen_forever(self):
+        from irobot.hardware.audio.audio_utils import resolve_input_device
+        from irobot.hardware.audio.voice_input import transcribe_loop
+
         device = resolve_input_device(self.input_device)
         try:
             for text in transcribe_loop(device):
@@ -185,10 +151,12 @@ class VoiceRuntime:
         worker = self._worker
         if worker is not None and worker.is_alive() and worker is not threading.current_thread():
             worker.join(timeout=2.0)
-        self._safe_stop()
+        self.command_service.safe_stop()
 
     def close(self) -> None:
         """Arrête proprement les périphériques matériels et les threads d'arrière-plan"""
+        from irobot.hardware.runtime_factory import close_hardware_runtime
+
         try:
             self._abort_mission()
         except Exception:
@@ -230,12 +198,14 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    from irobot.hardware.runtime_factory import build_hardware_runtime, close_hardware_runtime
+
     args = _parse_args()
     runtime = None
     hardware = None
     try:
         warmup = LLMWarmup().start() if not args.no_llm else None
-        hardware = build_hardware_runtime()
+        hardware = build_hardware_runtime(settings=load_runtime_settings())
         runtime = VoiceRuntime(
             robot=hardware["robot"],
             camera=hardware["camera"],

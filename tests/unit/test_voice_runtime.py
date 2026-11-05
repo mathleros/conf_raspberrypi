@@ -12,7 +12,12 @@ from irobot.domain.orchestrator.registry import SkillRegistry
 from irobot.domain.perception import PerceptionTarget
 from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.interfaces import voice_runtime as vr
-from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
+from irobot.hardware import runtime_factory
+from irobot.interfaces.intent.llm_intent_parser import (
+    LLMWarmup,
+    ask_llm_for_intent_plan_with_trace,
+    warm_up_llm,
+)
 from irobot.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.interfaces.plan_guards import PLAN_SCHEMA, build_formats
 from irobot.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
@@ -81,7 +86,7 @@ def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_ll
         {"intent": "turn_left", "target": None, "parameters": {"angle": 90}},
     ]
     llm = fake_llm({"steps": expected})
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace(
+    intents, trace = ask_llm_for_intent_plan_with_trace(
         "rapproche toi à un mètre de moi puis tourne à gauche",
     )
 
@@ -94,7 +99,7 @@ def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_ll
 
 
 def test_voice_runtime_plan_expands_return_to_start(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -118,7 +123,7 @@ def test_voice_runtime_plan_expands_return_to_start(monkeypatch):
 
 
 def test_voice_runtime_plan_expands_contour_obstacle(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -144,7 +149,7 @@ def test_voice_runtime_plan_expands_contour_obstacle(monkeypatch):
 
 
 def test_voice_runtime_plan_expands_execute_path(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -176,7 +181,7 @@ def test_voice_runtime_plan_expands_execute_path(monkeypatch):
 
 
 def test_voice_runtime_plan_rejects_invalid_execute_path_action(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -206,7 +211,7 @@ def test_voice_runtime_plan_rejects_invalid_execute_path_action(monkeypatch):
 
 
 def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -248,7 +253,7 @@ def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
 
 
 def test_voice_runtime_uses_parser_fallback_when_llm_plan_invalid(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -263,7 +268,7 @@ def test_voice_runtime_uses_parser_fallback_when_llm_plan_invalid(monkeypatch):
 
 
 def test_voice_runtime_writes_trace_log(tmp_path, monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -280,7 +285,7 @@ def test_voice_runtime_writes_trace_log(tmp_path, monkeypatch):
 
 
 def test_voice_runtime_mission_timeout(monkeypatch):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -310,7 +315,7 @@ def test_voice_runtime_mission_timeout(monkeypatch):
 
 
 def _patch_plan(monkeypatch, intents):
-    from irobot.interfaces import voice_runtime as runtime_module
+    from irobot.interfaces import command_service as runtime_module
 
     monkeypatch.setattr(
         runtime_module,
@@ -823,7 +828,7 @@ def test_llm_use_case_plan_runs_end_to_end(fake_llm, tmp_path):
 def test_llm_plan_accepts_backtick_wrapped_json(fake_llm):
     fake_llm("```json\n" + json_dumps({"steps": [{"intent": "stop", "target": None, "parameters": {}}]}) + "\n```")
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("arrête toi")
+    intents, trace = ask_llm_for_intent_plan_with_trace("arrête toi")
 
     assert [i.name for i in intents] == ["stop"]
     assert trace["source"] == "llm_plan"
@@ -832,7 +837,7 @@ def test_llm_plan_accepts_backtick_wrapped_json(fake_llm):
 def test_llm_plan_invalid_json_falls_back_to_parser(fake_llm):
     fake_llm("ceci n'est pas du json")
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance de cinquante centimètres")
+    intents, trace = ask_llm_for_intent_plan_with_trace("avance de cinquante centimètres")
 
     assert trace["source"] == "local_parser_fast_fallback"
     assert trace["reason"] == "invalid json"
@@ -847,7 +852,7 @@ def test_llm_plan_invalid_json_falls_back_to_parser(fake_llm):
 def test_llm_plan_missing_steps_or_http_error_falls_back(fake_llm, response):
     fake_llm(response)
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    intents, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert trace["source"] == "local_parser_fast_fallback"
     assert [i.name for i in intents] == ["move_forward"]
@@ -858,7 +863,7 @@ def test_llm_plan_timeout_falls_back_to_parser(fake_llm):
 
     fake_llm(requests.Timeout("read timeout"))
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("recule")
+    intents, trace = ask_llm_for_intent_plan_with_trace("recule")
 
     assert trace["source"] == "local_parser_fast_fallback"
     assert "Timeout" in trace["error"]
@@ -877,7 +882,7 @@ def test_llm_plan_skips_only_malformed_steps(fake_llm):
         }
     )
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance puis tourne à droite")
+    intents, trace = ask_llm_for_intent_plan_with_trace("avance puis tourne à droite")
 
     assert [i.name for i in intents] == ["move_forward", "turn_right"]
     assert trace["skipped_steps"] == [1, 2]
@@ -888,7 +893,7 @@ def test_llm_plan_skips_only_malformed_steps(fake_llm):
 def test_llm_plan_only_malformed_steps_falls_back(fake_llm):
     fake_llm({"steps": ["avance", 3]})
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    intents, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert trace["source"] == "local_parser_fast_fallback"
     assert [i.name for i in intents] == ["move_forward"]
@@ -910,7 +915,7 @@ def test_llm_http_400_walks_format_chain_then_memorizes(fake_llm):
     stop_plan = json_dumps({"steps": [{"intent": "stop", "target": None, "parameters": {}}]})
     llm = fake_llm(_FakeResponse(status_code=400), _FakeResponse(status_code=400), stop_plan)
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("stop")
+    intents, trace = ask_llm_for_intent_plan_with_trace("stop")
 
     formats = [call["json"].get("response_format") for call in llm.calls]
     assert formats == build_formats(False, True)[:3]
@@ -920,7 +925,7 @@ def test_llm_http_400_walks_format_chain_then_memorizes(fake_llm):
     assert trace["source"] == "llm_plan"
     assert [i.name for i in intents] == ["stop"]
 
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
 
     assert len(llm.calls) == 4
     assert llm.calls[3]["json"]["response_format"] == {"type": "json_object"}
@@ -929,8 +934,8 @@ def test_llm_http_400_walks_format_chain_then_memorizes(fake_llm):
 def test_llm_json_schema_accepted_first_is_reused(fake_llm):
     llm = fake_llm({"steps": [{"intent": "stop"}]})
 
-    vr.ask_llm_for_intent_plan_with_trace("stop")
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
 
     assert len(llm.calls) == 2
     assert all(call["json"]["response_format"]["type"] == "json_schema" for call in llm.calls)
@@ -939,7 +944,7 @@ def test_llm_json_schema_accepted_first_is_reused(fake_llm):
 def test_llm_http_400_on_every_format_falls_back(fake_llm):
     llm = fake_llm(_FakeResponse(status_code=400))
 
-    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    _, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert len(llm.calls) == 4
     assert "response_format" not in llm.calls[-1]["json"]
@@ -953,7 +958,7 @@ def test_llm_settings_from_environment(fake_llm, monkeypatch):
     monkeypatch.setenv("LLM_READ_TIMEOUT_SECONDS", "2.5")
     monkeypatch.setenv("LLM_MAX_TOKENS_PLAN", "64")
 
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
 
     assert llm.calls[0]["json"]["model"] == "mon-modele"
     assert llm.calls[0]["json"]["max_tokens"] == 64
@@ -1017,7 +1022,7 @@ def test_warm_up_swallows_errors(fake_llm):
 
     fake_llm(requests.ConnectionError("refused"))
 
-    assert vr.warm_up_llm() is False
+    assert warm_up_llm() is False
 
 
 # --------------------------------------------------------------------------- Étape 8b : gardes déterministes
@@ -1162,7 +1167,7 @@ def test_parasite_stop_between_moves_is_removed(fake_llm, tmp_path):
 def test_return_to_start_unhandled_parameter_is_dropped(fake_llm):
     fake_llm({"steps": [{"intent": "return_to_start", "target": None, "parameters": {"duration": 1}}]})
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("reviens au point de départ")
+    intents, trace = ask_llm_for_intent_plan_with_trace("reviens au point de départ")
 
     assert trace["source"] == "llm_plan"
     assert [(i.name, i.parameters) for i in intents] == [("return_to_start", {})]
@@ -1189,7 +1194,7 @@ def test_return_to_start_with_dropped_parameter_runs(fake_llm, tmp_path):
 def test_use_case_passes_guards_without_notes(fake_llm, tmp_path):
     fake_llm(USE_CASE_PLAN)
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace(USE_CASE)
+    intents, trace = ask_llm_for_intent_plan_with_trace(USE_CASE)
 
     assert trace["source"] == "llm_plan"
     assert trace["guard_notes"] == []
@@ -1200,7 +1205,7 @@ def test_use_case_passes_guards_without_notes(fake_llm, tmp_path):
 def test_llm_step_without_target_or_parameters_is_tolerated(fake_llm):
     fake_llm({"steps": [{"intent": "stop"}]})
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("arrête toi")
+    intents, trace = ask_llm_for_intent_plan_with_trace("arrête toi")
 
     assert trace["source"] == "llm_plan"
     assert (intents[0].name, intents[0].target, intents[0].parameters) == ("stop", None, {})
@@ -1209,7 +1214,7 @@ def test_llm_step_without_target_or_parameters_is_tolerated(fake_llm):
 def test_llm_synonym_is_grounded_under_canonical_name(fake_llm):
     fake_llm({"steps": [{"intent": "spin", "parameters": {}}]})
 
-    intents, trace = vr.ask_llm_for_intent_plan_with_trace("chante une chanson")
+    intents, trace = ask_llm_for_intent_plan_with_trace("chante une chanson")
 
     assert intents == []
     assert trace["source"] == "llm_ungrounded"
@@ -1230,9 +1235,9 @@ def test_unit_is_normalized_after_guards(fake_llm, tmp_path):
 def test_read_timeout_default_and_env_override(fake_llm, monkeypatch):
     llm = fake_llm({"steps": [{"intent": "stop"}]})
 
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
     monkeypatch.setenv("LLM_READ_TIMEOUT_SECONDS", "3")
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
 
     assert llm.calls[0]["timeout"] == (1.0, 10.0)
     assert llm.calls[1]["timeout"] == (1.0, 3.0)
@@ -1291,7 +1296,7 @@ def test_unreachable_server_console_message(fake_llm, capsys):
 
     fake_llm(requests.ConnectionError("refused"))
 
-    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    _, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert trace["error_type"] == "ConnectionError"
     assert "serveur LLM injoignable, repli sur le parseur local" in capsys.readouterr().out
@@ -1300,7 +1305,7 @@ def test_unreachable_server_console_message(fake_llm, capsys):
 def test_invalid_json_console_message(fake_llm, capsys):
     fake_llm("pas du json")
 
-    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    _, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert trace["source"] == "local_parser_fast_fallback"
     assert trace["llm_attempts"] == 1
@@ -1335,7 +1340,7 @@ def test_response_format_none_sends_no_response_format(fake_llm, monkeypatch):
     llm = fake_llm({"steps": [{"intent": "stop"}]})
     monkeypatch.setenv("LLM_RESPONSE_FORMAT", "none")
 
-    _, trace = vr.ask_llm_for_intent_plan_with_trace("stop")
+    _, trace = ask_llm_for_intent_plan_with_trace("stop")
 
     assert all("response_format" not in call["json"] for call in llm.calls)
     assert trace["llm_response_format"] == "none"
@@ -1345,7 +1350,7 @@ def test_response_format_json_object_sends_simple_format_only(fake_llm, monkeypa
     llm = fake_llm(_FakeResponse(status_code=400))
     monkeypatch.setenv("LLM_RESPONSE_FORMAT", "json_object")
 
-    _, trace = vr.ask_llm_for_intent_plan_with_trace("avance")
+    _, trace = ask_llm_for_intent_plan_with_trace("avance")
 
     assert [call["json"]["response_format"] for call in llm.calls] == [{"type": "json_object"}]
     assert trace["llm_response_format"] == "json_object"
@@ -1356,7 +1361,7 @@ def test_response_format_unknown_value_keeps_schema_chain(fake_llm, monkeypatch)
     llm = fake_llm({"steps": [{"intent": "stop"}]})
     monkeypatch.setenv("LLM_RESPONSE_FORMAT", "grammar")
 
-    vr.ask_llm_for_intent_plan_with_trace("stop")
+    ask_llm_for_intent_plan_with_trace("stop")
 
     assert llm.calls[0]["json"]["response_format"]["type"] == "json_schema"
 
@@ -1385,8 +1390,8 @@ class _SlowWarmupLLM:
 
 def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
-    monkeypatch.setattr(vr, "build_hardware_runtime",
-                        lambda: {"robot": FakeRobot(), "camera": None, "sensor": None})
+    monkeypatch.setattr(runtime_factory, "build_hardware_runtime",
+                        lambda settings: {"robot": FakeRobot(), "camera": None, "sensor": None})
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
     vr.main()
@@ -1437,7 +1442,7 @@ def test_main_cleans_hardware_if_runtime_construction_fails(monkeypatch):
     def fail_runtime_construction(**kwargs):
         raise RuntimeError("runtime construction failed")
 
-    monkeypatch.setattr(vr, "build_hardware_runtime", lambda: {
+    monkeypatch.setattr(runtime_factory, "build_hardware_runtime", lambda settings: {
         "robot": Robot(), "camera": Camera(), "sensor": None,
     })
     monkeypatch.setattr(vr, "VoiceRuntime", fail_runtime_construction)
@@ -1464,7 +1469,7 @@ def test_continuous_mode_does_not_wait_for_warmup(fake_llm, monkeypatch, tmp_pat
     llm = _SlowWarmupLLM(delay=0.5)
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True, trace_dir=str(tmp_path))
-    runtime.command_service.warmup = vr.LLMWarmup().start()
+    runtime.command_service.warmup = LLMWarmup().start()
 
     result = runtime.handle_text_as_plan("recule")
 
@@ -1473,7 +1478,8 @@ def test_continuous_mode_does_not_wait_for_warmup(fake_llm, monkeypatch, tmp_pat
 
 
 def test_llm_warmup_wait_seconds_env():
-    assert vr.llm_warmup_wait_seconds({}) == 60.0
-    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "15"}) == 15.0
-    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "abc"}) == 60.0
-    assert vr.llm_warmup_wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "-1"}) == 60.0
+    wait_seconds = voice_llm_transport.llm_warmup_wait_seconds
+    assert wait_seconds({}) == 60.0
+    assert wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "15"}) == 15.0
+    assert wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "abc"}) == 60.0
+    assert wait_seconds({"LLM_WARMUP_WAIT_SECONDS": "-1"}) == 60.0

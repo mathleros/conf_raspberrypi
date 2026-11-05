@@ -282,16 +282,6 @@ def test_llm_interpretation_accepts_an_injected_transport():
     assert trace["llm_attempts"] == 1
 
 
-def test_plan_with_trace_wrapper_uses_the_public_transport(monkeypatch):
-    monkeypatch.setattr(
-        voice_runtime, "post_llm_chat",
-        lambda *_: '{"steps":[{"intent":"stop","parameters":{}}]}',
-    )
-    intents, trace = voice_runtime.ask_llm_for_intent_plan_with_trace("stop")
-    assert [intent.name for intent in intents] == ["stop"]
-    assert trace["source"] == "llm_plan"
-
-
 @pytest.mark.parametrize("name", ["spin_360", "move_square", "contour_obstacle"])
 def test_expanded_steps_preserve_metadata_and_own_parameters(tmp_path, name):
     runtime = voice_runtime.VoiceRuntime(use_llm=False, trace_dir=str(tmp_path))

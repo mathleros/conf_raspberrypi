@@ -87,18 +87,14 @@ class FaceDetector(Detector[ObjectDetection]):
             return None
         self._validate_faces(faces)
         best = self._pick_largest_face(faces, size)
-        if best is None:
-            return None
-        return self._build_detection(best, size)
+        return None if best is None else self._build_detection(best, size)
 
     @staticmethod
     def _validate_faces(faces: NDArray[np.float32]) -> None:
         if faces.ndim != 2 or faces.shape[1] != 15 or not np.isfinite(faces).all():
             raise ValueError("YuNet must return finite rows of 15 values")
-        for face in faces:
-            width, height = float(face[2]), float(face[3])
-            if width <= 0 or height <= 0 or not 0 <= float(face[-1]) <= 1:
-                raise ValueError("YuNet returned invalid face geometry or confidence")
+        if (faces[:, 2] <= 0).any() or (faces[:, 3] <= 0).any() or ((faces[:, -1] < 0) | (faces[:, -1] > 1)).any():
+            raise ValueError("YuNet returned invalid face geometry or confidence")
 
     def _pick_largest_face(
         self, faces: NDArray[np.float32], size: tuple[int, int],
@@ -117,11 +113,11 @@ class FaceDetector(Detector[ObjectDetection]):
         return best
 
     def _build_detection(self, best: NDArray[np.float32], size: tuple[int, int]) -> ObjectDetection:
-        x, _, width, _ = map(float, best[:4])
+        bounding_box = tuple(map(float, best[:4]))
+        x, _, width, _ = bounding_box
         distance = estimate_distance_cm(width, self._settings.camera_face_width_cm, self._focal_px)
         if distance is None or not math.isfinite(distance):
             raise ValueError("Distance visage inexploitable")
-        bounding_box = (float(best[0]), float(best[1]), width, float(best[3]))
         self._bounding_box = bounding_box
         position = _position_from_center_x((x + width / 2) * _POSITION_REFERENCE_WIDTH / size[0])
         return ObjectDetection(

@@ -135,16 +135,16 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
             aruco_api = self._load_aruco_api()
         if aruco_api is None:
             raise RuntimeError("OpenCV ArUco API is unavailable; no fallback detector is selected")
-        get_dictionary = getattr(aruco_api, "getPredefinedDictionary", None)
-        parameters_factory = getattr(aruco_api, "DetectorParameters", None)
-        detector_factory = getattr(aruco_api, "ArucoDetector", None)
-        dictionary_code = getattr(aruco_api, identity.dictionary, None)
-        if (not callable(get_dictionary) or not callable(parameters_factory)
-                or not callable(detector_factory) or isinstance(dictionary_code, bool)
-                or not isinstance(dictionary_code, int)):
-            raise ValueError(f"Unsupported OpenCV ArUco dictionary/API: {identity.dictionary}")
-        dictionary = get_dictionary(dictionary_code)
-        detector = detector_factory(dictionary, parameters_factory())
+        try:
+            get_dictionary = aruco_api.getPredefinedDictionary
+            parameters_factory = aruco_api.DetectorParameters
+            detector_factory = aruco_api.ArucoDetector
+            dictionary_code = getattr(aruco_api, identity.dictionary)
+            if isinstance(dictionary_code, bool) or not isinstance(dictionary_code, int):
+                raise AttributeError(identity.dictionary)
+            detector = detector_factory(get_dictionary(dictionary_code), parameters_factory())
+        except (AttributeError, TypeError) as exc:
+            raise ValueError(f"Unsupported OpenCV ArUco dictionary/API: {identity.dictionary}") from exc
         if not callable(getattr(detector, "detectMarkers", None)):
             raise RuntimeError("OpenCV ArUco detector lacks detectMarkers")
         self.identity = identity
@@ -198,6 +198,11 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
                 ObservationDisposition.REJECTED, identity=self.identity,
                 reason="malformed_marker_corners",
             )
+        return self._build_valid_detection(parsed_corners, frame_rgb)
+
+    def _build_valid_detection(
+        self, parsed_corners: tuple[tuple[float, float], ...], frame_rgb: NDArray[np.uint8],
+    ) -> ArucoFrameDetection:
         distance = estimate_marker_distance_cm(
             parsed_corners,
             self.focal_px,
@@ -255,19 +260,13 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
 
     @classmethod
     def _parse_corners(cls, value: object) -> tuple[tuple[float, float], ...] | None:
-        points = cls._as_python_values(value)
-        while isinstance(points, list) and len(points) == 1 and isinstance(points[0], list):
-            points = points[0]
-        if not isinstance(points, list) or len(points) != 4:
+        try:
+            points = np.asarray(value)
+        except (TypeError, ValueError):
             return None
-        parsed: list[tuple[float, float]] = []
-        for point in points:
-            if not isinstance(point, list) or len(point) != 2:
-                return None
-            x, y = point
-            if (isinstance(x, bool) or not isinstance(x, (int, float))
-                    or isinstance(y, bool) or not isinstance(y, (int, float))
-                    or not isfinite(x) or not isfinite(y)):
-                return None
-            parsed.append((float(x), float(y)))
-        return tuple(parsed)
+        if points.dtype.kind not in "iuf" or points.shape not in ((4, 2), (1, 4, 2)):
+            return None
+        points = points.reshape(4, 2).astype(np.float64)
+        if not np.isfinite(points).all():
+            return None
+        return tuple((float(x), float(y)) for x, y in points)

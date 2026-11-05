@@ -98,7 +98,7 @@ def test_voice_runtime_uses_llm_plan_when_available():
         pytest.skip("Aucun LLM local ou modèle GGUF détecté; test d'intégration ignoré.")
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
-    result = runtime.handle_text_as_plan("va vers la balle rouge")
+    result = runtime.handle_text_as_plan("suis la balle rouge")
 
     # Sans perception visuelle, le suivi de balle échoue par conception : on vérifie le plan, pas l'exécution.
     assert result["source"] == "llm_plan"

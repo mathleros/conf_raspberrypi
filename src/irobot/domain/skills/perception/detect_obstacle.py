@@ -24,12 +24,14 @@ class DetectObstacleSkill(Skill):
         try:
             obstacle = bool(context.robot.check_obstacle())
             context.state["obstacle_detected"] = obstacle
+            distance_cm = getattr(context.robot, "last_obstacle_distance_cm", None)
+            context.state["obstacle_distance_cm"] = distance_cm
 
             if obstacle:
                 return SkillResult(
                     status="success",
                     message="Obstacle détecté à proximité.",
-                    data={"obstacle_detected": True},
+                    data={"obstacle_detected": True, "obstacle_distance_cm": distance_cm},
                     confidence=0.95,
                     next_action="stop_motion",
                 )

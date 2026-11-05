@@ -97,7 +97,11 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 context,
                 phase="blocked",
                 message="Arrêt de sécurité : obstacle détecté pendant le suivi.",
-                data={"target_position": context.state.get("last_object_position"), "obstacle_detected": True},
+                data={
+                    "target_position": context.state.get("last_object_position"),
+                    "obstacle_detected": True,
+                    "obstacle_distance_cm": context.state.get("obstacle_distance_cm"),
+                },
                 confidence=0.99,
                 iterations=1,
             )
@@ -181,7 +185,11 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 context,
                 phase="blocked",
                 message="Arrêt de sécurité : obstacle détecté pendant le suivi.",
-                data={"target_position": context.state.get("last_object_position"), "obstacle_detected": True},
+                data={
+                    "target_position": context.state.get("last_object_position"),
+                    "obstacle_detected": True,
+                    "obstacle_distance_cm": context.state.get("obstacle_distance_cm"),
+                },
                 confidence=0.99,
                 iterations=iterations,
                 reason="obstacle_detected",

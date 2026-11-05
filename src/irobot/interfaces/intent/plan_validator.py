@@ -45,7 +45,7 @@ class IntentPlanValidator:
                         "index": index,
                         "reason": "intent not allowed",
                         "intent": asdict(intent),
-                    }
+                    },
                 )
                 continue
             if intent.name in {"move_forward", "move_backward", "turn_left", "turn_right"}:
@@ -74,7 +74,7 @@ class IntentPlanValidator:
                     parameters=parameters,
                     confidence=intent.confidence,
                     raw_text=intent.raw_text,
-                )
+                ),
             )
         return normalized
 
@@ -85,7 +85,7 @@ class IntentPlanValidator:
         return TARGET_COLOR_SYNONYMS.get(str(value).strip().lower())
 
     def _normalize_object_target(
-        self, name: str, target: str | None, parameters: dict[str, Any]
+        self, name: str, target: str | None, parameters: dict[str, Any],
     ) -> tuple[str | None, dict[str, Any]]:
         """Ramène les couleurs de cible (jaune, balle rouge...) à `yellow`/`red`."""
         if name == "follow_object" and contains_unsupported_follow_step({
@@ -110,14 +110,14 @@ class IntentPlanValidator:
         if "stand_off_cm" in params:
             value = to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM, require_finite=True)
             params["stand_off_cm"] = max(
-                float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm))
+                float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm)),
             )
         if "duration_s" in params:
             value = to_float(params["duration_s"], DEFAULT_FOLLOW_DURATION_SEC, require_finite=True)
             params["duration_s"] = max(MIN_OBJECT_DURATION_SEC, min(value, float(settings.max_follow_duration_sec)))
         if "search_timeout_s" in params:
             value = to_float(
-                params["search_timeout_s"], float(settings.search_timeout_seconds), require_finite=True
+                params["search_timeout_s"], float(settings.search_timeout_seconds), require_finite=True,
             )
             params["search_timeout_s"] = max(MIN_SEARCH_TIMEOUT_SEC, min(value, MAX_SEARCH_TIMEOUT_SEC))
 

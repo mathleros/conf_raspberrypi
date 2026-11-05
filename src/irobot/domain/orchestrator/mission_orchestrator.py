@@ -80,10 +80,10 @@ class MissionOrchestrator:
             return float("inf")
         if intent.name == "search_and_approach_object":
             tracking_s = to_float(
-                params.get("tracking_timeout_s"), ApproachTargetSkill.DEFAULT_MAX_TRACKING_S
+                params.get("tracking_timeout_s"), ApproachTargetSkill.DEFAULT_MAX_TRACKING_S,
             )
             search_s = to_float(
-                params.get("search_timeout_s"), float(self.settings.search_timeout_seconds)
+                params.get("search_timeout_s"), float(self.settings.search_timeout_seconds),
             )
             return max(
                 base,

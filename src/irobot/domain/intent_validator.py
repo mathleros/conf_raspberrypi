@@ -33,8 +33,8 @@ class IntentValidator:
                 intent.target in targets
                 and (
                     target_object is None
-                    or isinstance(target_object, str)
-                    and target_object in {"red", "yellow", "red_ball", "yellow_ball", "marker"}
+                    or (isinstance(target_object, str)
+                    and target_object in {"red", "yellow", "red_ball", "yellow_ball", "marker"})
                 )
             )
         return True

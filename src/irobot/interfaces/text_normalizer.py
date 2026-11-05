@@ -100,7 +100,7 @@ _COMPOUND_DURATION_RE = re.compile(r"\b(\d+)\s+minutes?\s+(?:et\s+)?(\d+)\s+seco
 _COMPOUND_DISTANCE_RE = re.compile(
     r"\b(\d+)\s+m[eè]tres?\s+(?:et\s+)?(\d{1,2})"
     r"(?:\s+(?:centim[eè]tres?|cm)\b"
-    r"|(?!\d|\s+(?:secondes?|minutes?|degr[eé]s?|m[eè]tres?|m|fois|tours?)\b))"
+    r"|(?!\d|\s+(?:secondes?|minutes?|degr[eé]s?|m[eè]tres?|m|fois|tours?)\b))",
 )
 
 

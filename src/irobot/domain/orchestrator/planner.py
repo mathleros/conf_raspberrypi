@@ -92,7 +92,7 @@ class SkillPlanner:
                             parameters=dict(previous.parameters),
                             confidence=previous.confidence,
                             raw_text=previous.raw_text,
-                        )
+                        ),
                     )
                 continue
             expanded.append(intent)
@@ -118,7 +118,7 @@ class SkillPlanner:
             steps = intent.parameters.get("steps")
             if not isinstance(steps, list) or not steps:
                 expanded.append(
-                    Intent(name="unknown", raw_text=intent.raw_text, parameters={"reason": "empty execute_path"})
+                    Intent(name="unknown", raw_text=intent.raw_text, parameters={"reason": "empty execute_path"}),
                 )
                 continue
             for raw_step in steps[:MAX_PLAN_STEPS]:
@@ -139,7 +139,7 @@ class SkillPlanner:
                 parameters={"reason": "invalid step format"},
             )
         action_raw = str(
-            raw_step.get("action") or raw_step.get("intent") or raw_step.get("name") or ""
+            raw_step.get("action") or raw_step.get("intent") or raw_step.get("name") or "",
         ).strip().lower()
         action = synonyms.get(action_raw, action_raw)
         if action not in allowed:

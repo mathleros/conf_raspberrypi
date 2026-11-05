@@ -6,7 +6,7 @@ import math
 
 
 def estimate_distance_cm(diameter_px: float | None, diameter_cm: float, focal_px: float) -> float | None:
-    """d = focal_px * diameter_cm / diameter_px ; None si l'entrée est invalide."""
+    """D = focal_px * diameter_cm / diameter_px ; None si l'entrée est invalide."""
     try:
         values = (float(diameter_px), float(diameter_cm), float(focal_px))
     except (TypeError, ValueError):

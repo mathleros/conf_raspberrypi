@@ -117,7 +117,7 @@ def _extract_stand_off_cm(text: str) -> float | None:
     """Extrait une distance d'approche (« à 1 m », « à 50 cm ») convertie en cm."""
     lowered = _replace_french_numbers(text.lower())
     match = re.search(
-        r"(?:\bà|\ba|\bde|\bat)\s+(\d+(?:[.,]\d+)?)\s*(cm|centim[eè]tres?|m[eè]tres?|m)\b", lowered
+        r"(?:\bà|\ba|\bde|\bat)\s+(\d+(?:[.,]\d+)?)\s*(cm|centim[eè]tres?|m[eè]tres?|m)\b", lowered,
     )
     if match:
         value = float(match.group(1).replace(",", "."))

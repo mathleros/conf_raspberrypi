@@ -22,5 +22,5 @@ class Intent:
     def perception_target(self) -> PerceptionTarget | None:
         """Return the closed semantic target represented by this intent."""
         return PerceptionTarget.from_value(
-            self.parameters.get("target_object") or self.target
+            self.parameters.get("target_object") or self.target,
         )

@@ -16,7 +16,7 @@ from irobot.interfaces.voice_runtime import VoiceRuntime
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Runtime vocal complet : Vosk → intent → skills -> robot."
+        description="Runtime vocal complet : Vosk → intent → skills -> robot.",
     )
     parser.add_argument(
         "--once",

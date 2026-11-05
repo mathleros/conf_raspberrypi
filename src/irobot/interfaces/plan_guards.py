@@ -73,7 +73,7 @@ PLAN_SCHEMA = {
                 "required": ["intent"],
                 "additionalProperties": False,
             },
-        }
+        },
     },
     "required": ["steps"],
     "additionalProperties": False,
@@ -236,7 +236,7 @@ _DEFAULT_PARAM = {
 
 
 def _clean_parameters(
-    intent: str, params: dict, numbers: set[float], notes: list[str]
+    intent: str, params: dict, numbers: set[float], notes: list[str],
 ) -> tuple[dict | None, str | None]:
     """Retourne (paramètres_nettoyés, None) ou (None, raison_de_rejet) ; ajoute les notes à `notes`."""
     cleaned = {}

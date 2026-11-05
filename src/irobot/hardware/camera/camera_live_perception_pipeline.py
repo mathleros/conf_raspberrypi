@@ -121,7 +121,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         distance = self._distance_smoother.update(
             detection.distance_visual_cm
             if detection.distance_visual_cm is not None
-            else detection.distance_cm
+            else detection.distance_cm,
         )
         return dataclasses.replace(
             detection,
@@ -142,7 +142,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             camera = Picamera2(self.camera_index)
             # Picamera2 BGR888 fournit des octets R, G, B à _process_frame.
             config = camera.create_preview_configuration(
-                main={"size": self._settings.camera_capture_size_px, "format": "BGR888"}
+                main={"size": self._settings.camera_capture_size_px, "format": "BGR888"},
             )
             camera.configure(config)
             configure_exposure(camera, self._settings)

@@ -20,7 +20,7 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover
     raise SystemExit(
         "Ce script nécessite gpiozero sur Raspberry Pi. "
-        "Installez le support GPIO puis relancez le programme."
+        "Installez le support GPIO puis relancez le programme.",
     ) from exc
 
 
@@ -106,7 +106,7 @@ class HC_SR04:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Mesure la distance du premier objet détecté par un HC-SR04."
+        description="Mesure la distance du premier objet détecté par un HC-SR04.",
     )
     parser.add_argument(
         "--trigger-pin",

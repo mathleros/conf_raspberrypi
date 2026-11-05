@@ -95,7 +95,7 @@ class RuntimeSettings:
     camera_face_score_threshold: float = 0.45
     camera_face_grace_frames: int = 10
     camera_face_model_path: str = str(
-        Path(__file__).resolve().parents[3] / "assets" / "vision" / "face_detection_yunet_2023mar.onnx"
+        Path(__file__).resolve().parents[3] / "assets" / "vision" / "face_detection_yunet_2023mar.onnx",
     )
     backward_cm_per_second: float | None = None
     human_marker_identity: MarkerIdentity | None = None

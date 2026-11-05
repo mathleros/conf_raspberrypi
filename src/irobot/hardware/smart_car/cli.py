@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Crée le parser de ligne de commande."""
     settings = load_runtime_settings()
     parser = argparse.ArgumentParser(
-        description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via un pont H-bridge L298N."
+        description="Contrôle d'une voiture Smart Car 2WD sur Raspberry Pi via un pont H-bridge L298N.",
     )
     parser.add_argument(
         "command",
@@ -86,7 +86,7 @@ def run_command(args: argparse.Namespace) -> None:
             print(
                 f"Commande '{args.command}' en cours indéfiniment "
                 f"(vitesse {args.speed:.2f}, seuil obstacle {args.obstacle_threshold_cm:.1f} cm). "
-                "Appuie sur Ctrl+C pour stopper."
+                "Appuie sur Ctrl+C pour stopper.",
             )
             while True:
                 if check_obstacles and controller.check_obstacle():
@@ -104,7 +104,7 @@ def run_command(args: argparse.Namespace) -> None:
 
             controller.stop()
             print(
-                f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}."
+                f"Commande '{args.command}' exécutée pendant {args.duration}s à vitesse {args.speed:.2f}.",
             )
             return
 

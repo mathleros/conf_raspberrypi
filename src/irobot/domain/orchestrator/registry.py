@@ -75,6 +75,6 @@ class SkillRegistry:
                 ApproachTargetSkill(),
                 FollowObjectSkill(settings=settings),
                 MoveCircleSkill(),
-            ]
+            ],
         )
         return registry

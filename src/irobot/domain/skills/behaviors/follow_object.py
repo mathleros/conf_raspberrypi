@@ -156,7 +156,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         )
         max_loss_s = max(0.0, to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S))
         search_timeout_s = max(
-            0.1, to_float(params.get("search_timeout_s"), float(settings.search_timeout_seconds))
+            0.1, to_float(params.get("search_timeout_s"), float(settings.search_timeout_seconds)),
         )
 
         now = self.time_fn
@@ -220,7 +220,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 set_state("aligning", direction=position)
             elif distance_cm is not None and distance_cm > stand_off_cm + tolerance_cm:
                 self._pulse_motion(
-                    context, "forward", self._step(distance_cm - stand_off_cm, self.FORWARD_MIN_S, self.FORWARD_MAX_S)
+                    context, "forward", self._step(distance_cm - stand_off_cm, self.FORWARD_MIN_S, self.FORWARD_MAX_S),
                 )
                 context.state["motion"] = "follow_object"
                 set_state("approaching", distance_cm=distance_cm)

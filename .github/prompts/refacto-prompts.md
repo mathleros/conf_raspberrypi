@@ -39,7 +39,7 @@ Un commit par prompt (`git commit -m "refacto: simplifie <fichier>"`), tests lan
 | 10 | `src/irobot/domain/orchestrator/mission_orchestrator.py` | haute | [ X] |
 | 11 | `src/irobot/interfaces/command_service.py` | haute | [ X] |
 | 12 | `src/irobot/interfaces/voice_runtime.py` | haute | [ X] |
-| 13 | `src/irobot/domain/orchestrator/executor.py` | basse | [ ] |
+| 13 | `src/irobot/domain/orchestrator/executor.py` | basse | [ X] |
 | 14 | `src/irobot/domain/skills/blackboard_state.py` | basse | [ ] |
 
 Fais le prompt 0 en premier : les prompts 3, 4, 6 et 10 s'appuient sur la fonction `to_float` qu'il crée. Ensuite, suis l'ordre des numéros (des fichiers feuilles vers les couches hautes).

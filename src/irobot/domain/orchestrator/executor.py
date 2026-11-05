@@ -9,15 +9,20 @@ class SkillExecutor:
     def __init__(self, context: SkillContext):
         self.context = context
 
-    def run(self, skill: Skill) -> SkillResult:
+    def _supervision_fault(self, message: str) -> SkillResult | None:
         validate_result = getattr(self.context.robot, "is_protected_result_current", None)
-        if callable(validate_result):
-            self.context.state["last_skill_result"] = None
         if callable(validate_result) and not validate_result():
             return SkillResult(
-                status="failed", message="Contexte invalidé par la supervision.",
+                status="failed", message=message,
                 data={"protection_fault": True}, confidence=0.0,
             )
+        return None
+
+    def run(self, skill: Skill) -> SkillResult:
+        if callable(getattr(self.context.robot, "is_protected_result_current", None)):
+            self.context.state["last_skill_result"] = None
+        if fault := self._supervision_fault("Contexte invalidé par la supervision."):
+            return fault
         if not skill.validate(self.context):
             return SkillResult(
                 status="failed",
@@ -27,16 +32,10 @@ class SkillExecutor:
                 next_action=None,
             )
 
-        if callable(validate_result) and not validate_result():
-            return SkillResult(
-                status="failed", message="Contexte invalidé par la supervision.",
-                data={"protection_fault": True}, confidence=0.0,
-            )
+        if fault := self._supervision_fault("Contexte invalidé par la supervision."):
+            return fault
         result = skill.execute(self.context)
-        if callable(validate_result) and not validate_result():
-            return SkillResult(
-                status="failed", message="Résultat invalidé par la supervision.",
-                data={"protection_fault": True}, confidence=0.0,
-            )
+        if fault := self._supervision_fault("Résultat invalidé par la supervision."):
+            return fault
         self.context.state["last_skill_result"] = result
         return result

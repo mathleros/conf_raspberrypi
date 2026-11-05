@@ -47,18 +47,18 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
         use_llm=use_llm,
         trace_dir=str(tmp_path),
     )
-    step_json = {"intent": "search_and_approach_object", "target": "marker", "parameters": {}}
+    step_json = {"intent": "search_and_approach_object", "target": "face", "parameters": {}}
     llm = fake_llm({"steps": [step_json]})
     result = runtime.handle_text_as_plan("approche toi de moi")
 
     assert result["status"] == "accepted"
     step = result["steps"][0]
-    assert step["intent"].target == "marker"
+    assert step["intent"].target == "face"
     assert "approach_target" in step["plan"]
     approach_result = step["results"][step["plan"].index("approach_target")]
     assert approach_result.data["close_enough"] is True
-    assert perception.targets[0] is PerceptionTarget.USER_MARKER
-    assert set(perception.targets) == {PerceptionTarget.USER_MARKER}
+    assert perception.targets[0] is PerceptionTarget.FACE
+    assert set(perception.targets) == {PerceptionTarget.FACE}
     assert set(robot.commands) == {"stop"}
     assert len(llm.calls) == int(use_llm)
     if use_llm:
@@ -81,7 +81,7 @@ def test_llm_cannot_replace_me_with_yellow(fake_llm, tmp_path):
 
 def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_llm):
     expected = [
-        {"intent": "search_and_approach_object", "target": "marker", "parameters": {"stand_off_cm": 100}},
+        {"intent": "search_and_approach_object", "target": "face", "parameters": {"stand_off_cm": 100}},
         {"intent": "turn_left", "target": None, "parameters": {"angle": 90}},
     ]
     llm = fake_llm({"steps": expected})
@@ -92,7 +92,7 @@ def test_llm_compound_marker_approach_preserves_distance_and_next_action(fake_ll
     assert trace["source"] == "llm_plan"
     assert len(llm.calls) == 1
     assert [(intent.name, intent.target) for intent in intents] == [
-        ("search_and_approach_object", "marker"), ("turn_left", None),
+        ("search_and_approach_object", "face"), ("turn_left", None),
     ]
     assert intents[0].parameters == {"stand_off_cm": 100}
 

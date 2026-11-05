@@ -50,7 +50,7 @@ class ExponentialSmoother:
 
 
 class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
-    """Perception Picamera2 : balles, ArUco (marker/me) et YuNet (face/human).
+    """Perception Picamera2 : balles, ArUco (marker/tag) et YuNet (face/moi/humain).
 
     L'identité du marqueur configurée est utilisée, sinon aruco/DICT_4X4_50/1.
     La distance est estimée par pose pour un carré de 8 cm, avec la focale

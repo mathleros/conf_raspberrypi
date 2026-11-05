@@ -124,7 +124,7 @@ def test_distance_uses_actual_frame_dimensions(size):
 
 @pytest.mark.parametrize("x,yaw", [(-20, -30), (0, 0), (20, 45)])
 @pytest.mark.parametrize("size", [RuntimeSettings().camera_oriented_frame_size_px, (960, 1280)])
-@pytest.mark.parametrize("target", ["marker", "me"])
+@pytest.mark.parametrize("target", ["marker", "tag"])
 @pytest.mark.parametrize("identifier", ["1", "2"])
 def test_runtime_uses_pose_distance_for_configured_marker(
     runtime_pipeline, monkeypatch, x, yaw, size, target, identifier,

@@ -276,7 +276,7 @@ def test_changing_to_balls_clears_face_memory(pipeline):
 def test_face_model_not_loaded_for_other_targets(pipeline):
     camera, net = pipeline
     frame = np.zeros((640, 480, 3), np.uint8)
-    for target in ("red", "yellow", "marker", "me"):
+    for target in ("red", "yellow", "marker", "tag"):
         camera._process_frame(frame, target=camera_target(camera, target))
     assert net.creates == []
 

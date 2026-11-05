@@ -34,22 +34,24 @@ Intents :
 - move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
 - turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
 - stop
-- search_and_approach_object : target "red", "yellow" ou "marker", parameters {"stand_off_cm":cm}
+- search_and_approach_object : target "red", "yellow", "ball", "marker" (tag) ou "face" (personne, humain, visage, moi), parameters {"stand_off_cm":cm}
 - follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
 - follow_red_ball : target "red_ball"
-- follow_person : target "marker", pour « suis-moi »
+- follow_person : target "face", pour « suis-moi » ou « suis un humain »
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
 Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
-« moi » désigne le marqueur porté par l'utilisateur : target "marker", jamais une couleur. Pour rejoindre ou approcher le porteur, utilise search_and_approach_object. N'invente pas de distance.
+« moi », « humain », « personne », « visage » désignent la personne : target "face", jamais une couleur ni "marker". « tag » et « marker » désignent le marqueur ArUco : target "marker". Pour rejoindre ou approcher la personne, utilise search_and_approach_object. N'invente pas de distance.
 Exemples :
-« approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"marker","parameters":{}}]}
-« rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"marker","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
-« suis-moi » -> {"steps":[{"intent":"follow_person","target":"marker","parameters":{}}]}
+« approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
+« rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
+« suis-moi » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{}}]}
 « cherche la balle jaune approche toi à 100 centimètres de la balle jaune puis suis la pendant 300 secondes » -> {"steps":[{"intent":"search_and_approach_object","target":"yellow","parameters":{"stand_off_cm":100}},{"intent":"follow_object","target":"yellow","parameters":{"stand_off_cm":100,"duration_s":300}}]}
 « avance de 50 centimètres puis tourne à gauche de 45 degrés » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"distance":50}},{"intent":"turn_left","target":null,"parameters":{"angle":45}}]}
 « avance » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"duration":1}}]}
 « suis la balle rouge » -> {"steps":[{"intent":"follow_red_ball","target":"red_ball","parameters":{}}]}
+« cherche la balle » -> {"steps":[{"intent":"search_and_approach_object","target":"ball","parameters":{}}]}
+« trouve le tag » -> {"steps":[{"intent":"search_and_approach_object","target":"marker","parameters":{}}]}
 « fais un salto arrière » -> {"steps":[]}"""
 
 _UNITS = {"zéro":0,"zero":0,"un":1,"une":1,"deux":2,"trois":3,"quatre":4,"cinq":5,"six":6,"sept":7,
@@ -137,10 +139,10 @@ def S(intent, target=None, **p):
 # id, phrase (style Vosk), liste de plans acceptables
 CASES = [
     ("approche_moi", "approche toi de moi",
-     [[S("search_and_approach_object", "marker")]]),
+     [[S("search_and_approach_object", "face")]]),
     ("approche_moi_plan", "rapproche toi à un mètre de moi puis tourne à gauche",
-     [[S("search_and_approach_object", "marker", stand_off_cm=100), S("turn_left", angle=90)]]),
-    ("suis_moi", "suis moi", [[S("follow_person", "marker")]]),
+     [[S("search_and_approach_object", "face", stand_off_cm=100), S("turn_left", angle=90)]]),
+    ("suis_moi", "suis moi", [[S("follow_person", "face")]]),
     ("usecase",
      "cherche la balle jaune approche toi à un mètre de la balle jaune puis suis la pendant cinq minutes",
      [[S("search_and_approach_object", "yellow", stand_off_cm=100),
@@ -326,11 +328,11 @@ def grounding_check(sent_text: str, steps: list):
             and re.search(r"\bmoi\b", folded)
             and not re.search(r"\b(?:jaune|yellow|rouge|red)\b", folded)
             and (
-                step.get("target") != "marker"
-                or (isinstance(params, dict) and params.get("target_object", "marker") != "marker")
+                step.get("target") != "face"
+                or (isinstance(params, dict) and params.get("target_object", "face") != "face")
             )
         ):
-            return [], "moi désigne le marqueur : target doit être marker", notes
+            return [], "moi désigne le visage : target doit être face", notes
         if not _licensed(intent, folded):
             if intent == "stop":
                 notes.append("stop parasite supprimé")
@@ -439,7 +441,7 @@ def schema_errors(steps: list) -> list[str]:
         target = step.get("target")
         if intent == "follow_red_ball" and target not in (None, "red_ball"):
             errors.append(f"étape {i}: follow_red_ball avec target {target!r} (rejeté par le validateur)")
-        if intent == "search_and_approach_object" and target == "marker":
+        if intent == "search_and_approach_object" and target in ("marker", "face", "ball"):
             continue
         if intent in {"search_and_approach_object", "follow_object"} and target not in (
             None, "red", "yellow"

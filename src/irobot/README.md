@@ -196,8 +196,9 @@ peuvent provoquer un changement de personne suivie. La distance varie avec la
 largeur réelle et l'orientation du visage et doit être vérifiée sur le Pi avant
 suivi moteur. Aucune image ni donnée biométrique n'est enregistrée par le wrapper.
 Les contrôleurs de suivi existants acceptent la source `face` sans nouveau contrat.
-La commande vocale « suis-moi » et les cibles `marker`/`me` restent liées au
-marqueur ArUco : cette modification ne change pas le parseur ni les prompts LLM.
+La commande vocale « suis-moi » et les formulations « moi », « humain », « personne »
+et « visage » routent vers le détecteur de visage (`face`). Les formulations « marker »
+et « tag » routent vers le marqueur ArUco, et « balle » vers les détecteurs de couleur.
 
 ## Diagnostic vision
 

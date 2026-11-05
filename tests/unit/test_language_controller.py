@@ -26,7 +26,7 @@ def test_intent_parser_and_planner_follow_person():
     for phrase in ("suis-moi", "suis moi", "suivez-moi"):
         intent = parser.parse(phrase)
         assert intent.name == "follow_person"
-        assert intent.target == "marker"
+        assert intent.target == "face"
         assert intent.confidence == 1.0
         assert intent.raw_text == phrase
         assert validator.validate(intent)
@@ -39,11 +39,11 @@ def test_intent_parser_and_planner_follow_person():
     "approche toi de moi", "approche-toi de moi", "Approche-toi de moi !",
     "rapproche-toi de moi", "rejoins-moi",
 ])
-def test_intent_parser_approach_me_targets_marker(phrase):
+def test_intent_parser_approach_me_targets_face(phrase):
     intent = TextIntentParser().parse(phrase)
 
     assert intent.name == "search_and_approach_object"
-    assert intent.target == "marker"
+    assert intent.target == "face"
     assert intent.raw_text == phrase
     assert IntentValidator().validate(intent)
 

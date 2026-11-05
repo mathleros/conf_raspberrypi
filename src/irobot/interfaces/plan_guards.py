@@ -124,7 +124,10 @@ def requests_human_follow(text: str) -> bool:
 TARGET_COLOR_SYNONYMS = {
     "jaune": "yellow", "yellow": "yellow", "balle jaune": "yellow", "yellow_ball": "yellow",
     "rouge": "red", "red": "red", "balle rouge": "red", "red_ball": "red",
-    "marker": "marker",
+    "balle": "ball", "balles": "ball",
+    "marker": "marker", "tag": "marker",
+    "moi": "face", "me": "face", "humain": "face", "humaine": "face", "personne": "face",
+    "visage": "face", "face": "face", "human": "face", "person": "face",
 }
 
 FOLLOW_INTENTS = {
@@ -212,7 +215,7 @@ def _licensed(intent: str, folded: str) -> bool:
             or any(f" {ph} " in padded for ph in phrases))
 
 
-def marker_target_mismatch(text: str, step: dict[str, Any]) -> bool:
+def moi_target_mismatch(text: str, step: dict[str, Any]) -> bool:
     folded = fold(text)
     params = step.get("parameters")
     return (
@@ -220,8 +223,8 @@ def marker_target_mismatch(text: str, step: dict[str, Any]) -> bool:
         and re.search(r"\bmoi\b", folded) is not None
         and re.search(r"\b(?:jaune|yellow|rouge|red)\b", folded) is None
         and (
-            step.get("target") != "marker"
-            or (isinstance(params, dict) and params.get("target_object", "marker") != "marker")
+            step.get("target") != "face"
+            or (isinstance(params, dict) and params.get("target_object", "face") != "face")
         )
     )
 
@@ -279,8 +282,8 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
         if not isinstance(step, dict):
             return [], "étape invalide", notes
         intent = step.get("intent") or step.get("name")
-        if marker_target_mismatch(sent_text, step):
-            return [], "moi désigne le marqueur : target doit être marker", notes
+        if moi_target_mismatch(sent_text, step):
+            return [], "moi désigne le visage : target doit être face", notes
         if not _licensed(intent, folded):
             if intent == "stop":
                 notes.append("stop parasite supprimé")

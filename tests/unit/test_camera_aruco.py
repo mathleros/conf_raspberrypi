@@ -59,7 +59,7 @@ def test_marker_position_and_distance(pipeline, center_x, position):
         8 / 79 * math.sqrt(600**2 + (center_x - 240.5)**2 + 0.5**2),
     )
     pipeline._last_detection = detection
-    assert pipeline.detect(target=camera_target(pipeline, "me")).distance_cm == detection.distance_cm
+    assert pipeline.detect(target=camera_target(pipeline, "tag")).distance_cm == detection.distance_cm
 
 
 def test_position_scales_to_image_width(pipeline):
@@ -132,7 +132,7 @@ def test_detect_returns_complete_marker_result(pipeline):
     assert absent.as_object_detection() is None
 
 
-@pytest.mark.parametrize("target", ["marker", "me"])
+@pytest.mark.parametrize("target", ["marker", "tag"])
 def test_requested_target_changes_camera_processing(pipeline, target):
     strategy = camera_target(pipeline, target)
     assert pipeline.detect(target=strategy) is None
@@ -237,7 +237,7 @@ def live_pipeline(monkeypatch):
         pipeline.close()
 
 
-@pytest.mark.parametrize("target", ["marker", "me"])
+@pytest.mark.parametrize("target", ["marker", "tag"])
 def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
     pipeline, frames, second_capture, wait_started = live_pipeline
     results = []
@@ -258,76 +258,6 @@ def test_live_target_switch_waits_for_matching_frame(live_pipeline, target):
             8 / 79 * math.sqrt(600**2 + 0.5**2 + 0.5**2),
         )
     finally:
-        with pipeline._frame_condition:
-            pipeline._stop_event.set()
-            pipeline._frame_condition.notify_all()
-        reader.join(2)
-
-
-@pytest.mark.parametrize("phrase", ["suis-moi", "approche toi de moi"])
-def test_voice_follow_waits_for_marker_without_motion(live_pipeline, tmp_path, monkeypatch, phrase):
-    pipeline, frames, second_capture, wait_started = live_pipeline
-    robot = FakeRobot()
-    close_seen = threading.Event()
-    holding = threading.Event()
-    original_detect = pipeline.detect
-    original_stop = robot.stop
-
-    def detect(*, target):
-        detection = original_detect(target=target)
-        if detection is not None and detection.distance_cm <= 30:
-            close_seen.set()
-        return detection
-
-    def stop():
-        original_stop()
-        if close_seen.is_set():
-            holding.set()
-
-    monkeypatch.setattr(pipeline, "detect", detect)
-    monkeypatch.setattr(robot, "stop", stop)
-    runtime = VoiceRuntime(
-        robot=RobotController(robot), perception=pipeline, use_llm=False, trace_dir=str(tmp_path),
-    )
-    results = []
-    reader = threading.Thread(target=lambda: results.append(runtime.handle_text_as_plan(phrase)))
-    reader.start()
-    try:
-        assert wait_started.wait(2)
-        assert robot.commands == []
-        frames.put(_frame())
-        assert second_capture.wait(2)
-        assert reader.is_alive()
-        # Un marqueur plus grand est dans le seuil d'approche commun, sans exception ArUco.
-        frames.put(_frame(width=200))
-        assert holding.wait(2)
-        assert set(robot.commands) == {"stop"}
-        if phrase == "suis-moi":
-            assert reader.is_alive()
-            assert results == []
-            runtime.handle_transcript("stop")
-        reader.join(2)
-        assert not reader.is_alive()
-        step = results[0]["steps"][0]
-        assert step["attempt"] == 1
-        if phrase == "suis-moi":
-            assert results[0]["status"] == "aborted"
-            assert step["reason"] == "emergency stop"
-            assert step["plan"] == ["follow_object"]
-            skill_result = step["results"][0]
-            assert skill_result.data["emergency_stop"] is True
-            distance_cm = skill_result.data["final_distance_cm"]
-        else:
-            assert results[0]["status"] == "accepted"
-            skill_result = step["results"][step["plan"].index("approach_target")]
-            assert skill_result.data["close_enough"] is True
-            distance_cm = skill_result.data["distance_cm"]
-        assert distance_cm == pytest.approx(
-            8 / 199 * math.sqrt(600**2 + 0.5**2 + 59.5**2),
-        )
-        assert set(robot.commands) == {"stop"}
-    finally:
-        runtime._request_emergency_stop()
         with pipeline._frame_condition:
             pipeline._stop_event.set()
             pipeline._frame_condition.notify_all()
@@ -359,7 +289,7 @@ def test_matching_frame_is_cached_including_absence(live_pipeline, present, monk
         reader.join(2)
         assert not reader.is_alive()
         monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0)
-        cached = pipeline.detect(target=camera_target(pipeline, "me"))
+        cached = pipeline.detect(target=camera_target(pipeline, "tag"))
         assert (cached is not None) == present
         assert (results[0] is not None) == present
         assert pipeline._frame_revision == pipeline._target_revision

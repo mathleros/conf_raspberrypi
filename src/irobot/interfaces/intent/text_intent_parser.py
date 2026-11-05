@@ -309,11 +309,11 @@ class TextIntentParser:
 
         lowered = cleaned.lower()
         if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
-            return Intent(name="follow_person", target="marker", confidence=1.0, raw_text=text)
+            return Intent(name="follow_person", target="face", confidence=1.0, raw_text=text)
         if re.fullmatch(
             r"(?:(?:approche|rapproche)(?: toi)? (?:de|vers) moi|rejoins moi)", fold(cleaned).strip(),
         ):
-            return Intent(name="search_and_approach_object", target="marker", confidence=1.0, raw_text=text)
+            return Intent(name="search_and_approach_object", target="face", confidence=1.0, raw_text=text)
 
         if follow_request_refusal(cleaned):
             return Intent(name="unknown", raw_text=text)

@@ -45,7 +45,7 @@ CASES = [
     ("avance", ["avance"], None, "étape invalide", []),
     # marqueur
     ("suis moi", [step("follow_person", target="yellow")], None,
-     "moi désigne le marqueur : target doit être marker", []),
+     "moi désigne le visage : target doit être face", []),
     # refus de suivi
     ("suis le chat", [step("follow_object")], None, "unsupported_follow_target", []),
     # intent sans règle : aucun contrôle

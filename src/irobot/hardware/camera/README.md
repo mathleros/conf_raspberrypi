@@ -41,8 +41,9 @@ finally:
 ```
 
 Les cibles sont `RED_BALL`, `YELLOW_BALL`, `ANY_BALL`, `USER_MARKER` et `FACE`.
-Les alias textuels, notamment `ball`, `marker`, `me` et `human`, sont convertis
-par `PerceptionTarget.from_value`. Le résultat contient notamment la position
+Les alias textuels sont convertis par `PerceptionTarget.from_value` : `ball`/`balle`
+vers les balles, `marker`/`tag` vers ArUco, `face`/`human`/`moi`/`personne`/`humain`/`visage`
+vers le visage. Le résultat contient notamment la position
 (`left`, `center`, `right` ou `UNKNOWN`), la confiance, la boîte éventuelle et
 les distances en centimètres. Une absence de cible dans l'image retourne `None`.
 

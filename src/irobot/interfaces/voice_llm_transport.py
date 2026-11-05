@@ -34,7 +34,7 @@ Intents :
 - follow_person : target "face", pour « suis-moi » ou « suis un humain »
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
-Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
+Règles : une étape par action, dans l'ordre exact des verbes de la phrase (« recule, tourne à droite puis avance » : recule, puis tourne à droite, puis avance). Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
 « moi », « humain », « personne », « visage » désignent la personne : target "face", jamais une couleur ni "marker". « tag » et « marker » désignent le marqueur ArUco : target "marker". Pour rejoindre ou approcher la personne (« approche », « rapproche », « rejoins »), utilise search_and_approach_object, jamais follow_person : follow_person est réservé à « suis ». N'invente pas de distance.
 Exemples :
 « approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}

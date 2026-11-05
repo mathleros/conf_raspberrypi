@@ -40,7 +40,7 @@ Intents :
 - follow_person : target "face", pour « suis-moi » ou « suis un humain »
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
-Règles : une étape par action, dans l'ordre. Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
+Règles : une étape par action, dans l'ordre exact des verbes de la phrase (« recule, tourne à droite puis avance » : recule, puis tourne à droite, puis avance). Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
 « moi », « humain », « personne », « visage » désignent la personne : target "face", jamais une couleur ni "marker". « tag » et « marker » désignent le marqueur ArUco : target "marker". Pour rejoindre ou approcher la personne (« approche », « rapproche », « rejoins »), utilise search_and_approach_object, jamais follow_person : follow_person est réservé à « suis ». N'invente pas de distance.
 Exemples :
 « approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
@@ -306,6 +306,32 @@ def _licensed(intent: str, folded: str) -> bool:
             or any(f" {ph} " in padded for ph in phrases))
 
 
+def _sentence_position(intent: str, tokens: list):
+    rule = INTENT_LEXICON.get(intent)
+    if rule is None:
+        return None
+    prefixes, words, _ = rule
+    for index, token in enumerate(tokens):
+        if token in words or any(token.startswith(p) for p in prefixes):
+            return index
+    return None
+
+
+def _order_by_sentence(folded: str, steps: list) -> list:
+    """Remet les étapes dans l'ordre de leurs mots-clés ; les étapes sans mot-clé gardent leur place."""
+    tokens = folded.split()
+    positions = {
+        i: _sentence_position(step.get("intent") or step.get("name"), tokens)
+        for i, step in enumerate(steps)
+    }
+    slots = [i for i, pos in positions.items() if pos is not None]
+    ordered = sorted(slots, key=lambda i: positions[i])
+    result = list(steps)
+    for slot, src in zip(slots, ordered):
+        result[slot] = steps[src]
+    return result
+
+
 def grounding_check(sent_text: str, steps: list):
     """Retourne (étapes_conservées, raison_de_rejet | None, notes).
 
@@ -371,7 +397,10 @@ def grounding_check(sent_text: str, steps: list):
                 p["angle"] = 90
                 step = {**step, "parameters": p}
         kept.append(step)
-    return kept, None, notes
+    reordered = _order_by_sentence(folded, kept)
+    if reordered != kept:
+        notes.append("étapes réordonnées selon l'ordre des verbes de la phrase")
+    return reordered, None, notes
 
 
 # --------------------------------------------------------------------------- JSON

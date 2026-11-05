@@ -76,3 +76,21 @@ def test_grounding_check_behavior(text, steps, kept, reason, notes):
 )
 def test_contains_unsupported_follow_step(value, expected):
     assert pg.contains_unsupported_follow_step(value) is expected
+
+
+def test_steps_are_reordered_to_follow_sentence_verbs():
+    text = "recule, tourne a droite puis avance"
+    steps = [step("turn_right", angle=90), step("move_backward", duration=1), step("move_forward", duration=1)]
+    kept, reason, notes = pg.grounding_check(text, steps)
+    assert reason is None
+    assert [s["intent"] for s in kept] == ["move_backward", "turn_right", "move_forward"]
+    assert "étapes réordonnées selon l'ordre des verbes de la phrase" in notes
+
+
+def test_ordered_steps_are_left_unchanged():
+    text = "recule, tourne a droite puis avance"
+    steps = [step("move_backward", duration=1), step("turn_right", angle=90), step("move_forward", duration=1)]
+    kept, reason, notes = pg.grounding_check(text, steps)
+    assert reason is None
+    assert [s["intent"] for s in kept] == ["move_backward", "turn_right", "move_forward"]
+    assert not any("réordonnées" in n for n in notes)

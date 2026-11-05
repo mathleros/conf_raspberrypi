@@ -28,62 +28,69 @@ def _tokens(text: str) -> list[str]:
     return [t for t in re.split(r"[\s\-,;.!?]+", text) if t]
 
 
+def _starts_number(toks: list[str], i: int) -> bool:
+    """Vrai si toks[i] commence un nombre (« un/une » seulement devant une unité)."""
+    tok = toks[i]
+    if tok in ("un", "une"):
+        return i + 1 < len(toks) and toks[i + 1] in _UNIT_WORDS
+    return tok in _UNITS or tok in _TENS or tok in ("cent", "cents", "mille")
+
+
+def _read_number(toks: list[str], i: int) -> tuple[int, int]:
+    """Lit un nombre à partir de toks[i] ; retourne (valeur, indice suivant)."""
+    total = cur = 0
+    j, prev, consumed = i, None, 0
+    while j < len(toks):
+        t = toks[j]
+        if t == "et" and consumed and j + 1 < len(toks) and (toks[j + 1] in _UNITS or toks[j + 1] in _TENS):
+            j += 1
+            continue
+        if t in _UNITS:
+            v = _UNITS[t]
+            m = cur % 100
+            ok = (
+                (m == 0 and not (consumed and prev in _UNITS))
+                or (m in (20, 30, 40, 50, 60, 70, 80, 90) and v < 10)
+                or (m in (60, 80) and 10 <= v < 20)
+                or (m == 10 and 7 <= v <= 9)
+            )
+            if t in ("un", "une") and consumed == 0:
+                ok = True
+            if not ok:
+                break
+            cur += v
+        elif t in _TENS:
+            if t in ("vingt", "vingts") and prev == "quatre" and cur % 10 == 4:
+                cur = cur - 4 + 80
+            elif cur % 100 == 0:
+                cur += _TENS[t]
+            else:
+                break
+        elif t in ("cent", "cents"):
+            cur = (cur or 1) * 100 if cur < 100 else cur
+        elif t == "mille":
+            total += (cur or 1) * 1000
+            cur = 0
+        else:
+            break
+        prev = t
+        consumed += 1
+        j += 1
+    return total + cur, j
+
+
 def fr_numbers_to_digits(text: str) -> str:
     """Remplace les nombres français en lettres par des chiffres (« un/une » seulement devant une unité)."""
     toks = _tokens(text)
     out: list[str] = []
     i = 0
     while i < len(toks):
-        tok = toks[i]
-        starts = tok in _UNITS or tok in _TENS or tok in ("cent", "cents", "mille")
-        if not starts:
-            out.append(tok)
+        if not _starts_number(toks, i):
+            out.append(toks[i])
             i += 1
             continue
-        if tok in ("un", "une") and not (i + 1 < len(toks) and toks[i + 1] in _UNIT_WORDS):
-            out.append(tok)
-            i += 1
-            continue
-        total = cur = 0
-        j, prev, consumed = i, None, 0
-        while j < len(toks):
-            t = toks[j]
-            if t == "et" and consumed and j + 1 < len(toks) and (toks[j + 1] in _UNITS or toks[j + 1] in _TENS):
-                j += 1
-                continue
-            if t in _UNITS:
-                v = _UNITS[t]
-                m = cur % 100
-                ok = (
-                    (m == 0 and not (consumed and prev in _UNITS))
-                    or (m in (20, 30, 40, 50, 60, 70, 80, 90) and v < 10)
-                    or (m in (60, 80) and 10 <= v < 20)
-                    or (m == 10 and 7 <= v <= 9)
-                )
-                if t in ("un", "une") and consumed == 0:
-                    ok = True
-                if not ok:
-                    break
-                cur += v
-            elif t in _TENS:
-                if t in ("vingt", "vingts") and prev == "quatre" and cur % 10 == 4:
-                    cur = cur - 4 + 80
-                elif cur % 100 == 0:
-                    cur += _TENS[t]
-                else:
-                    break
-            elif t in ("cent", "cents"):
-                cur = (cur or 1) * 100 if cur < 100 else cur
-            elif t == "mille":
-                total += (cur or 1) * 1000
-                cur = 0
-            else:
-                break
-            prev = t
-            consumed += 1
-            j += 1
-        out.append(str(total + cur))
-        i = j
+        value, i = _read_number(toks, i)
+        out.append(str(value))
     return " ".join(out)
 
 

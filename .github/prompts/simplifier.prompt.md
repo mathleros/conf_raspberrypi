@@ -5,7 +5,7 @@ agent: agent
 
 Tu réalises un refactoring de SIMPLIFICATION dans ce dépôt Python (package `irobot`), sans changer le comportement.
 
-Numéro du prompt à exécuter : ${input:numero:Numéro du prompt (0 à 21)}
+Numéro du prompt à exécuter : ${input:numero:Numéro du prompt (0 à 26)}
 
 ## Marche à suivre
 

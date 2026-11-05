@@ -383,4 +383,59 @@ Réduis la complexité des fonctions signalées dans approach_target.py (3 règl
 
 Autorisé : des méthodes privées par phase, aucune nouvelle classe.
 
+---
 
+## Prompt 22
+
+Réduis la complexité de grounding_check (radon E, 32) et contains_unsupported_follow_step (C, 12) dans src/irobot/interfaces/plan_guards.py. Analyse d'abord, ne modifie rien sans mon accord.
+1. Avant toute modification, écris une batterie d'au moins 12 cas (phrase, steps) -> (étapes conservées, raison de rejet, notes) qui couvre chaque message de rejet et chaque note actuels : intent non justifié, stop parasite, paramètre inutile, nombre absent avec ou sans chiffres dans la phrase, valeurs par défaut tolérées (duration 1, angle 90), durée ou angle par défaut ajoutés, étape non dict, marqueur. Lance-la sur le code actuel pour confirmer qu'elle passe.
+2. Extrais la boucle sur les paramètres dans une fonction privée `_clean_parameters(intent, params, numbers, notes)` qui retourne le dict nettoyé ou une raison de rejet.
+3. Les deux branches presque identiques (move_forward/move_backward avec duration, turn_left/turn_right avec angle) deviennent une table de constantes `{intent: (clés qui suffisent, clé ajoutée, valeur)}`.
+4. L'ordre des vérifications et tous les messages de rejet restent identiques.
+Autorisé : 2 fonctions privées, 1 table de constantes, 1 fichier de test.
+
+---
+
+## Prompt 23
+
+Réduis la complexité de fr_numbers_to_digits (radon E, 36) dans src/irobot/interfaces/text_normalizer.py. Analyse d'abord.
+1. Avant de modifier, construis une batterie d'au moins 30 phrases-exemples avec la sortie actuelle de preprocess() : nombres de 1 à 99 (dont soixante-dix, quatre-vingt-dix-sept, quatre-vingts, vingt et un), centaines, milliers, « un/une » devant et hors unité, « et » entre nombres, nombres consécutifs séparés, phrases sans nombre. Lance-la sur le code actuel.
+2. Fais uniquement une extraction mécanique : la boucle interne (lecture d'un nombre à partir de l'indice i) devient `_read_number(toks, i) -> tuple[int, int]` (valeur, indice suivant), et le test « ce mot commence-t-il un nombre ? » devient une petite fonction. Ne réécris pas les règles de combinaison et n'ajoute aucune bibliothèque.
+3. Si les 30 exemples ne donnent pas une sortie identique, annule le changement.
+Autorisé : 2 fonctions privées, 1 fichier de test.
+
+---
+
+## Prompt 24
+
+Réduis la complexité de FaceDetector._select_face (radon D, 22) dans src/irobot/hardware/camera/detector/face_detector.py.
+1. Découpe en trois méthodes privées, dans l'ordre actuel : validation du tableau `faces` et de chaque ligne (les ValueError et leurs messages ne changent pas) ; choix du visage retenu (seuil de confiance, visage hors image ignoré avec le warning actuel, plus large gagnant) ; construction de l'ObjectDetection (distance, boîte, position left/center/right).
+2. Remplace le calcul de position codé en dur (480, 180, 300) par une constante nommée ou une petite fonction `_position_from_center_x`, sans changer les valeurs.
+3. self._bounding_box doit être mis à jour exactement comme avant, au même moment.
+4. Ne touche ni au modèle YuNet ni au reste de la classe.
+Autorisé : 3 méthodes privées et des constantes nommées.
+
+---
+
+## Prompt 25
+
+Simplifie src/irobot/hardware/camera/detector/aruco_detector.py : OpenCVMarkerDetector.__init__ (C 16), _parse_corners (C 15) et detect (C 19). Analyse d'abord et demande-moi la version d'OpenCV utilisée sur le robot.
+1. __init__ vérifie par getattr/callable/isinstance chaque fonction de l'API ArUco. Le code exige déjà l'API moderne (ArucoDetector) sans repli. Garde l'injection `aruco_api` (utile aux tests), mais remplace les vérifications répétées par une seule (try/except AttributeError), en gardant les mêmes types d'erreur et les mêmes messages.
+2. _parse_corners convertit en listes Python puis valide point par point (bool, int/float, isfinite). Remplace par np.asarray(value, dtype=np.float64), un contrôle de forme (4, 2) ou (1, 4, 2) et np.isfinite ; renvoie None dans les mêmes cas.
+3. Dans detect, extrais la boucle sur les marqueurs détectés en méthode privée, sans changer l'ordre des vérifications.
+4. Ne touche pas à estimate_marker_distance_cm.
+Si des tests utilisent de faux détecteurs qui retournent des listes Python, conserve leur compatibilité.
+Autorisé : 1 ou 2 méthodes privées.
+
+---
+
+## Prompt 26
+
+Corrige les petits avertissements ruff. Lance `uvx ruff check src --select RUF012,PIE810,PLW1510,S110,ARG005,PLC0105,UP046 --output-format concise` et traite-les un par un, comportement identique.
+- RUF012 : constantes de classe mutables -> tuple, frozenset ou ClassVar annoté.
+- PIE810 : plusieurs startswith/endswith -> un seul appel avec un tuple.
+- PLW1510 : subprocess.run sans check -> ajoute check=False explicitement si le code lit le returncode, sinon demande-moi.
+- S110 : `except Exception: pass` (probablement cli.py, contournement lgpio) -> contextlib.suppress(Exception) ou log.debug, avec un commentaire.
+- ARG005 : lambda avec argument inutilisé -> renomme l'argument `_`, ou remplace par une fonction nommée si c'est un callback réutilisé.
+- PLC0105 : renomme le TypeVar avec le suffixe _co ou _contra selon sa variance.
+- UP046 : applique la syntaxe PEP 695 seulement si requires-python >= 3.12 ; sinon ignore la règle.

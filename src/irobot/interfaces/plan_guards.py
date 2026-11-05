@@ -169,18 +169,23 @@ def follow_request_refusal(text: str) -> str | None:
     return None
 
 
+def _is_unsupported_follow(step: dict[str, Any]) -> bool:
+    names = {str(step.get(key, "")).strip().lower() for key in ("intent", "name", "action")}
+    if not names & FOLLOW_INTENTS:
+        return False
+    parameters = step.get("parameters")
+    if parameters is not None and not isinstance(parameters, dict):
+        return True
+    if not supported_follow_target(step.get("target")):
+        return True
+    return isinstance(parameters, dict) and not supported_follow_target(parameters.get("target_object"))
+
+
 def contains_unsupported_follow_step(value: Any) -> bool:
     if isinstance(value, dict):
-        names = {str(value.get(key, "")).strip().lower() for key in ("intent", "name", "action")}
-        if names & FOLLOW_INTENTS:
-            parameters = value.get("parameters")
-            if parameters is not None and not isinstance(parameters, dict):
-                return True
-            if not supported_follow_target(value.get("target")):
-                return True
-            if isinstance(parameters, dict) and not supported_follow_target(parameters.get("target_object")):
-                return True
-        return any(contains_unsupported_follow_step(item) for item in value.values())
+        return _is_unsupported_follow(value) or any(
+            contains_unsupported_follow_step(item) for item in value.values()
+        )
     if isinstance(value, list):
         return any(contains_unsupported_follow_step(item) for item in value)
     return False
@@ -221,6 +226,37 @@ def marker_target_mismatch(text: str, step: dict[str, Any]) -> bool:
     )
 
 
+# intent -> (clés qui suffisent, clé ajoutée sinon, valeur ajoutée = valeur par défaut du prompt tolérée)
+_DEFAULT_PARAM = {
+    "move_forward": (("distance", "duration"), "duration", 1),
+    "move_backward": (("distance", "duration"), "duration", 1),
+    "turn_left": (("angle", "duration"), "angle", 90),
+    "turn_right": (("angle", "duration"), "angle", 90),
+}
+
+
+def _clean_parameters(
+    intent: str, params: dict, numbers: set[float], notes: list[str]
+) -> tuple[dict | None, str | None]:
+    """Retourne (paramètres_nettoyés, None) ou (None, raison_de_rejet) ; ajoute les notes à `notes`."""
+    cleaned = {}
+    allowed = ALLOWED_PARAMS.get(intent, set())
+    for key, value in params.items():
+        if intent in INTENT_LEXICON and key not in allowed:
+            notes.append(f"{intent}.{key} inutile : supprimé")
+            continue
+        num = _num(value) if key in NUMERIC_KEYS else None
+        if num is not None and num not in numbers:
+            default = intent in _DEFAULT_PARAM and _DEFAULT_PARAM[intent][1] == key and num == _DEFAULT_PARAM[intent][2]
+            if not default:
+                if numbers:
+                    return None, f"{intent}.{key}={value} ne correspond à aucun nombre de la phrase"
+                notes.append(f"{intent}.{key}={value} absent de la phrase : supprimé")
+                continue
+        cleaned[key] = value
+    return cleaned, None
+
+
 def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list[str]]:
     """Retourne (étapes_conservées, raison_de_rejet | None, notes).
 
@@ -252,32 +288,15 @@ def grounding_check(sent_text: str, steps: list) -> tuple[list, str | None, list
             return [], f"intent {intent!r} non justifié par la phrase", notes
         params = step.get("parameters")
         if isinstance(params, dict):
-            cleaned = {}
-            allowed = ALLOWED_PARAMS.get(intent, set())
-            for key, value in params.items():
-                if intent in INTENT_LEXICON and key not in allowed:
-                    notes.append(f"{intent}.{key} inutile : supprimé")
-                    continue
-                num = _num(value) if key in NUMERIC_KEYS else None
-                if key in NUMERIC_KEYS and num is not None and num not in numbers:
-                    default = ((key == "duration" and intent in {"move_forward", "move_backward"} and num == 1)
-                               or (key == "angle" and intent in {"turn_left", "turn_right"} and num == 90))
-                    if not default:
-                        if numbers:
-                            return [], f"{intent}.{key}={value} ne correspond à aucun nombre de la phrase", notes
-                        notes.append(f"{intent}.{key}={value} absent de la phrase : supprimé")
-                        continue
-                cleaned[key] = value
+            cleaned, rejection = _clean_parameters(intent, params, numbers, notes)
+            if rejection:
+                return [], rejection, notes
             step = {**step, "parameters": cleaned}
-        if intent in {"move_forward", "move_backward"}:
+        if intent in _DEFAULT_PARAM:
+            sufficient, added_key, added_value = _DEFAULT_PARAM[intent]
             p = dict(step.get("parameters") or {})
-            if not any(k in p for k in ("distance", "duration")):
-                p["duration"] = 1
-                step = {**step, "parameters": p}
-        elif intent in {"turn_left", "turn_right"}:
-            p = dict(step.get("parameters") or {})
-            if not any(k in p for k in ("angle", "duration")):
-                p["angle"] = 90
+            if not any(k in p for k in sufficient):
+                p[added_key] = added_value
                 step = {**step, "parameters": p}
         kept.append(step)
     return kept, None, notes

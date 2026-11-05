@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, MutableMapping
-from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from dataclasses import dataclass, field, fields
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from irobot.domain.intent import Intent
+    from irobot.domain.skills.base_skill import SkillResult
 
 
 @dataclass
 class BlackboardState(MutableMapping[str, Any]):
     """État partagé typé entre perception, planification et action."""
 
-    active_intent: Any | None = None
+    active_intent: Intent | None = None
     active_intent_name: str | None = None
     active_intent_parameters: dict[str, Any] = field(default_factory=dict)
     active_skill: str | None = None
@@ -25,27 +29,11 @@ class BlackboardState(MutableMapping[str, Any]):
 
     motion: str | None = None
     follow_target_state: dict[str, Any] | None = None
-    last_skill_result: Any | None = None
+    last_skill_result: SkillResult | None = None
 
     extra: dict[str, Any] = field(default_factory=dict)
 
-    KNOWN_FIELDS: ClassVar[set[str]] = {
-        "active_intent",
-        "active_intent_name",
-        "active_intent_parameters",
-        "active_skill",
-        "camera_ready",
-        "target_object",
-        "last_camera_position",
-        "last_object_position",
-        "last_ball_position",
-        "last_object_distance_cm",
-        "obstacle_detected",
-        "close_enough",
-        "motion",
-        "follow_target_state",
-        "last_skill_result",
-    }
+    KNOWN_FIELDS: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "BlackboardState":
@@ -84,3 +72,6 @@ class BlackboardState(MutableMapping[str, Any]):
         payload = {key: getattr(self, key) for key in self.KNOWN_FIELDS}
         payload.update(self.extra)
         return payload
+
+
+BlackboardState.KNOWN_FIELDS = tuple(f.name for f in fields(BlackboardState) if f.name != "extra")

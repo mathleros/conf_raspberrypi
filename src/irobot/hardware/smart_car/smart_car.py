@@ -7,6 +7,7 @@ Notes de câblage :
 """
 
 from contextlib import ExitStack
+from typing import ClassVar
 
 try:
     from gpiozero import DigitalOutputDevice, PWMOutputDevice
@@ -22,7 +23,7 @@ class SmartCar2WD:
     physiques du connecteur 40 broches.
     """
 
-    DEFAULT_PINS = {
+    DEFAULT_PINS: ClassVar[dict[str, int]] = {
         "in1": 5,
         "in2": 6,
         "in3": 16,

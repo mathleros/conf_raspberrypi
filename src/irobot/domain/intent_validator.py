@@ -6,7 +6,7 @@ from irobot.domain.intent import Intent
 class IntentValidator:
     """Validate intent names and normalized tracking targets."""
 
-    ALLOWED_INTENTS = {
+    ALLOWED_INTENTS = frozenset({
         "follow_person",
         "follow_red_ball",
         "avoid_obstacle",
@@ -21,7 +21,7 @@ class IntentValidator:
         "turn_left",
         "turn_right",
         "stop",
-    }
+    })
 
     def validate(self, intent: Intent) -> bool:
         if intent.name not in self.ALLOWED_INTENTS:

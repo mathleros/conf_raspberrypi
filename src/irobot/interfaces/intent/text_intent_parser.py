@@ -77,7 +77,7 @@ def _extract_distance(text: str) -> tuple[float, str] | None:
             continue
         value = float(match.group(1).replace(",", "."))
         unit = match.group(2)
-        if unit.startswith("cm") or unit.startswith("centim"):
+        if unit.startswith(("cm", "centim")):
             return (max(0.1, value), "cm")
         return (max(0.01, value), "m")
     return None
@@ -220,16 +220,16 @@ _Rule = tuple["tuple[str, ...] | re.Pattern[str]", Callable[[str, str], Intent]]
 _RULES_BEFORE_APPROACH: tuple[_Rule, ...] = (
     (
         ("stop", "arrêt", "arrete", "halt", "pause"),
-        lambda cleaned, text: Intent(name="stop", confidence=0.95, raw_text=text),
+        lambda _, text: Intent(name="stop", confidence=0.95, raw_text=text),
     ),
     (
         ("retour au point de départ", "reviens au point de départ", "point de départ", "point de depart"),
-        lambda cleaned, text: Intent(name="return_to_start", confidence=0.9, raw_text=text),
+        lambda _, text: Intent(name="return_to_start", confidence=0.9, raw_text=text),
     ),
     (_FOLLOW_RE, _follow_object),
     (
         ("tour sur toi", "tourne sur toi", "rotation complète", "rotation complete", "360"),
-        lambda cleaned, text: Intent(
+        lambda _, text: Intent(
             name="spin_360", parameters={"angle": 360, "unit": "degrees"}, confidence=0.9, raw_text=text,
         ),
     ),
@@ -251,13 +251,13 @@ _RULES_BEFORE_APPROACH: tuple[_Rule, ...] = (
 _RULES_AFTER_APPROACH: tuple[_Rule, ...] = (
     (
         ("balle rouge", "rouge", "cible rouge", "red ball"),
-        lambda cleaned, text: Intent(
+        lambda _, text: Intent(
             name="follow_red_ball", target="red_ball", parameters={"speed": 0.5}, confidence=0.9, raw_text=text,
         ),
     ),
     (
         ("évite", "evite", "avoid", "obstacle"),
-        lambda cleaned, text: Intent(
+        lambda _, text: Intent(
             name="avoid_obstacle", parameters={"speed": 0.4}, confidence=0.85, raw_text=text,
         ),
     ),
@@ -285,7 +285,7 @@ _RULES_AFTER_APPROACH: tuple[_Rule, ...] = (
     ),
     (
         ("cherche", "recherche", "look for", "find"),
-        lambda cleaned, text: Intent(name="follow_red_ball", target="red_ball", confidence=0.7, raw_text=text),
+        lambda _, text: Intent(name="follow_red_ball", target="red_ball", confidence=0.7, raw_text=text),
     ),
 )
 

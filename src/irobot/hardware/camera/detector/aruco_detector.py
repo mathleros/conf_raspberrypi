@@ -28,14 +28,10 @@ def estimate_marker_distance_cm(
     oriented_frame_size_px: tuple[int, int] | None = None,
 ) -> float | None:
     """Estimate direct range from pose, assuming centred optics without distortion."""
-    if frame_size_px is None or oriented_frame_size_px is None:
-        settings = load_runtime_settings()
-        if oriented_frame_size_px is None:
-            oriented_frame_size_px = settings.camera_oriented_frame_size_px
-        if frame_size_px is None:
-            frame_size_px = oriented_frame_size_px
-    assert frame_size_px is not None
-    assert oriented_frame_size_px is not None
+    if oriented_frame_size_px is None:
+        oriented_frame_size_px = load_runtime_settings().camera_oriented_frame_size_px
+    if frame_size_px is None:
+        frame_size_px = oriented_frame_size_px
     width, height = frame_size_px
     reference_width, reference_height = oriented_frame_size_px
     if width <= 0 or height <= 0 or reference_width <= 0 or reference_height <= 0:
@@ -157,8 +153,6 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
 
     @staticmethod
     def _load_aruco_api() -> object | None:
-        import cv2
-
         return getattr(cv2, "aruco", None)
 
     def detect(self, frame_rgb: NDArray[np.uint8]) -> ArucoFrameDetection:
@@ -216,10 +210,9 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
             else "right" if center_x > frame_width * 5 / 8
             else "center"
         )
-        left = round(min(x for x, _ in parsed_corners))
-        top = round(min(y for _, y in parsed_corners))
-        right = round(max(x for x, _ in parsed_corners))
-        bottom = round(max(y for _, y in parsed_corners))
+        xs, ys = zip(*parsed_corners)
+        left, top = round(min(xs)), round(min(ys))
+        right, bottom = round(max(xs)), round(max(ys))
         if distance is None:
             logger.warning("Pose ArUco inexploitable ; distance indisponible.")
         return ArucoFrameDetection(

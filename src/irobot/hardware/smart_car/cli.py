@@ -1,7 +1,7 @@
 """Interface en ligne de commande pour piloter une Smart Car."""
 
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 import time
 
 from irobot.config.settings import load_runtime_settings
@@ -128,15 +128,13 @@ def _stop_lgpio_notify_thread() -> None:
     thread = getattr(lgpio, "_notify_thread", None)
     if thread is None:
         return
-    try:
+    with suppress(Exception):  # Nettoyage best-effort à la finalisation de Python.
         thread.stop()
         if Device.pin_factory is not None:
             Device.pin_factory.close()
         # Contournement d'un défaut de lgpio : le thread de notification n'est pas fermé proprement par l'API publique.
         lgpio._notify_close(thread._notify)  # noqa: SLF001
         thread.join(1.0)
-    except Exception:
-        pass
 
 
 def main() -> None:

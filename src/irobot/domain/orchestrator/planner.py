@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from irobot.config.settings import load_runtime_settings
 from irobot.domain.orchestrator.registry import SkillRegistry
@@ -23,7 +23,7 @@ class SkillPlanStep:
 class SkillPlanner:
     """Expands intents into executable steps and resolves their registered skills."""
 
-    INTENT_TO_SKILLS: dict[str, list[str]] = {
+    INTENT_TO_SKILLS: ClassVar[dict[str, list[str]]] = {
         "follow_person": ["follow_object"],
         "follow_red_ball": ["follow_object"],
         "search_and_approach_object": [

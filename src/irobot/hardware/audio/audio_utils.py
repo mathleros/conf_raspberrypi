@@ -8,7 +8,7 @@ CARD_NAME = "wm8960"
 
 def _run_command(args: list[str]) -> str | None:
     try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=10)
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=10, check=False)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None
     if proc.returncode != 0:

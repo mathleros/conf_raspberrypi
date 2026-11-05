@@ -179,6 +179,8 @@ def post_llm_chat(
             if getattr(response, "status_code", 200) == 400 and position < len(candidates) - 1:
                 continue
             break
+        if response is None:
+            raise RuntimeError("Aucun format de réponse LLM disponible")
         response.raise_for_status()
         formats.accept(index)
         data = response.json()

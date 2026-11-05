@@ -13,6 +13,14 @@ class StopMotionSkill(Skill):
         return context.robot is not None
 
     def execute(self, context: SkillContext) -> SkillResult:
+        if context.robot is None:
+            return SkillResult(
+                status="failed",
+                message="Robot indisponible : arrêt impossible",
+                data={"skill": self.name},
+                confidence=0.0,
+                next_action=None,
+            )
         try:
             if hasattr(context.robot, "stop"):
                 context.robot.stop()

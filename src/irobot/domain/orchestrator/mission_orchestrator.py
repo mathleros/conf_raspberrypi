@@ -217,9 +217,9 @@ class MissionOrchestrator:
             if failed:
                 global_status = "aborted" if step_result.get("status") == "aborted" else "incomplete"
                 if global_status == "aborted":
-                    self.state_machine.abort(step_result.get("reason", "aborted"))
+                    self.state_machine.abort(str(step_result.get("reason", "aborted")))
                 else:
-                    self.state_machine.fail(step_result.get("reason", "step failed"))
+                    self.state_machine.fail(str(step_result.get("reason", "step failed")))
             steps.append(step_result)
             if failed:
                 break

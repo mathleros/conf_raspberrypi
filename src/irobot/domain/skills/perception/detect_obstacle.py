@@ -13,6 +13,14 @@ class DetectObstacleSkill(Skill):
         return context.robot is not None
 
     def execute(self, context: SkillContext) -> SkillResult:
+        if context.robot is None:
+            return SkillResult(
+                status="failed",
+                message="Robot indisponible : détection d'obstacle impossible",
+                data={"skill": self.name},
+                confidence=0.0,
+                next_action=None,
+            )
         try:
             obstacle = bool(context.robot.check_obstacle())
             context.state["obstacle_detected"] = obstacle

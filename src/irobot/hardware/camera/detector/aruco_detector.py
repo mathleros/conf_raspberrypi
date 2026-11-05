@@ -107,7 +107,7 @@ class ArucoFrameDetection:
 
 
 class MarkerDetectorBackend(Protocol):
-    def detectMarkers(self, image: object) -> tuple[object, object, object]: ...
+    def detectMarkers(self, image: object) -> tuple[object, object, object]: ...  # noqa: V107
 
 
 class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):

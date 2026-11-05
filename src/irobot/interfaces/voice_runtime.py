@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from irobot.config.settings import RuntimeSettings
@@ -26,6 +27,7 @@ class VoiceRuntime:
         perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
         input_device: str = "auto",
+        transcript_source: Callable[[str], Iterable[str]] | None = None,
         use_llm: bool = True,
         trace_dir: str | None = None,
         threaded: bool = True,
@@ -33,6 +35,7 @@ class VoiceRuntime:
     ):
         self.robot = robot
         self.input_device = input_device
+        self.transcript_source = transcript_source
         self.threaded = threaded
         self._worker: threading.Thread | None = None
         self.last_result: Any = None
@@ -53,12 +56,10 @@ class VoiceRuntime:
     def handle_text_as_plan(self, text: str):
         return self.command_service.handle_text(text)
 
-    def _transcripts(self):
-        # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
-        from irobot.hardware.audio.audio_utils import resolve_input_device
-        from irobot.hardware.audio.voice_input import transcribe_loop
-
-        return transcribe_loop(resolve_input_device(self.input_device))
+    def _transcripts(self) -> Iterable[str]:
+        if self.transcript_source is None:
+            raise RuntimeError("Aucune source de transcription configurée.")
+        return self.transcript_source(self.input_device)
 
     def listen_once(self):
         for text in self._transcripts():

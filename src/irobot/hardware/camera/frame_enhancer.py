@@ -17,7 +17,7 @@ class ExposureCamera(Protocol):
     @property
     def camera_controls(self) -> Mapping[str, object]: ...
 
-    def set_controls(self, controls: dict[str, float]) -> None: ...
+    def set_controls(self, controls: dict[str, float]) -> None: ...  # noqa: V107
 
 
 def configure_exposure(camera: ExposureCamera, settings: RuntimeSettings) -> None:

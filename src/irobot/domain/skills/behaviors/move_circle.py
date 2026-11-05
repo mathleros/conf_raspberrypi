@@ -17,6 +17,14 @@ class MoveCircleSkill(Skill):
         return context.robot is not None
 
     def execute(self, context: SkillContext) -> SkillResult:
+        if context.robot is None:
+            return SkillResult(
+                status="failed",
+                message="Robot indisponible : mouvement circulaire impossible",
+                data={"skill": self.name},
+                confidence=0.0,
+                next_action=None,
+            )
         try:
             if hasattr(context.robot, "left") and hasattr(context.robot, "forward"):
                 context.robot.left()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Iterable
 
 from irobot.config.settings import load_runtime_settings
 from irobot.hardware.runtime_factory import (
@@ -12,6 +13,14 @@ from irobot.hardware.runtime_factory import (
 )
 from irobot.interfaces.intent.llm_intent_parser import LLMWarmup
 from irobot.interfaces.voice_runtime import VoiceRuntime
+
+
+def _microphone_transcripts(input_device: str) -> Iterable[str]:
+    # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
+    from irobot.hardware.audio.audio_utils import resolve_input_device
+    from irobot.hardware.audio.voice_input import transcribe_loop
+
+    return transcribe_loop(resolve_input_device(input_device))
 
 
 def _parse_args() -> argparse.Namespace:
@@ -56,6 +65,7 @@ def main() -> None:
             sensor=hardware["sensor"],
             perception=hardware["camera"],
             input_device=args.input_device,
+            transcript_source=_microphone_transcripts,
             use_llm=not args.no_llm,
             settings=settings,
         )

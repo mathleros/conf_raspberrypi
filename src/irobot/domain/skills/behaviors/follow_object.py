@@ -117,7 +117,12 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             "iterations": iterations,
             "reason": "emergency_stop" if emergency else "obstacle_detected",
         }
-        data = {"obstacle_detected": True, "iterations": iterations, "final_distance_cm": final_distance_cm}
+        data = {
+            "obstacle_detected": True,
+            "iterations": iterations,
+            "final_distance_cm": final_distance_cm,
+            "obstacle_distance_cm": context.state.get("obstacle_distance_cm"),
+        }
         if emergency:
             data["emergency_stop"] = True
         return self._result("success", "Arrêt de sécurité pendant le suivi.", data, 0.99)

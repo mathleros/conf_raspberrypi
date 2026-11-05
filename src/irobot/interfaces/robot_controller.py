@@ -48,6 +48,7 @@ class RobotController:
         self._distance_sensor = distance_sensor
         self._obstacle_threshold_cm = obstacle_threshold_cm
         self._require_obstacle_sensor = bool(require_obstacle_sensor)
+        self.last_obstacle_distance_cm: float | None = None
         self._emergency_event = threading.Event()
 
     @property
@@ -116,6 +117,7 @@ class RobotController:
                 LOGGER.exception("Echec du capteur d'obstacle")
                 return True
             if distance_cm is not None:
+                self.last_obstacle_distance_cm = distance_cm
                 return distance_cm < self._obstacle_threshold_cm
             if attempt < self.SENSOR_READ_ATTEMPTS - 1:
                 self.sleep_fn(self.SENSOR_RETRY_DELAY_S)

@@ -53,6 +53,7 @@ class TargetTrackingMixin:
         except Exception:
             return True
 
+        context.state["obstacle_distance_cm"] = getattr(context.robot, "last_obstacle_distance_cm", None)
         if reading is None:
             return True
         return bool(reading)

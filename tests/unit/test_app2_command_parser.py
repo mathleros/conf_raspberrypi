@@ -16,6 +16,8 @@ def test_single_command_with_spoken_duration():
     assert parse_voice_command("suis moi pendant dix secondes") == Command("follow", "person:Moi", 10.0)
     assert parse_voice_command("avance") == Command("move", "forward", 1.0)
     assert parse_voice_command("cherche la balle rouge") == Command("search", "red_ball", 1.0)
+    assert parse_voice_command("cherche Quentin") == Command("search", "person:Quentin")
+    assert parse_voice_command("approche toi de Quentin") == Command("approach", "person:Quentin")
 
 
 @pytest.mark.parametrize("text", ["", "bonjour", "cherche", "suis"])
@@ -41,6 +43,8 @@ def test_command_validates_vocabulary():
         Command("move", "human")
     with pytest.raises(ValueError):
         Command("follow", "forward")
+    with pytest.raises(ValueError):
+        Command("search", "person:")
     with pytest.raises(ValueError):
         Command("dance", "forward")
     with pytest.raises(ValueError):
@@ -117,6 +121,15 @@ def test_cli_text_builds_a_chain_with_optional_wake_word():
         assert app2._parse_args(["--text", text])[1] == expected
 
 
+def test_cli_text_builds_named_search_and_approach_commands():
+    assert app2._parse_args(["--text", "cherche Quentin"])[1] == [
+        Command("search", "person:Quentin"),
+    ]
+    assert app2._parse_args(["--text", "approche toi de Quentin"])[1] == [
+        Command("approach", "person:Quentin"),
+    ]
+
+
 def test_cli_text_rejects_unknown_or_conflicting_input():
     with pytest.raises(SystemExit):
         app2._parse_args(["--text", "blabla"])
@@ -136,7 +149,14 @@ def test_follow_named_person():
 def test_cli_accepts_person_target():
     _, commands = app2._parse_args(["--behavior", "follow", "--target", "person:Mathieu"])
     assert commands == [Command("follow", "person:Mathieu")]
-    for argv in (["--behavior", "follow", "--target", "person:"], ["--behavior", "search", "--target", "person:Bob"]):
+    for behavior in ("search", "approach", "follow"):
+        _, commands = app2._parse_args(["--behavior", behavior, "--target", "person:Bob"])
+        assert commands == [Command(behavior, "person:Bob")]
+    for argv in (
+        ["--behavior", "follow", "--target", "person:"],
+        ["--behavior", "search", "--target", "person:"],
+        ["--behavior", "move", "--target", "person:Bob"],
+    ):
         with pytest.raises(SystemExit):
             app2._parse_args(argv)
 
@@ -146,5 +166,42 @@ def test_follow_unknown_person_fails_without_starting_the_skill():
     hardware = {"camera": SimpleNamespace(set_face_target=lambda *a: pytest.fail("camera touched")),
                 "gallery": gallery}
     result = app2._run_follow(None, hardware, Command("follow", "person:Bob"))
+    assert result.status == "failed"
+    assert "Personne inconnue : Bob" in result.message
+
+
+def test_approach_named_person_targets_gallery_face_and_clears_it(monkeypatch):
+    embedding = object()
+    camera = SimpleNamespace(calls=[], set_face_target=lambda *args: camera.calls.append(args))
+    gallery = SimpleNamespace(resolve=lambda name: "Quentin", get=lambda name: embedding)
+    hardware = {"robot": None, "sensor": None, "camera": camera, "gallery": gallery}
+    captured = {}
+
+    class _Executor:
+        def __init__(self, context):
+            captured["context"] = context
+
+        def run(self, skill):
+            captured["skill"] = skill
+            return SimpleNamespace(status="success", message="", data={})
+
+    monkeypatch.setattr(app2, "SkillExecutor", _Executor)
+    registry = SimpleNamespace(get=lambda name: name)
+
+    result = app2._run_approach(registry, hardware, Command("approach", "person:quentin"))
+
+    assert result.status == "success"
+    assert camera.calls == [("Quentin", embedding), (None,)]
+    assert captured["context"].perception_target.value == "face"
+    assert captured["context"].state.active_intent_parameters["target_object"] == "human"
+    assert captured["skill"] == "approach_target"
+
+
+def test_approach_unknown_person_fails_without_selecting_face():
+    gallery = SimpleNamespace(resolve=lambda name: None)
+    camera = SimpleNamespace(set_face_target=lambda *args: pytest.fail("camera touched"))
+
+    result = app2._run_approach(None, {"camera": camera, "gallery": gallery}, Command("approach", "person:Bob"))
+
     assert result.status == "failed"
     assert "Personne inconnue : Bob" in result.message

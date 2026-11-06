@@ -42,7 +42,8 @@ _DURATION_UNITS = frozenset({"sec", "secs", "seconde", "secondes", "second", "se
 # Mots qui suivent « suis » sans être un prénom.
 _NAME_STOPWORDS = frozenset({
     "robot", "le", "la", "les", "l", "un", "une", "de", "du", "des", "pendant", "durant", "pour",
-    "balle", "balles", "ball", "marqueur", "marker", "aruco", "tag",
+    "balle", "balles", "ball", "marqueur", "marker", "aruco", "tag", "toi", "moi", "me",
+    "personne", "humain", "humaine", "visage", "face", "human",
 })
 _CHAIN_SEPARATORS = ("puis", "ensuite", "then")
 
@@ -57,7 +58,7 @@ class Command:
         if self.behavior not in BEHAVIORS:
             raise ValueError(f"behavior inconnu : {self.behavior!r} ({', '.join(BEHAVIORS)}).")
         allowed = MOVE_TARGETS if self.behavior == "move" else VISION_TARGETS
-        if self.behavior == "follow" and self.target.startswith(PERSON_PREFIX):
+        if self.behavior != "move" and self.target.startswith(PERSON_PREFIX):
             if not self.target[len(PERSON_PREFIX):].strip():
                 raise ValueError("person: attend un prénom (ex. person:Mathieu).")
         elif self.target not in allowed:
@@ -92,14 +93,16 @@ def _spoken_duration(tokens: list[str]) -> float:
     return DEFAULT_DURATION_S
 
 
-def _spoken_name(tokens: list[str]) -> str | None:
-    """Premier mot après le verbe « suivre » qui n'est ni un nombre, ni une unité, ni un mot vide."""
-    start = next(i for i, token in enumerate(tokens) if _has_stem([token], _BEHAVIOR_STEMS["follow"]))
+def _spoken_name(tokens: list[str], behavior: str) -> str | None:
+    """Premier mot après le verbe qui peut désigner une personne de la galerie."""
+    start = next(i for i, token in enumerate(tokens) if _has_stem([token], _BEHAVIOR_STEMS[behavior]))
     for index in range(start + 1, len(tokens)):
         token = tokens[index]
+        if behavior == "follow" and token in ("moi", "me"):
+            return SELF_NAME
         if token.isdigit() or token in _NAME_STOPWORDS or token in _DURATION_UNITS:
             continue
-        return SELF_NAME if token in ("moi", "me") else token.capitalize()
+        return token.capitalize()
     return None
 
 
@@ -110,10 +113,10 @@ def _parse_tokens(tokens: list[str]) -> Command | None:
     behavior = _first_match(tokens, _BEHAVIOR_STEMS)
     if behavior is not None:
         target = _first_match(tokens, _VISION_WORDS)
-        if target is None and behavior == "follow":
-            name = _spoken_name(tokens)
+        if target is None:
+            name = _spoken_name(tokens, behavior)
             target = None if name is None else PERSON_PREFIX + name
-        elif target is None and "moi" in tokens:
+        if target is None and "moi" in tokens:
             target = "human"
         return Command(behavior, target, duration) if target else None
     target = _first_match(tokens, _MOVE_WORDS)

@@ -92,7 +92,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--target",
         help=f"move : {'|'.join(MOVE_TARGETS)} ; autres : {'|'.join(VISION_TARGETS)} ; "
-        f"follow : {PERSON_PREFIX}<Prénom> (photo assets/face/<Prénom>.jpg).",
+        f"search/approach/follow : {PERSON_PREFIX}<Prénom> (photo assets/face/<Prénom>.jpg).",
     )
     parser.add_argument(
         "--duration", type=float, default=DEFAULT_DURATION_S, help="Durée en secondes (défaut : 1).",
@@ -163,13 +163,33 @@ def _run_move(registry: SkillRegistry, hardware: dict, command: Command) -> Skil
 
 
 def _run_approach(registry: SkillRegistry, hardware: dict, command: Command) -> SkillResult:
+    face_target: str | None = None
+    if command.target.startswith(PERSON_PREFIX):
+        name = command.target[len(PERSON_PREFIX):].strip()
+        gallery: FaceGallery | None = hardware.get("gallery")
+        canonical = gallery.resolve(name) if gallery is not None else None
+        if gallery is None or canonical is None:
+            message = f"Personne inconnue : {name}"
+            print(f"[APP2] {message}", flush=True)
+            return SkillResult(status="failed", message=message)
+        face_target = canonical
+    else:
+        gallery = None
+
+    target = "human" if face_target is not None else command.target
     params = {
-        "target_object": command.target,
+        "target_object": target,
         "tracking_timeout_s": command.duration,
         "search_timeout_s": command.duration,
     }
-    context = _build_context(hardware, command.target, "search_and_approach_object", params)
-    return SkillExecutor(context).run(registry.get("approach_target"))
+    try:
+        if face_target is not None:
+            hardware["camera"].set_face_target(face_target, gallery.get(face_target))
+        context = _build_context(hardware, target, "search_and_approach_object", params)
+        return SkillExecutor(context).run(registry.get("approach_target"))
+    finally:
+        if face_target is not None:
+            hardware["camera"].set_face_target(None)
 
 
 def _run_follow_person(registry: SkillRegistry, hardware: dict, command: Command) -> SkillResult:

@@ -51,7 +51,7 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "camera_clahe_clip_limit": 3.0,
         "camera_exposure_value": 1.0,
         "camera_face_width_cm": 15.0,
-        "camera_face_score_threshold": 0.7,
+        "camera_face_score_threshold": 0.85,
         "camera_face_grace_frames": 10,
         "camera_edge_offset_threshold": 0.6,
         "human_max_age_seconds": 0.2,

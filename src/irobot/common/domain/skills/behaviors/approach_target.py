@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from typing import Any
@@ -11,6 +12,8 @@ from irobot.common.domain.skills.behaviors.target_tracking import (
     Direction,
     TargetTrackingMixin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ApproachTargetSkill(TargetTrackingMixin, Skill):
@@ -240,6 +243,15 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             target_position, distance_cm = self._detect_target(context)
             offset_x = to_float(context.state.get("last_object_offset_x"))
             current = now()
+            logger.info(
+                "Suivi #%d phase=%s position=%s offset_x=%s distance=%s cached=%s",
+                iterations,
+                phase,
+                target_position,
+                offset_x,
+                distance_cm,
+                context.state.get("last_object_cached"),
+            )
 
             if target_position is not None:
                 if phase == self.PHASE_SEARCH:
@@ -262,6 +274,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                     )
 
                 if self._needs_angular_correction(target_position, distance_cm, offset_x, reached_threshold_cm):
+                    logger.info("Suivi #%d décision : alignement %s (%.2f s)", iterations, target_position, align_step_s)
                     self._pulse_motion(context, target_position, align_step_s)
                     context.state["motion"] = f"align_{target_position}"
                     context.state["follow_target_state"] = {
@@ -269,10 +282,9 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                         "direction": target_position,
                         "iterations": iterations,
                     }
-                    self.sleep_fn(self.ALIGN_SETTLE_S)
-                    continue
                 else:
                     step_s = self._forward_step(forward_step_s, distance_cm, stand_off_cm)
+                    logger.info("Suivi #%d décision : avance (%.2f s)", iterations, step_s)
                     self._pulse_motion(context, "forward", step_s)
                     context.state["motion"] = "approach_target"
                     context.state["follow_target_state"] = {
@@ -312,6 +324,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                     searched_for_s=round(current - phase_since, 3),
                 )
 
+            logger.info("Suivi #%d décision : balayage %s (cible non vue)", iterations, sweep_direction)
             self._sweep_step(context, sweep_direction, align_step_s, iterations)
 
         return self._tracking_timeout_result(context, iterations, max_tracking_s)

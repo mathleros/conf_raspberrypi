@@ -1,5 +1,6 @@
 """Détection des balles rouges ou jaunes dans une image."""
 
+import logging
 import math
 from typing import TypedDict
 
@@ -11,6 +12,8 @@ from irobot.common.interfaces.perception_contracts import ObjectDetection
 
 from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
+
+logger = logging.getLogger(__name__)
 
 
 class BallCandidate(TypedDict):
@@ -159,6 +162,10 @@ class ColorDetector(Detector[ObjectDetection]):
         )
         distance = estimate_distance_cm(
             candidate["diameter_px"], self.ball_diameter_cm, self.focal_px,
+        )
+        logger.info(
+            "Balle %s détectée : position=%s, distance=%s cm, diamètre=%.1f px, bbox=%s",
+            self.color_name, position, distance, candidate["diameter_px"], (x, y, width, height),
         )
         return ObjectDetection(
             label=f"{self.color_name}_ball",

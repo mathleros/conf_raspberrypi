@@ -12,6 +12,7 @@ Exemples :
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 import time
 
@@ -243,6 +244,7 @@ def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Comman
 
 
 def main(argv: list[str] | None = None) -> None:
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(asctime)s %(name)s %(message)s")
     args, commands = _parse_args(argv)
     settings: RuntimeSettings = load_runtime_settings()
     hardware = None

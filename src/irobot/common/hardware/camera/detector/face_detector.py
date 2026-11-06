@@ -69,6 +69,10 @@ class FaceDetector(Detector[ObjectDetection]):
             logger.exception("Échec de la détection YuNet ; mémoire du visage effacée.")
             raise
         if detection is not None:
+            logger.info(
+                "Visage détecté : position=%s, distance=%.1f cm, confiance=%.2f, bbox=%s",
+                detection.position, detection.distance_cm, detection.confidence, detection.bbox_px,
+            )
             self._last_detection = detection
             self._lost_frames = 0
             return replace(detection)

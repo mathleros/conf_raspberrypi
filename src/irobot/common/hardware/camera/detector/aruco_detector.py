@@ -216,6 +216,10 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
         right, bottom = round(max(xs)), round(max(ys))
         if distance is None:
             logger.warning("Pose ArUco inexploitable ; distance indisponible.")
+        logger.info(
+            "Marqueur ArUco détecté : id=%s, position=%s, distance=%s cm, bbox=%s",
+            self.expected_id, position, distance, (left, top, right - left, bottom - top),
+        )
         return ArucoFrameDetection(
             ObservationDisposition.VALID,
             identity=self.identity,

@@ -1,3 +1,4 @@
+import logging
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -132,6 +133,30 @@ def test_grace_expires_after_exactly_n_missing_frames(yunet):
     assert detector.bounding_box is None
     assert detector.is_cached is False
     assert detector.detect(frame) is None
+
+
+@pytest.mark.parametrize("grace_frames", [0, 2])
+def test_face_loss_logged_once_after_grace_and_again_after_reacquisition(yunet, caplog, grace_frames):
+    settings, net = yunet
+    detector = FaceDetector(replace(settings, camera_face_grace_frames=grace_frames))
+    frame = np.zeros((640, 480, 3), np.uint8)
+    caplog.set_level(logging.INFO, logger=FaceDetector.__module__)
+    assert detector.detect(frame) is None
+    assert caplog.records == []
+
+    for _ in range(2):
+        net.faces = _faces((180, 20, 100, 100, 0.9))
+        assert detector.detect(frame) is not None
+        caplog.clear()
+        net.faces = None
+        for _ in range(grace_frames):
+            assert detector.detect(frame).cached is True
+        assert caplog.records == []
+        assert detector.detect(frame) is None
+        assert detector.detect(frame) is None
+        assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+            (logging.INFO, f"Visage perdu : délai de grâce épuisé ({grace_frames} images)."),
+        ]
 
 
 def test_low_scores_and_empty_arrays_consume_grace(yunet):

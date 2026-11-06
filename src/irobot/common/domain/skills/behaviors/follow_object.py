@@ -26,6 +26,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     DEFAULT_DURATION_S = 60.0
     DEFAULT_MAX_TARGET_LOSS_S = 3.0
     ALIGN_STEP_S = 0.08
+    ALIGN_SETTLE_S = 0.0
     FORWARD_MIN_S = 0.05
     FORWARD_MAX_S = 0.25
     BACKWARD_MIN_S = 0.05
@@ -223,6 +224,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 self._pulse_motion(context, position, self.ALIGN_STEP_S)
                 context.state["motion"] = f"align_{position}"
                 set_state("aligning", direction=position)
+                self.sleep_fn(self.ALIGN_SETTLE_S)
             elif distance_cm is not None and distance_cm > stand_off_cm + tolerance_cm:
                 self._pulse_motion(
                     context, "forward", self._step(distance_cm - stand_off_cm, self.FORWARD_MIN_S, self.FORWARD_MAX_S),

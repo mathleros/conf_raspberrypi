@@ -64,6 +64,7 @@ class RobotController:
     def _start_motion(self, method: Direction) -> None:
         if self._stop_if_emergency():
             return
+        LOGGER.info("Mouvement : %s", method)
         getattr(self._robot, method)()
         # A stop may arrive while the driver is starting the motion.
         self._stop_if_emergency()

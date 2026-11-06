@@ -11,6 +11,7 @@ capteur.
 from __future__ import annotations
 
 import argparse
+import math
 import threading
 import time
 from collections.abc import Callable
@@ -88,7 +89,8 @@ class HC_SR04:
 
             distance_cm = (elapsed * 34300.0) / 2.0
             if distance_cm > self.max_distance_cm:
-                return None
+                # Écho trop long : rien devant le capteur, ce n'est pas une panne.
+                return math.inf
 
             self._last_distance_cm = distance_cm
             self._last_distance_at = self._time_fn()
@@ -155,6 +157,8 @@ def main() -> None:
         while True:
             distance = sensor.read_distance_cm()
             if distance is None:
+                print("Mesure invalide : capteur sans réponse.")
+            elif math.isinf(distance):
                 print("Aucun objet détecté dans la plage mesurée.")
             else:
                 print(f"Distance détectée : {distance:.2f} cm")

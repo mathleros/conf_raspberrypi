@@ -118,7 +118,8 @@ class RobotController:
                 LOGGER.exception("Echec du capteur d'obstacle")
                 return True
             if distance_cm is not None:
-                self.last_obstacle_distance_cm = distance_cm
+                # inf = rien dans la portée du capteur : pas d'obstacle, distance inconnue.
+                self.last_obstacle_distance_cm = None if math.isinf(distance_cm) else distance_cm
                 return distance_cm < self._obstacle_threshold_cm
             if attempt < self.SENSOR_READ_ATTEMPTS - 1:
                 self.sleep_fn(self.SENSOR_RETRY_DELAY_S)

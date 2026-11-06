@@ -6,8 +6,8 @@ ultrasonore. Les broches sont configurées en numérotation BCM : TRIG sur GPIO 
 et ECHO sur GPIO 27 par défaut.
 
 La classe `HC_SR04` expose `read_distance_cm()`, qui renvoie la distance en
-centimètres ou `None` si aucune mesure valide n'est reçue dans la portée
-configurée (400 cm par défaut). Les lectures sont sérialisées et une mesure
+centimètres, `math.inf` si rien n'est détecté dans la portée configurée (400 cm
+par défaut), ou `None` si le capteur ne répond pas. Les lectures sont sérialisées et une mesure
 valide est réutilisée pendant 50 ms. Appelez `cleanup()` pour libérer les GPIO ;
 le contexte d'utilisation via `try/finally` garantit leur fermeture.
 

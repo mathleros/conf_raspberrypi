@@ -16,6 +16,8 @@ BEHAVIORS = ("move", "search", "approach", "follow")
 MOVE_TARGETS = ("forward", "backward", "left", "right")
 VISION_TARGETS = ("marker", "red_ball", "yellow_ball", "human")
 DEFAULT_DURATION_S = 1.0
+# Une recherche ou un suivi a besoin de plus de temps qu'un mouvement simple.
+DEFAULT_VISION_DURATION_S = 15.0
 DEFAULT_WAKE_WORD = "robot"
 PERSON_PREFIX = "person:"
 SELF_NAME = "Moi"  # « suis moi » suit le visage de Moi.jpg
@@ -81,7 +83,7 @@ def _first_match(tokens: list[str], table: dict[str, tuple[str, ...]]) -> str | 
     return next((name for name, stems in table.items() if _has_stem(tokens, stems)), None)
 
 
-def _spoken_duration(tokens: list[str]) -> float:
+def _spoken_duration(tokens: list[str], default: float) -> float:
     for index, token in enumerate(tokens[:-1]):
         if not token.isdigit():
             continue
@@ -90,7 +92,7 @@ def _spoken_duration(tokens: list[str]) -> float:
             return float(token)
         if unit.startswith("min"):
             return float(token) * 60.0
-    return DEFAULT_DURATION_S
+    return default
 
 
 def _spoken_name(tokens: list[str], behavior: str) -> str | None:
@@ -107,10 +109,11 @@ def _spoken_name(tokens: list[str], behavior: str) -> str | None:
 
 
 def _parse_tokens(tokens: list[str]) -> Command | None:
-    duration = _spoken_duration(tokens)
+    behavior = _first_match(tokens, _BEHAVIOR_STEMS)
+    default = DEFAULT_DURATION_S if behavior is None else DEFAULT_VISION_DURATION_S
+    duration = _spoken_duration(tokens, default)
     if duration <= 0:
         return None
-    behavior = _first_match(tokens, _BEHAVIOR_STEMS)
     if behavior is not None:
         target = _first_match(tokens, _VISION_WORDS)
         if target is None:

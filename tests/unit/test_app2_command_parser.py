@@ -15,9 +15,9 @@ from irobot.app2.command_parser import (
 def test_single_command_with_spoken_duration():
     assert parse_voice_command("suis moi pendant dix secondes") == Command("follow", "person:Moi", 10.0)
     assert parse_voice_command("avance") == Command("move", "forward", 1.0)
-    assert parse_voice_command("cherche la balle rouge") == Command("search", "red_ball", 1.0)
-    assert parse_voice_command("cherche Quentin") == Command("search", "person:Quentin")
-    assert parse_voice_command("approche toi de Quentin") == Command("approach", "person:Quentin")
+    assert parse_voice_command("cherche la balle rouge") == Command("search", "red_ball", 15.0)
+    assert parse_voice_command("cherche Quentin") == Command("search", "person:Quentin", 15.0)
+    assert parse_voice_command("approche toi de Quentin") == Command("approach", "person:Quentin", 15.0)
 
 
 @pytest.mark.parametrize("text", ["", "bonjour", "cherche", "suis"])
@@ -29,7 +29,7 @@ def test_chain_is_split_on_puis():
     assert parse_command_chain("avance deux secondes puis tourne a gauche puis approche la balle jaune") == [
         Command("move", "forward", 2.0),
         Command("move", "left", 1.0),
-        Command("approach", "yellow_ball", 1.0),
+        Command("approach", "yellow_ball", 15.0),
     ]
 
 
@@ -116,17 +116,17 @@ def test_cli_builds_a_validated_command():
 
 
 def test_cli_text_builds_a_chain_with_optional_wake_word():
-    expected = [Command("move", "forward", 2.0), Command("follow", "person:Moi", 1.0)]
+    expected = [Command("move", "forward", 2.0), Command("follow", "person:Moi", 15.0)]
     for text in ("avance deux secondes puis suis moi", "robot avance deux secondes puis suis moi"):
         assert app2._parse_args(["--text", text])[1] == expected
 
 
 def test_cli_text_builds_named_search_and_approach_commands():
     assert app2._parse_args(["--text", "cherche Quentin"])[1] == [
-        Command("search", "person:Quentin"),
+        Command("search", "person:Quentin", 15.0),
     ]
     assert app2._parse_args(["--text", "approche toi de Quentin"])[1] == [
-        Command("approach", "person:Quentin"),
+        Command("approach", "person:Quentin", 15.0),
     ]
 
 
@@ -138,20 +138,20 @@ def test_cli_text_rejects_unknown_or_conflicting_input():
 
 
 def test_follow_named_person():
-    assert parse_voice_command("suis Mathieu") == Command("follow", "person:Mathieu")
+    assert parse_voice_command("suis Mathieu") == Command("follow", "person:Mathieu", 15.0)
     assert parse_voice_command("suis Quentin pendant 5 secondes") == Command("follow", "person:Quentin", 5.0)
-    assert parse_voice_command("suis la balle rouge") == Command("follow", "red_ball")
-    assert parse_voice_command("suis un humain") == Command("follow", "human")
+    assert parse_voice_command("suis la balle rouge") == Command("follow", "red_ball", 15.0)
+    assert parse_voice_command("suis un humain") == Command("follow", "human", 15.0)
     assert parse_voice_command("suis la balle") is None
-    assert parse_voice_command("approche moi") == Command("approach", "human")
+    assert parse_voice_command("approche moi") == Command("approach", "human", 15.0)
 
 
 def test_cli_accepts_person_target():
     _, commands = app2._parse_args(["--behavior", "follow", "--target", "person:Mathieu"])
-    assert commands == [Command("follow", "person:Mathieu")]
+    assert commands == [Command("follow", "person:Mathieu", 15.0)]
     for behavior in ("search", "approach", "follow"):
         _, commands = app2._parse_args(["--behavior", behavior, "--target", "person:Bob"])
-        assert commands == [Command(behavior, "person:Bob")]
+        assert commands == [Command(behavior, "person:Bob", 15.0)]
     for argv in (
         ["--behavior", "follow", "--target", "person:"],
         ["--behavior", "search", "--target", "person:"],

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from irobot.app2.command_parser import (
     BEHAVIORS,
     DEFAULT_DURATION_S,
+    DEFAULT_VISION_DURATION_S,
     DEFAULT_WAKE_WORD,
     MOVE_TARGETS,
     PERSON_PREFIX,
@@ -69,6 +70,7 @@ def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Name
             print(f"[APP2] entendu : « {text} »", flush=True)
             remainder = split_wake_word(text, args.wake_word)
             if remainder is None and not armed:
+                print(f"[APP2] mot d'activation « {args.wake_word} » absent : phrase ignorée.", flush=True)
                 continue
             phrase = remainder if remainder is not None else text
             if not phrase:
@@ -95,7 +97,10 @@ def _build_parser() -> argparse.ArgumentParser:
         f"search/approach/follow : {PERSON_PREFIX}<Prénom> (photo assets/face/<Prénom>.jpg).",
     )
     parser.add_argument(
-        "--duration", type=float, default=DEFAULT_DURATION_S, help="Durée en secondes (défaut : 1).",
+        "--duration",
+        type=float,
+        default=None,
+        help="Durée en secondes (défaut : 1 pour move, 15 pour search/approach/follow).",
     )
     parser.add_argument(
         "--audio",
@@ -136,7 +141,10 @@ def _parse_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list
     if args.behavior is None or args.target is None:
         parser.error("--behavior et --target sont requis (sauf avec --audio ou --text).")
     try:
-        return args, [Command(args.behavior, args.target, args.duration)]
+        duration = args.duration
+        if duration is None:
+            duration = DEFAULT_DURATION_S if args.behavior == "move" else DEFAULT_VISION_DURATION_S
+        return args, [Command(args.behavior, args.target, duration)]
     except ValueError as exc:
         parser.error(str(exc))
 

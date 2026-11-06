@@ -12,6 +12,7 @@ from irobot.common.hardware.camera.detector import (
     ArucoFrameDetection,
     ColorDetector,
     FaceDetector,
+    FaceGallery,
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
@@ -47,6 +48,26 @@ def format_object_status(name: str, detection: ObjectDetection | None, *, cached
     distance = f"{detection.distance_cm:.1f} cm" if detection.distance_cm is not None else "indisponible"
     state = "memorized" if cached else "detected"
     return f"{name}: {state}; {detection.position}; distance={distance}; confidence={detection.confidence:.2f}"
+
+
+def format_face_identity(detection: ObjectDetection | None, *, available: bool) -> str:
+    if not available:
+        return "IDENTITY: unavailable"
+    if detection is None:
+        return "IDENTITY: no face"
+    return f"IDENTITY: {detection.identity or 'unknown'}"
+
+
+def _draw_face_identity(frame, text: str, cv2_api) -> None:
+    import unicodedata
+
+    text = "".join(
+        char for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(char)
+    ).encode("ascii", "replace").decode("ascii")
+    while text and cv2_api.getTextSize(text, cv2_api.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0] > frame.shape[1] - 12:
+        text = text[:-1]
+    cv2_api.putText(frame, text, (12, 150), cv2_api.FONT_HERSHEY_SIMPLEX, 0.55, (255, 200, 0), 2)
 
 
 def _draw_object_status(
@@ -162,12 +183,29 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_runtime_settings()
     enhancer = FrameEnhancer(settings)
     if not args.preview_only:
+        try:
+            gallery = FaceGallery.load(settings)
+        except (FileNotFoundError, cv2.error) as exc:
+            print(
+                f"Reconnaissance des visages indisponible : {exc}. Détection générique maintenue.",
+                file=sys.stderr, flush=True,
+            )
+            gallery = None
+        gallery_names = gallery.names() if gallery is not None else []
+        if gallery_names:
+            print(f"Galerie de visages chargée : {', '.join(gallery_names)}", flush=True)
+        elif gallery is not None:
+            print(
+                f"Reconnaissance des visages indisponible : galerie vide ou inaccessible "
+                f"({settings.camera_face_gallery_dir}). Détection générique maintenue.",
+                file=sys.stderr, flush=True,
+            )
         marker_detector = OpenCVMarkerDetector(
             TEST_MARKER_IDENTITY,
             focal_px=settings.camera_focal_px,
             oriented_frame_size_px=settings.camera_oriented_frame_size_px,
         )
-        faces = FaceDetector(settings)
+        faces = FaceDetector(settings, gallery=gallery if gallery_names else None)
     camera = Picamera2(0)
     started = False
     last_status: tuple | None = None
@@ -203,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
                 balls = detect_balls(rotated_rgb, settings)
                 _draw_detection(display_frame, detection, cv2)
                 statuses = [format_object_status("FACE", face, cached=faces.is_cached)]
+                identity_status = format_face_identity(face, available=bool(gallery_names))
+                statuses.append(identity_status)
                 _draw_object_status(
                     display_frame, "FACE", face, 1, (255, 200, 0), cv2, cached=faces.is_cached,
                 )
@@ -218,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
                     if result:
                         x, y, width, height = result[1]
                         cv2.rectangle(display_frame, (x, y), (x + width, y + height), box_color, 2)
+                _draw_face_identity(display_frame, identity_status, cv2)
                 cv2.imshow("Vision - ArUco / Face / Red / Yellow", display_frame)
 
                 status_key = (detection.disposition, detection.reason, *statuses)

@@ -95,6 +95,59 @@ def _row(x, person, width=100, score=0.9):
 FRAME = np.zeros((480, 640, 3), np.uint8)
 
 
+def test_identify_selects_best_match_and_rejects_unknown():
+    gallery = FaceGallery(
+        {"Mathieu": np.array([1], np.float32), "Quentin": np.array([2], np.float32)},
+        _Embedder(),
+    )
+    assert gallery.identify(FRAME, _row(10, 2)) == "Quentin"
+    assert gallery.identify(FRAME, _row(10, 3)) is None
+    assert FaceGallery({}).identify(FRAME, _row(10, 1)) is None
+    with pytest.raises(RuntimeError, match="sans modèle"):
+        FaceGallery({"Mathieu": np.array([1], np.float32)}).identify(FRAME, _row(10, 1))
+
+
+@pytest.mark.parametrize("scores,expected", [
+    ((0.4, 0.6), "Quentin"),
+    ((0.362, 0.1), None),
+    ((0.363, 0.1), "Mathieu"),
+])
+def test_identify_uses_best_score_and_inclusive_threshold(scores, expected):
+    calls = []
+    embedder = SimpleNamespace(
+        embed=lambda frame, face: calls.append("embed") or np.zeros(1, np.float32),
+        similarity=lambda reference, embedding: scores[int(reference[0])],
+        is_match=lambda score: score >= 0.363,
+    )
+    gallery = FaceGallery(
+        {"Mathieu": np.array([0], np.float32), "Quentin": np.array([1], np.float32)},
+        embedder,
+    )
+    assert gallery.identify(FRAME, _row(10, 1)) == expected
+    assert calls == ["embed"]
+
+
+def test_gallery_identifies_selected_face_and_preserves_only_cached_identity(detector):
+    face_detector, net = detector
+    gallery = FaceGallery(
+        {"Mathieu": np.array([1], np.float32), "Quentin": np.array([2], np.float32)},
+        _Embedder(),
+    )
+    face_detector = FaceDetector(face_detector._settings, gallery=gallery)
+    net.faces = np.array([_row(10, 1, width=200), _row(300, 2, width=80)])
+    first = face_detector.detect(FRAME)
+    assert first.identity == "Mathieu"
+    assert first.diameter_px == 200
+    net.faces = None
+    cached = face_detector.detect(FRAME)
+    assert cached.cached and cached.identity == "Mathieu"
+    assert face_detector.detect(FRAME) is None
+    net.faces = np.array([_row(10, 3, width=200), _row(300, 2, width=80)])
+    assert face_detector.detect(FRAME).identity is None
+    net.faces = np.array([_row(10, 1, width=80), _row(300, 2, width=200)])
+    assert face_detector.detect(FRAME).identity == "Quentin"
+
+
 def test_target_picks_the_right_person_not_the_largest(detector):
     face_detector, net = detector
     net.faces = np.array([_row(10, 1, width=200), _row(300, 2, width=80)])

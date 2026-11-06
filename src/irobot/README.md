@@ -206,6 +206,16 @@ et « tag » routent vers le marqueur ArUco, et « balle » vers les détecteurs
 sur la caméra 0 OV5647, avec affichage X11 et rotation habituelle de 90°.
 Il recherche simultanément l'ID ArUco `DICT_4X4_50 / 1`, le visage sélectionné
 par YuNet et la meilleure balle de chacune des couleurs rouge et jaune.
+Comme pour `app2`, la galerie configurée (par défaut `assets/face/`) est chargée
+au démarrage : chaque photo `.jpg`, `.jpeg` ou `.png` doit contenir un seul
+visage et son nom de fichier fournit le prénom. SFace compare le plus grand
+visage admissible à toutes les photos avec le seuil configuré. Le diagnostic
+affiche `IDENTITY: <prénom>`, `unknown` si aucun score n'atteint le seuil, ou
+`no face` en l'absence de visage. L'identité correspond uniquement au visage
+sélectionné, pas nécessairement à toutes les personnes visibles. Les accents
+sont retirés dans l'aperçu OpenCV, mais conservés dans le terminal.
+Si le modèle SFace ou la galerie est indisponible ou vide, un avertissement et
+`IDENTITY: unavailable` le signalent ; la détection générique continue.
 Le CLAHE n'est appliqué qu'une fois à chaque image avant les trois détecteurs.
 Le visage et les balles ont des rectangles distincts ; le marqueur conserve
 ses quatre coins et sa distance par pose. Les statuts et distances sont affichés

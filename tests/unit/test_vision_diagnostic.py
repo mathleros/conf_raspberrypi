@@ -17,6 +17,7 @@ from irobot.common.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
     format_detection_status,
+    format_face_identity,
 )
 from tests.unit.perception_helpers import camera_target
 
@@ -244,8 +245,32 @@ def test_overlay_shows_current_pose_distance_and_failures():
     ]
 
 
-@pytest.mark.parametrize("inference_error", [False, True])
-def test_main_configures_reference_resolution_and_rotates_without_camera(monkeypatch, capsys, inference_error):
+def test_face_identity_status_distinguishes_unavailable_absent_unknown_and_named():
+    face = ObjectDetection(label="face")
+    assert format_face_identity(None, available=False) == "IDENTITY: unavailable"
+    assert format_face_identity(None, available=True) == "IDENTITY: no face"
+    assert format_face_identity(face, available=True) == "IDENTITY: unknown"
+    face.identity = "Élodie"
+    assert format_face_identity(face, available=True) == "IDENTITY: Élodie"
+
+
+def test_face_identity_overlay_fits_frame_and_removes_accents(monkeypatch):
+    from irobot.common.tools.vision_diagnostic import _draw_face_identity
+
+    texts = []
+    monkeypatch.setattr(cv2, "putText", lambda frame, text, *args: texts.append(text))
+    _draw_face_identity(np.zeros((640, 480, 3), np.uint8), "IDENTITY: Élodie" + "a" * 100, cv2)
+    assert texts[0].startswith("IDENTITY: Elodie")
+    assert cv2.getTextSize(texts[0], cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0] <= 468
+
+
+@pytest.mark.parametrize("inference_error,identity,gallery_state", [
+    (False, "Quentin", "loaded"), (False, None, "loaded"),
+    (False, None, "empty"), (False, None, "error"), (True, None, "loaded"),
+])
+def test_main_configures_reference_resolution_and_rotates_without_camera(
+    monkeypatch, capsys, inference_error, identity, gallery_state,
+):
     from irobot.common.tools import vision_diagnostic
 
     calls = []
@@ -309,7 +334,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
         vision_diagnostic, "OpenCVMarkerDetector",
         create_marker_detector,
     )
-    face = ObjectDetection(label="face", position="left", distance_cm=90, confidence=0.9)
+    face = ObjectDetection(label="face", position="left", distance_cm=90, confidence=0.9, identity=identity)
 
     def detect_face(frame_rgb):
         expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
@@ -320,11 +345,24 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
             raise cv2.error("synthetic diagnostic inference failure")
         return face
 
+    gallery = SimpleNamespace(names=lambda: ["Quentin"] if gallery_state == "loaded" else [])
+
+    def load_gallery(settings):
+        if gallery_state == "error":
+            raise FileNotFoundError("modèle SFace absent")
+        return gallery
+
+    def create_face_detector(settings, *, gallery):
+        assert gallery is (None if gallery_state != "loaded" else expected_gallery)
+        return SimpleNamespace(
+            detect=detect_face, is_cached=True, bounding_box=(20, 150, 100, 110),
+        )
+
+    expected_gallery = gallery
+    monkeypatch.setattr(vision_diagnostic.FaceGallery, "load", load_gallery)
     monkeypatch.setattr(
         vision_diagnostic, "FaceDetector",
-        lambda settings: SimpleNamespace(
-            detect=detect_face, is_cached=True, bounding_box=(20, 150, 100, 110),
-        ),
+        create_face_detector,
     )
     monkeypatch.setattr(cv2, "imshow", lambda name, image: windows.append((name, image.copy())))
     monkeypatch.setattr(cv2, "putText", lambda image, text, *args: texts.append(text))
@@ -341,13 +379,19 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
         return
     assert vision_diagnostic.main([]) == 0
     assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
-    output = capsys.readouterr().out
+    captured = capsys.readouterr()
+    output = captured.out
+    expected_identity = identity or ("unknown" if gallery_state == "loaded" else "unavailable")
     assert "objectif non calibré" in output
     assert "distance=80.0 cm" in output
     assert "FACE: memorized; left; distance=90.0 cm" in output
+    assert f"IDENTITY: {expected_identity}" in output
+    if gallery_state != "loaded":
+        assert "Reconnaissance des visages indisponible" in captured.err
     assert "BALL RED: detected" in output
     assert "BALL YELLOW: detected" in output
-    assert len(texts) == 4
+    assert len(texts) == 5
+    assert texts[-1] == f"IDENTITY: {expected_identity}"
     assert len(boxes) == 3
     assert boxes[0][:2] == ((20, 150), (120, 260))
     assert windows[0][0] == "Vision - ArUco / Face / Red / Yellow"
@@ -400,6 +444,7 @@ def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypat
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
     monkeypatch.setattr(vision_diagnostic, "OpenCVMarkerDetector", lambda *_: pytest.fail("ArUco detector started"))
     monkeypatch.setattr(vision_diagnostic, "FaceDetector", lambda *_: pytest.fail("face detector started"))
+    monkeypatch.setattr(vision_diagnostic.FaceGallery, "load", lambda *_: pytest.fail("gallery started"))
     monkeypatch.setattr(vision_diagnostic, "detect_balls", lambda *_: pytest.fail("ball detector started"))
     monkeypatch.setattr(cv2, "imshow", lambda name, image: windows.append((name, image.copy())))
     monkeypatch.setattr(cv2, "putText", lambda *args: pytest.fail("frame annotated"))

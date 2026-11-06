@@ -14,7 +14,7 @@ from irobot.common.interfaces.perception_contracts import ObjectDetection
 
 from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
-from .face_gallery import FaceEmbedder
+from .face_gallery import FaceEmbedder, FaceGallery
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,12 @@ _TRACK_IOU_MIN = 0.3
 
 
 class FaceDetector(Detector[ObjectDetection]):
-    def __init__(self, settings: RuntimeSettings, *, focal_px: float | None = None) -> None:
+    def __init__(
+        self, settings: RuntimeSettings, *, focal_px: float | None = None,
+        gallery: FaceGallery | None = None,
+    ) -> None:
         self._settings = settings
+        self._gallery = gallery
         self._focal_px = settings.camera_focal_px if focal_px is None else focal_px
         if not math.isfinite(self._focal_px) or self._focal_px <= 0:
             raise ValueError("Face focal_px must be finite and positive")
@@ -93,7 +97,7 @@ class FaceDetector(Detector[ObjectDetection]):
             detection = self._select_face(faces, size, frame_bgr)
         except (cv2.error, ValueError):
             self.reset()
-            logger.exception("Échec de la détection YuNet ; mémoire du visage effacée.")
+            logger.exception("Échec de la détection ou reconnaissance du visage ; mémoire du visage effacée.")
             raise
         if detection is not None:
             logger.info(
@@ -125,7 +129,10 @@ class FaceDetector(Detector[ObjectDetection]):
             best = self._pick_largest_face(faces, size)
         if best is None:
             return None
-        return replace(self._build_detection(best, size), identity=self._target_name)
+        identity = self._target_name
+        if identity is None and self._gallery is not None and frame_bgr is not None:
+            identity = self._gallery.identify(frame_bgr, best)
+        return replace(self._build_detection(best, size), identity=identity)
 
     @staticmethod
     def _validate_faces(faces: NDArray[np.float32]) -> None:

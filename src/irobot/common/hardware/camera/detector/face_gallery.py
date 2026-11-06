@@ -91,6 +91,20 @@ class FaceGallery:
         canonical = self.resolve(name)
         return None if canonical is None else self._embeddings[canonical]
 
+    def identify(self, frame_bgr: NDArray[np.uint8], face: NDArray[np.float32]) -> str | None:
+        """Identifie le visage parmi les photos chargées, avec le seuil SFace configuré."""
+        if not self._embeddings:
+            return None
+        if self.embedder is None:
+            raise RuntimeError("Galerie de visages sans modèle de reconnaissance.")
+        embedding = self.embedder.embed(frame_bgr, face)
+        name, score = max(
+            ((name, self.embedder.similarity(reference, embedding))
+             for name, reference in self._embeddings.items()),
+            key=lambda item: item[1],
+        )
+        return name if self.embedder.is_match(score) else None
+
 
 def _embed_photo(
     path: Path, detector: cv2.FaceDetectorYN, embedder: FaceEmbedder,

@@ -315,6 +315,39 @@ def test_matching_frame_is_cached_including_absence(live_pipeline, present, monk
         reader.join(2)
 
 
+def test_sighting_is_not_lost_when_next_frame_is_empty(live_pipeline, monkeypatch):
+    pipeline, frames, second_capture, wait_started = live_pipeline
+    results = []
+    strategy = camera_target(pipeline, "marker")
+    reader = threading.Thread(target=lambda: results.append(pipeline.detect(target=strategy)))
+    reader.start()
+    try:
+        assert wait_started.wait(2)
+        frames.put(_frame())
+        assert second_capture.wait(2)
+        frames.put(_frame())
+        reader.join(2)
+        assert not reader.is_alive()
+        monkeypatch.setattr(pipeline, "TARGET_FRAME_TIMEOUT_S", 0)
+        for image in (_frame(), np.full((640, 480, 3), 255, np.uint8)):
+            with pipeline._frame_condition:
+                sequence = pipeline._frame_sequence
+                frames.put(image)
+                assert pipeline._frame_condition.wait_for(
+                    lambda: pipeline._frame_sequence > sequence, timeout=2,
+                )
+        assert pipeline._last_detection is None
+        sighting = pipeline.detect(target=strategy)
+        assert sighting is not None
+        assert sighting.cached is False
+        assert pipeline.detect(target=strategy) is None
+    finally:
+        with pipeline._frame_condition:
+            pipeline._stop_event.set()
+            pipeline._frame_condition.notify_all()
+        reader.join(2)
+
+
 @pytest.mark.parametrize("failure", [False, True])
 def test_target_frame_wait_is_released_on_close_or_failure(live_pipeline, failure, caplog):
     pipeline, frames, _, wait_started = live_pipeline

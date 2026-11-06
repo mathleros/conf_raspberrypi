@@ -92,6 +92,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._distance_smoother = ExponentialSmoother(smoothing_alpha)
         self._active_target: PerceptionTarget | None = None
         self._last_detection: ObjectDetection | None = None
+        # Dernière observation positive pas encore livrée : évite de la perdre si l'image suivante est vide.
+        self._pending_detection: ObjectDetection | None = None
         self._requested_target: PerceptionTarget | None = None
         self._lock = threading.Lock()
         self._frame_condition = threading.Condition(self._lock)
@@ -175,6 +177,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     # Une image en vol ne doit pas satisfaire une nouvelle demande de cible.
                     if revision == self._target_revision:
                         self._last_detection = detection
+                        if detection is not None:
+                            self._pending_detection = detection
                         self._frame_revision = revision
                         self._frame_sequence += 1
                     self._frame_condition.notify_all()
@@ -212,6 +216,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             if target is not self._requested_target:
                 self._target_revision += 1
                 self._last_detection = None
+                self._pending_detection = None
             self._requested_target = target
             revision = self._target_revision
             if self._thread.is_alive():
@@ -229,7 +234,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     return None
                 if self._frame_revision != revision:
                     return None
-            detection = self._last_detection
+            detection = self._last_detection or self._pending_detection
+            self._pending_detection = None
             repeated_frame = self._frame_sequence == self._delivered_frame_sequence
             self._delivered_frame_sequence = self._frame_sequence
 

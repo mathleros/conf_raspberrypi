@@ -65,7 +65,10 @@ class FakeClock:
 
 
 class ScriptedPerception:
-    """Renvoie une détection par appel ; None = cible absente. Répète la dernière valeur."""
+    """Renvoie une détection par appel ; None = cible absente. Répète la dernière valeur.
+
+    Une entrée est (position, distance) ou (position, distance, offset_x).
+    """
 
     def __init__(self, script, clock: FakeClock | None = None, on_call=None) -> None:
         self.script = list(script)
@@ -76,8 +79,9 @@ class ScriptedPerception:
         self.calls += 1
         if item is None:
             return None
-        position, distance = item
-        return SimpleNamespace(label=target.value, position=position, distance_cm=distance)
+        position, distance, *rest = item
+        offset_x = rest[0] if rest else None
+        return SimpleNamespace(label=target.value, position=position, distance_cm=distance, offset_x=offset_x)
 
 
 def live_run(script, clock=None, robot=None, **params):
@@ -167,6 +171,25 @@ def test_approach_target_forward_pulses_shorten_near_stand_off():
     assert skill._forward_step(0.12, 400.0, 100.0) == 0.12
     assert skill._forward_step(0.12, None, 100.0) == 0.12
     assert skill._forward_step(0.12, 150.0, 100.0) < 0.12
+
+
+def test_approach_target_turns_only_when_target_out_of_stand_off_band():
+    result, fake, _, _ = live_run([("right", 150.0, 0.1)], max_target_loss_s=0.1, max_tracking_s=0.5, stand_off_cm=100)
+
+    assert "right" in fake.commands
+
+
+def test_approach_target_does_not_turn_when_reached_off_centre():
+    result, fake, _, _ = live_run([("right", 80.0, 0.9)], stand_off_cm=100)
+
+    assert result.data["close_enough"] is True
+    assert not {"left", "right", "forward"} & set(fake.commands)
+
+
+def test_approach_target_turns_when_distance_unknown_and_target_off_centre():
+    result, fake, _, _ = live_run([("left", None, 0.2)], max_target_loss_s=0.1, max_tracking_s=0.5, stand_off_cm=100)
+
+    assert "left" in fake.commands
 
 
 def test_approach_target_live_obstacle_stops_safely():

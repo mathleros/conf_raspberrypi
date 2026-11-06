@@ -5,7 +5,7 @@ Ils sont chargés par `settings.py` au démarrage.
 
 - `[runtime]` : vitesses et délais d’exécution.
 - `[limits]` : bornes des déplacements, durées et plans.
-- `[camera]` : dimensions de capture et d’image orientée, focale pour les
+- `[camera]` : dimensions de capture et d’image orientée, seuil de bord de suivi (`edge_offset_threshold`), focale pour les
   distances, correction d’image et détection de visages.
 - `[human_follow]` : paramètres temporels du suivi humain.
 

@@ -26,7 +26,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     DEFAULT_DURATION_S = 60.0
     DEFAULT_MAX_TARGET_LOSS_S = 3.0
     ALIGN_STEP_S = 0.08
-    EDGE_OFFSET_THRESHOLD = 0.6
     FORWARD_MIN_S = 0.05
     FORWARD_MAX_S = 0.25
     BACKWARD_MIN_S = 0.05
@@ -221,14 +220,13 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 final_distance_cm = distance_cm
 
             # Dans la bande de consigne, on ne tourne que si la cible est proche du bord de l'image.
-            too_far = distance_cm is None or distance_cm > stand_off_cm + tolerance_cm
-            at_edge = offset_x is not None and abs(offset_x) >= self.EDGE_OFFSET_THRESHOLD
-            if position in {"left", "right"} and (too_far or at_edge):
+            band_max_cm = stand_off_cm + tolerance_cm
+            if self._needs_angular_correction(position, distance_cm, offset_x, band_max_cm):
                 sweep_direction = position
                 self._pulse_motion(context, position, self.ALIGN_STEP_S)
                 context.state["motion"] = f"align_{position}"
                 set_state("aligning", direction=position)
-            elif distance_cm is not None and distance_cm > stand_off_cm + tolerance_cm:
+            elif distance_cm is not None and distance_cm > band_max_cm:
                 self._pulse_motion(
                     context, "forward", self._step(distance_cm - stand_off_cm, self.FORWARD_MIN_S, self.FORWARD_MAX_S),
                 )

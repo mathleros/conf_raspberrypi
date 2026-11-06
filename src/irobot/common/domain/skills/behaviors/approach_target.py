@@ -107,6 +107,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             )
 
         target_position, distance_cm = self._detect_target(context)
+        offset_x = to_float(context.state.get("last_object_offset_x"))
         if distance_cm is not None and distance_cm <= reached_threshold_cm:
             context.state["close_enough"] = True
             return self._halt(
@@ -131,25 +132,14 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 next_action="detect_object",
             )
 
-        if target_position == "left":
-            self._pulse_motion(context, "left", align_step_s)
-            context.state["motion"] = "align_left"
-            context.state["follow_target_state"] = {"phase": "aligning", "direction": "left", "iterations": 1}
+        if self._needs_angular_correction(target_position, distance_cm, offset_x, reached_threshold_cm):
+            direction = "left" if target_position == "left" else "right"
+            self._pulse_motion(context, direction, align_step_s)
+            context.state["motion"] = f"align_{direction}"
+            context.state["follow_target_state"] = {"phase": "aligning", "direction": direction, "iterations": 1}
             return SkillResult(
                 status="in_progress",
-                message="Correction angulaire vers la gauche.",
-                data={"target_position": target_position, "obstacle_detected": False},
-                confidence=0.7,
-                next_action="detect_object",
-            )
-
-        if target_position == "right":
-            self._pulse_motion(context, "right", align_step_s)
-            context.state["motion"] = "align_right"
-            context.state["follow_target_state"] = {"phase": "aligning", "direction": "right", "iterations": 1}
-            return SkillResult(
-                status="in_progress",
-                message="Correction angulaire vers la droite.",
+                message=f"Correction angulaire vers la {'gauche' if direction == 'left' else 'droite'}.",
                 data={"target_position": target_position, "obstacle_detected": False},
                 confidence=0.7,
                 next_action="detect_object",
@@ -248,6 +238,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 return halted
 
             target_position, distance_cm = self._detect_target(context)
+            offset_x = to_float(context.state.get("last_object_offset_x"))
             current = now()
 
             if target_position is not None:
@@ -270,7 +261,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                         distance_cm=distance_cm,
                     )
 
-                if target_position in {"left", "right"}:
+                if self._needs_angular_correction(target_position, distance_cm, offset_x, reached_threshold_cm):
                     self._pulse_motion(context, target_position, align_step_s)
                     context.state["motion"] = f"align_{target_position}"
                     context.state["follow_target_state"] = {

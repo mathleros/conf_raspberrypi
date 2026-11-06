@@ -103,6 +103,16 @@ class TargetTrackingMixin:
         }
         self.sleep_fn(self.SEARCH_SETTLE_S)
 
+    def _needs_angular_correction(
+        self, position: str | None, distance_cm: float | None, offset_x: float | None, band_max_cm: float,
+    ) -> bool:
+        """Rotation seulement si la cible est hors consigne (distance inconnue ou > band_max_cm) ou au bord de l'image."""
+        if position not in {"left", "right"}:
+            return False
+        too_far = distance_cm is None or distance_cm > band_max_cm
+        at_edge = offset_x is not None and abs(offset_x) >= self.settings.camera_edge_offset_threshold
+        return too_far or at_edge
+
     def _detect_target(self, context: SkillContext) -> tuple[str | None, float | None]:
         detector = getattr(context.perception, "detect", None)
 

@@ -53,6 +53,7 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "camera_face_width_cm": 15.0,
         "camera_face_score_threshold": 0.7,
         "camera_face_grace_frames": 10,
+        "camera_edge_offset_threshold": 0.6,
         "human_max_age_seconds": 0.2,
         "human_announcement_timeout_seconds": 2.0,
     }
@@ -88,6 +89,8 @@ def test_runtime_loader_rejects_unknown_top_level_and_section_keys(tmp_path, mon
         ("[camera]\nfocal_px = nan\n", "camera_focal_px"),
         ("[camera]\ncapture_size_px = [640, 0]\n", "camera.capture_size_px"),
         ("[camera]\noriented_frame_size_px = [480, true]\n", "camera.oriented_frame_size_px"),
+        ("[camera]\nedge_offset_threshold = 1.5\n", "camera_edge_offset_threshold"),
+        ("[camera]\nedge_offset_threshold = 0\n", "camera_edge_offset_threshold"),
     ],
 )
 def test_runtime_loader_rejects_wrong_toml_types(tmp_path, monkeypatch, toml, error):

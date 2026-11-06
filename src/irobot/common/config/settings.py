@@ -94,6 +94,7 @@ class RuntimeSettings:
     camera_face_width_cm: float = 15.0
     camera_face_score_threshold: float = 0.45
     camera_face_grace_frames: int = 10
+    camera_edge_offset_threshold: float = 0.6
     camera_face_model_path: str = str(
         Path(__file__).resolve().parents[4] / "assets" / "vision" / "face_detection_yunet_2023mar.onnx",
     )
@@ -115,6 +116,12 @@ class RuntimeSettings:
             _require_number(name, getattr(self, name), "a finite positive number", positive=True)
         if self.camera_face_score_threshold > 1:
             raise ValueError("camera_face_score_threshold must be at most 1")
+        _require_number(
+            "camera_edge_offset_threshold", self.camera_edge_offset_threshold, "a finite number in (0, 1]",
+            positive=True,
+        )
+        if self.camera_edge_offset_threshold > 1:
+            raise ValueError("camera_edge_offset_threshold must be at most 1")
         _require_number(
             "camera_face_grace_frames", self.camera_face_grace_frames, "a non-negative integer",
             integer=True, non_negative=True,
@@ -240,7 +247,7 @@ def _load_camera_section(
     table = _table(raw, "camera", {
         "capture_size_px", "oriented_frame_size_px", "ball_diameter_cm", "focal_px", "exposure_value",
         "clahe_enabled", "clahe_clip_limit", "face_model_path", "face_width_cm",
-        "face_score_threshold", "face_grace_frames",
+        "face_score_threshold", "face_grace_frames", "edge_offset_threshold",
     })
     model_path = Path(_string(
         table, "face_model_path", current.camera_face_model_path, "camera_face_model_path",
@@ -264,6 +271,9 @@ def _load_camera_section(
         camera_face_width_cm=_float(table, "face_width_cm", current.camera_face_width_cm, "camera_face_width_cm"),
         camera_face_score_threshold=_float(table, "face_score_threshold", current.camera_face_score_threshold, "camera_face_score_threshold"),
         camera_face_grace_frames=_int(table, "face_grace_frames", current.camera_face_grace_frames, "camera_face_grace_frames"),
+        camera_edge_offset_threshold=_float(
+            table, "edge_offset_threshold", current.camera_edge_offset_threshold, "camera_edge_offset_threshold",
+        ),
         camera_face_model_path=str(model_path),
     )
 

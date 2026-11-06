@@ -263,6 +263,22 @@ def test_holds_in_band_when_target_inside_edge_zone():
     assert context.state["follow_target_state"]["phase"] == "holding"
 
 
+def test_edge_threshold_comes_from_settings():
+    world = World(distance_cm=110.0, bearing="right", offset_x=0.8)
+    context = SkillContext(
+        robot=world,
+        perception=world,
+        perception_target=PerceptionTarget.RED_BALL,
+        state={"active_intent_parameters": {"duration_s": 3}},
+    )
+    skill = FollowObjectSkill(
+        settings=RuntimeSettings(camera_edge_offset_threshold=0.9), time_fn=world.time, sleep_fn=world.sleep,
+    )
+    skill.execute(context)
+
+    assert not MOTIONS & set(world.commands)
+
+
 def test_cached_detection_does_not_steer_robot():
     world = World(distance_cm=164.0, bearing="left", offset_x=-0.8, cached=True)
     run(world, duration_s=1)

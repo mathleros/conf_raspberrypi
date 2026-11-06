@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import requests
 
+from irobot.app.interfaces.intent.llm_intent_parser import warm_up_llm
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
@@ -96,6 +97,9 @@ def _start_llm_if_needed() -> bool:
 def test_voice_runtime_uses_llm_plan_when_available():
     if not _start_llm_if_needed():
         pytest.skip("Aucun LLM local ou modèle GGUF détecté; test d'intégration ignoré.")
+
+    # Préchauffage comme en production (app.py) : sans lui, la première requête dépasse le read timeout (10 s) et le plan retombe sur le parseur local.
+    assert warm_up_llm(), "Préchauffage du LLM en échec."
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)
     result = runtime.handle_text_as_plan("suis la balle rouge")

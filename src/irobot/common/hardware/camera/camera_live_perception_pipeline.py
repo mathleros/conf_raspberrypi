@@ -211,6 +211,14 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
             raise RuntimeError("Le détecteur de la caméra ne gère pas la reconnaissance de visage.")
         setter(name, embedding)
 
+    def release_target(self) -> None:
+        """Arrête la détection live : le thread caméra cesse d'analyser les images."""
+        with self._frame_condition:
+            self._target_revision += 1
+            self._requested_target = None
+            self._last_detection = None
+            self._pending_detection = None
+
     def detect(self, *, target: PerceptionTarget) -> ObjectDetection | None:
         with self._frame_condition:
             if target is not self._requested_target:

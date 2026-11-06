@@ -104,8 +104,11 @@ def test_run_commands_stops_at_first_failure(monkeypatch):
     monkeypatch.setitem(app2.RUNNERS, "move", runner("move", "failed"))
     monkeypatch.setitem(app2.RUNNERS, "follow", runner("follow", "success"))
     commands = [Command("move", "forward"), Command("follow", "human")]
-    assert app2._run_commands(None, {"camera": object()}, commands) is False
+    released = []
+    camera = SimpleNamespace(release_target=lambda: released.append(True))
+    assert app2._run_commands(None, {"camera": camera}, commands) is False
     assert calls == ["move"]
+    assert released == [True]
 
 
 def test_cli_builds_a_validated_command():

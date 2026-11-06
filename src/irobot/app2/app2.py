@@ -236,18 +236,23 @@ RUNNERS = {
 
 def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Command]) -> bool:
     """Exécute les commandes dans l'ordre ; s'arrête à la première qui échoue."""
-    for index, command in enumerate(commands, start=1):
-        label = f"{command.behavior}/{command.target}/{command.duration:g}s"
-        if command.behavior != "move" and hardware["camera"] is None:
-            print(f"[APP2] {label} -> caméra indisponible : perception impossible.", flush=True)
-            return False
-        print(f"[APP2] ({index}/{len(commands)}) {label}", flush=True)
-        result = RUNNERS[command.behavior](registry, hardware, command)
-        print(f"[APP2] {label} -> {result.status} : {result.message}", flush=True)
-        print(f"[APP2] data={result.data}", flush=True)
-        if result.status == "failed":
-            return False
-    return True
+    try:
+        for index, command in enumerate(commands, start=1):
+            label = f"{command.behavior}/{command.target}/{command.duration:g}s"
+            if command.behavior != "move" and hardware["camera"] is None:
+                print(f"[APP2] {label} -> caméra indisponible : perception impossible.", flush=True)
+                return False
+            print(f"[APP2] ({index}/{len(commands)}) {label}", flush=True)
+            result = RUNNERS[command.behavior](registry, hardware, command)
+            print(f"[APP2] {label} -> {result.status} : {result.message}", flush=True)
+            print(f"[APP2] data={result.data}", flush=True)
+            if result.status == "failed":
+                return False
+        return True
+    finally:
+        if hardware["camera"] is not None:
+            hardware["camera"].release_target()
+
 
 
 def _load_gallery(settings: RuntimeSettings) -> FaceGallery | None:

@@ -80,7 +80,7 @@ class FaceDetector(Detector[ObjectDetection]):
             self._lost_frames += 1
             logger.debug("Visage mémorisé : image perdue %d/%d.", self._lost_frames,
                          self._settings.camera_face_grace_frames)
-            return replace(self._last_detection)
+            return replace(self._last_detection, cached=True)
         self._last_detection = None
         self._bounding_box = None
         return None

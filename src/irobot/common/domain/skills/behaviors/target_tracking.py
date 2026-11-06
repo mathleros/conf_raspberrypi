@@ -111,13 +111,19 @@ class TargetTrackingMixin:
             if detection is None:
                 context.state["last_object_position"] = None
                 context.state["last_object_offset_x"] = None
+                context.state["last_object_cached"] = False
                 context.state["last_object_distance_cm"] = None
                 context.state["last_ball_position"] = None
             else:
                 context.state["target_object"] = getattr(detection, "label", None)
                 context.state["last_object_position"] = getattr(detection, "position", None)
                 context.state["last_object_offset_x"] = getattr(detection, "offset_x", None)
+                context.state["last_object_cached"] = bool(getattr(detection, "cached", False))
                 context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
+
+        # Une détection mémorisée ne doit pas piloter le robot : la cible est considérée non vue.
+        if context.state.get("last_object_cached"):
+            return None, None
 
         raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")
         position = self._normalize_position(raw_position)

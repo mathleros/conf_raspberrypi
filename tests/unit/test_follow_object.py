@@ -16,7 +16,7 @@ from tests.unit.fake_robot import FakeRobot
 class World(FakeRobot):
     """Robot + perception simulés avec horloge : la balle bouge selon les impulsions."""
 
-    def __init__(self, distance_cm=100.0, drift_cm_s=0.0, hidden=None, bearing="center", offset_x=0.0):
+    def __init__(self, distance_cm=100.0, drift_cm_s=0.0, hidden=None, bearing="center", offset_x=0.0, cached=False):
         super().__init__()
         self.now = 0.0
         self.distance_cm = distance_cm
@@ -24,6 +24,7 @@ class World(FakeRobot):
         self.hidden = hidden or (0.0, 0.0)
         self.bearing = bearing
         self.offset_x = offset_x
+        self.cached = cached
         self.emergency = False
         self.detect_error: Exception | None = None
 
@@ -64,7 +65,7 @@ class World(FakeRobot):
             return None
         return SimpleNamespace(
             label=target.value, position=self.bearing, distance_cm=self.distance_cm,
-            offset_x=self.offset_x,
+            offset_x=self.offset_x, cached=self.cached,
         )
 
 
@@ -260,3 +261,10 @@ def test_holds_in_band_when_target_inside_edge_zone():
 
     assert not MOTIONS & set(world.commands)
     assert context.state["follow_target_state"]["phase"] == "holding"
+
+
+def test_cached_detection_does_not_steer_robot():
+    world = World(distance_cm=164.0, bearing="left", offset_x=-0.8, cached=True)
+    run(world, duration_s=1)
+
+    assert not {"left", "right", "forward"} & set(world.commands)

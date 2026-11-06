@@ -124,10 +124,10 @@ def test_grace_expires_after_exactly_n_missing_frames(yunet):
     assert detector.bounding_box == (180, 20, 100, 100)
     assert detector.is_cached is False
     net.faces = None
-    assert detector.detect(frame) == first
+    assert detector.detect(frame) == replace(first, cached=True)
     assert detector.bounding_box == (180, 20, 100, 100)
     assert detector.is_cached is True
-    assert detector.detect(frame) == first
+    assert detector.detect(frame) == replace(first, cached=True)
     assert detector.detect(frame) is None
     assert detector.bounding_box is None
     assert detector.is_cached is False
@@ -141,9 +141,9 @@ def test_low_scores_and_empty_arrays_consume_grace(yunet):
     net.faces = _faces((180, 20, 100, 100, 0.9))
     first = detector.detect(frame)
     net.faces = _faces((180, 20, 100, 100, 0.3))
-    assert detector.detect(frame) == first
+    assert detector.detect(frame) == replace(first, cached=True)
     net.faces = np.empty((0, 15), np.float32)
-    assert detector.detect(frame) == first
+    assert detector.detect(frame) == replace(first, cached=True)
     assert detector.detect(frame) is None
 
 
@@ -161,8 +161,8 @@ def test_reacquisition_restarts_grace_and_results_cannot_mutate_memory(yunet):
     assert second.position == "left"
     assert second.distance_cm == 180
     net.faces = None
-    assert detector.detect(frame) == second
-    assert detector.detect(frame) == second
+    assert detector.detect(frame) == replace(second, cached=True)
+    assert detector.detect(frame) == replace(second, cached=True)
     assert detector.detect(frame) is None
 
 

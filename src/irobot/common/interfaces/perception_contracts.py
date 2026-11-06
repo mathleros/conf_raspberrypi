@@ -27,6 +27,7 @@ class ObjectDetection:
     diameter_px: float | None = None
     distance_visual_cm: float | None = None
     bbox_px: tuple[int, int, int, int] | None = None
+    cached: bool = False  # True : détection mémorisée, cible non vue à cette image
 
 
 class ObjectPerceptionPipeline(Protocol):

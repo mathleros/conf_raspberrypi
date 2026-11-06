@@ -5,13 +5,16 @@ Exemples :
     python -m irobot.app2 --behavior search --target marker --duration 10
     python -m irobot.app2 --behavior approach --target red_ball --duration 8
     python -m irobot.app2 --behavior follow --target human --duration 20
+    python -m irobot.app2 --audio        # ex. « suis moi pendant vingt secondes »
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import time
+import unicodedata
 
 from irobot.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.domain.orchestrator.executor import SkillExecutor
@@ -43,18 +46,120 @@ SEARCH_STEP_S = 0.08
 SEARCH_SETTLE_S = 0.15
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+DEFAULT_DURATION_S = 1.0
+
+# Mots-clés (sans accents) reconnus dans la transcription Vosk française.
+_BEHAVIOR_STEMS = {
+    "search": ("cherch", "trouv", "search", "find"),
+    "approach": ("approch", "rapproch", "rejoin", "approach"),
+    "follow": ("suis", "suit", "suiv", "poursu", "follow"),
+}
+_MOVE_WORDS = {
+    "forward": ("avanc", "avant", "forward"),
+    "backward": ("recul", "arriere", "backward"),
+    "left": ("gauche", "left"),
+    "right": ("droite", "right"),
+}
+_VISION_WORDS = {
+    "red_ball": ("rouge", "red"),
+    "yellow_ball": ("jaune", "yellow"),
+    "marker": ("marqueur", "marker", "aruco", "tag"),
+    "human": ("humain", "personne", "visage", "human", "moi"),
+}
+
+
+def _normalize_speech(text: str) -> list[str]:
+    from irobot.interfaces.text_normalizer import fr_numbers_to_digits
+
+    lowered = unicodedata.normalize("NFD", text.lower())
+    stripped = "".join(ch for ch in lowered if unicodedata.category(ch) != "Mn")
+    return re.findall(r"[a-z0-9]+", fr_numbers_to_digits(stripped))
+
+
+def _has_stem(tokens: list[str], stems: tuple[str, ...]) -> bool:
+    return any(token.startswith(stem) for token in tokens for stem in stems)
+
+
+def _first_match(tokens: list[str], table: dict[str, tuple[str, ...]]) -> str | None:
+    return next((name for name, stems in table.items() if _has_stem(tokens, stems)), None)
+
+
+def _spoken_duration(tokens: list[str]) -> float:
+    for index, token in enumerate(tokens[:-1]):
+        if not token.isdigit():
+            continue
+        unit = tokens[index + 1]
+        if unit.startswith("sec"):
+            return float(token)
+        if unit.startswith("min"):
+            return float(token) * 60.0
+    return DEFAULT_DURATION_S
+
+
+def parse_voice_command(text: str) -> tuple[str, str, float] | None:
+    """Transforme une phrase en (behavior, target, duration) ; None si incomplète ou ambiguë."""
+    tokens = _normalize_speech(text)
+    duration = _spoken_duration(tokens)
+    behavior = _first_match(tokens, _BEHAVIOR_STEMS)
+    if behavior is not None:
+        target = _first_match(tokens, _VISION_WORDS)
+        return (behavior, target, duration) if target else None
+    target = _first_match(tokens, _MOVE_WORDS)
+    return ("move", target, duration) if target else None
+
+
+def _listen_for_command(input_device: str) -> tuple[str, str, float]:
+    # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
+    from irobot.hardware.audio.audio_utils import resolve_input_device
+    from irobot.hardware.audio.voice_input import transcribe_loop
+
+    transcripts = transcribe_loop(resolve_input_device(input_device))
+    try:
+        for text in transcripts:
+            print(f"[APP2] entendu : « {text} »", flush=True)
+            command = parse_voice_command(text)
+            if command is not None:
+                return command
+            print("[APP2] commande non comprise, j'écoute encore (Ctrl+C pour quitter).", flush=True)
+    finally:
+        transcripts.close()
+    raise RuntimeError("Flux audio terminé sans commande exploitable.")
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Test direct des skills : hardware + detectors, sans LLM.")
-    parser.add_argument("--behavior", required=True, choices=BEHAVIORS)
+    parser.add_argument("--behavior", choices=BEHAVIORS)
     parser.add_argument(
         "--target",
-        required=True,
         choices=[*MOVE_TARGETS, *VISION_TARGETS],
         help="move : forward|backward|left|right ; autres : marker|red_ball|yellow_ball|human.",
     )
-    parser.add_argument("--duration", type=float, default=1.0, help="Durée en secondes (défaut : 1).")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--duration", type=float, default=DEFAULT_DURATION_S, help="Durée en secondes (défaut : 1).",
+    )
+    parser.add_argument(
+        "--audio",
+        action="store_true",
+        help="Écoute une commande vocale (ex. « suis moi pendant dix secondes ») et remplit "
+        "behavior, target et duration ; ces trois options sont alors ignorées.",
+    )
+    parser.add_argument(
+        "--input-device",
+        default="auto",
+        choices=["auto", "bluetooth", "wm8960", "default"],
+        help="Source audio utilisée avec --audio.",
+    )
+    return parser
 
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.audio:
+        return args
+
+    if args.behavior is None or args.target is None:
+        parser.error("--behavior et --target sont requis (sauf avec --audio).")
     if args.duration <= 0:
         parser.error("--duration doit être > 0.")
     if args.behavior == "move" and args.target not in MOVE_TARGETS:
@@ -155,6 +260,9 @@ def main(argv: list[str] | None = None) -> None:
     settings: RuntimeSettings = load_runtime_settings()
     hardware = None
     try:
+        if args.audio:
+            args.behavior, args.target, args.duration = _listen_for_command(args.input_device)
+            print(f"[APP2] commande : {args.behavior} / {args.target} / {args.duration:g} s", flush=True)
         hardware = build_hardware_runtime(settings=settings)
         if hardware["robot"] is None:
             raise RuntimeError("Hardware indisponible (Raspberry Pi/Linux requis).")

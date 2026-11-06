@@ -282,6 +282,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                         "direction": target_position,
                         "iterations": iterations,
                     }
+                    self.sleep_fn(self.ALIGN_SETTLE_S)
                 else:
                     step_s = self._forward_step(forward_step_s, distance_cm, stand_off_cm)
                     logger.info("Suivi #%d décision : avance (%.2f s)", iterations, step_s)

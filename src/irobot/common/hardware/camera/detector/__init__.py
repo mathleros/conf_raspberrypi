@@ -11,6 +11,7 @@ from .aruco_detector import (
 from .base_detector import Detector
 from .color_detector import ColorDetector
 from .face_detector import FaceDetector
+from .face_gallery import FaceGallery
 
 __all__ = [
     "MARKER_SIDE_CM",
@@ -18,6 +19,7 @@ __all__ = [
     "ColorDetector",
     "Detector",
     "FaceDetector",
+    "FaceGallery",
     "MarkerDetectorBackend",
     "ObservationDisposition",
     "OpenCVMarkerDetector",

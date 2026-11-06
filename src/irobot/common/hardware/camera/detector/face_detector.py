@@ -1,4 +1,4 @@
-"""YuNet face detection on already enhanced RGB frames; no identity recognition."""
+"""YuNet face detection on already enhanced RGB frames; optional SFace identity filter."""
 
 import logging
 import math
@@ -14,12 +14,14 @@ from irobot.common.interfaces.perception_contracts import ObjectDetection
 
 from .base_detector import Detector
 from .distance_estimator import estimate_distance_cm
+from .face_gallery import FaceEmbedder
 
 logger = logging.getLogger(__name__)
 
 _POSITION_REFERENCE_WIDTH = 480
 _POSITION_LEFT_MAX = 160
 _POSITION_RIGHT_MIN = 320
+_TRACK_IOU_MIN = 0.3
 
 
 class FaceDetector(Detector[ObjectDetection]):
@@ -40,6 +42,27 @@ class FaceDetector(Detector[ObjectDetection]):
         self._lost_frames = 0
         self._frame_size: tuple[int, int] | None = None
         self._bounding_box: tuple[float, float, float, float] | None = None
+        self._embedder: FaceEmbedder | None = None
+        self._target_name: str | None = None
+        self._target_embedding: NDArray[np.float32] | None = None
+        self._pending_target: tuple[str | None, NDArray[np.float32] | None] | None = None
+        self._tracked_box: tuple[float, float, float, float] | None = None
+        self._frames_since_recognition = 0
+
+    def set_target(self, name: str | None, embedding: NDArray[np.float32] | None = None) -> None:
+        """Suit uniquement la personne `name` ; `None` rétablit le suivi du plus grand visage."""
+        if (name is None) != (embedding is None):
+            raise ValueError("Face target needs both a name and an embedding, or neither")
+        self._pending_target = (name, embedding)
+
+    def _apply_pending_target(self) -> None:
+        if self._pending_target is None:
+            return
+        self._target_name, self._target_embedding = self._pending_target
+        self._pending_target = None
+        if self._target_embedding is not None and self._embedder is None:
+            self._embedder = FaceEmbedder(self._settings)
+        self.reset()
 
     @property
     def bounding_box(self) -> tuple[float, float, float, float] | None:
@@ -54,16 +77,20 @@ class FaceDetector(Detector[ObjectDetection]):
         self._lost_frames = 0
         self._frame_size = None
         self._bounding_box = None
+        self._tracked_box = None
+        self._frames_since_recognition = 0
 
     def detect(self, frame_rgb: NDArray[np.uint8]) -> ObjectDetection | None:
+        self._apply_pending_target()
         size = (frame_rgb.shape[1], frame_rgb.shape[0])
         if size != self._frame_size:
             self.reset()
             self._frame_size = size
         try:
             self._net.setInputSize(size)
-            _, faces = self._net.detect(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR))
-            detection = self._select_face(faces, size)
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            _, faces = self._net.detect(frame_bgr)
+            detection = self._select_face(faces, size, frame_bgr)
         except (cv2.error, ValueError):
             self.reset()
             logger.exception("Échec de la détection YuNet ; mémoire du visage effacée.")
@@ -87,12 +114,18 @@ class FaceDetector(Detector[ObjectDetection]):
 
     def _select_face(
         self, faces: NDArray[np.float32] | None, size: tuple[int, int],
+        frame_bgr: NDArray[np.uint8] | None = None,
     ) -> ObjectDetection | None:
         if faces is None or faces.size == 0:
             return None
         self._validate_faces(faces)
-        best = self._pick_largest_face(faces, size)
-        return None if best is None else self._build_detection(best, size)
+        if self._target_embedding is not None and frame_bgr is not None:
+            best = self._pick_target_face(faces, size, frame_bgr)
+        else:
+            best = self._pick_largest_face(faces, size)
+        if best is None:
+            return None
+        return replace(self._build_detection(best, size), identity=self._target_name)
 
     @staticmethod
     def _validate_faces(faces: NDArray[np.float32]) -> None:
@@ -101,11 +134,42 @@ class FaceDetector(Detector[ObjectDetection]):
         if (faces[:, 2] <= 0).any() or (faces[:, 3] <= 0).any() or ((faces[:, -1] < 0) | (faces[:, -1] > 1)).any():
             raise ValueError("YuNet returned invalid face geometry or confidence")
 
-    def _pick_largest_face(
-        self, faces: NDArray[np.float32], size: tuple[int, int],
+    def _pick_target_face(
+        self, faces: NDArray[np.float32], size: tuple[int, int], frame_bgr: NDArray[np.uint8],
     ) -> NDArray[np.float32] | None:
+        """Reconnaît la cible toutes les N images ; entre-temps, suit sa boîte par IoU."""
+        candidates = self._eligible_faces(faces, size)
+        if not candidates:
+            self._tracked_box = None
+            return None
+        self._frames_since_recognition += 1
+        if self._tracked_box is not None and self._frames_since_recognition < self._settings.camera_face_recognition_every_n:
+            tracked = max(candidates, key=lambda face: _iou(tuple(map(float, face[:4])), self._tracked_box))
+            if _iou(tuple(map(float, tracked[:4])), self._tracked_box) >= _TRACK_IOU_MIN:
+                self._tracked_box = tuple(map(float, tracked[:4]))
+                return tracked
+        return self._recognize_target(candidates, frame_bgr)
+
+    def _recognize_target(
+        self, candidates: list[NDArray[np.float32]], frame_bgr: NDArray[np.uint8],
+    ) -> NDArray[np.float32] | None:
+        self._frames_since_recognition = 0
+        best, best_score = None, -1.0
+        for face in candidates:
+            score = self._embedder.similarity(self._target_embedding, self._embedder.embed(frame_bgr, face))
+            if score > best_score:
+                best, best_score = face, score
+        if best is None or not self._embedder.is_match(best_score):
+            self._tracked_box = None
+            return None
+        self._tracked_box = tuple(map(float, best[:4]))
+        return best
+
+    def _eligible_faces(
+        self, faces: NDArray[np.float32], size: tuple[int, int],
+    ) -> list[NDArray[np.float32]]:
         threshold = float(np.float32(self._settings.camera_face_score_threshold))
-        best = None
+        eligible = []
         for face in faces:
             x, y, width, height = map(float, face[:4])
             if float(face[-1]) < threshold:
@@ -113,7 +177,15 @@ class FaceDetector(Detector[ObjectDetection]):
             if x + width <= 0 or y + height <= 0 or x >= size[0] or y >= size[1]:
                 logger.warning("Visage YuNet hors image ignoré.")
                 continue
-            if best is None or width > float(best[2]):
+            eligible.append(face)
+        return eligible
+
+    def _pick_largest_face(
+        self, faces: NDArray[np.float32], size: tuple[int, int],
+    ) -> NDArray[np.float32] | None:
+        best = None
+        for face in self._eligible_faces(faces, size):
+            if best is None or float(face[2]) > float(best[2]):
                 best = face
         return best
 
@@ -138,3 +210,14 @@ def _position_from_center_x(center_x: float) -> str:
     if center_x < _POSITION_LEFT_MAX:
         return "left"
     return "right" if center_x > _POSITION_RIGHT_MIN else "center"
+
+
+def _iou(first: tuple[float, ...], second: tuple[float, ...]) -> float:
+    ax, ay, aw, ah = first
+    bx, by, bw, bh = second
+    inter_w = min(ax + aw, bx + bw) - max(ax, bx)
+    inter_h = min(ay + ah, by + bh) - max(ay, by)
+    if inter_w <= 0 or inter_h <= 0:
+        return 0.0
+    inter = inter_w * inter_h
+    return inter / (aw * ah + bw * bh - inter)

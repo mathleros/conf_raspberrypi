@@ -61,6 +61,11 @@ class CameraTargetDetector:
             return self._face_detector.detect(frame_rgb)
         raise ValueError(f"Unsupported perception target: {target!r}")
 
+    def set_face_target(self, name: str | None, embedding: NDArray[np.float32] | None = None) -> None:
+        if self._face_detector is None:
+            self._face_detector = FaceDetector(self._settings, focal_px=self._focal_px)
+        self._face_detector.set_target(name, embedding)
+
     def reset(self, target: PerceptionTarget) -> None:
         if target is PerceptionTarget.FACE and self._face_detector is not None:
             self._face_detector.reset()

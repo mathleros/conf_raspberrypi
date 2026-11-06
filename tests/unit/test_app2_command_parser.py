@@ -13,7 +13,7 @@ from irobot.app2.command_parser import (
 
 
 def test_single_command_with_spoken_duration():
-    assert parse_voice_command("suis moi pendant dix secondes") == Command("follow", "human", 10.0)
+    assert parse_voice_command("suis moi pendant dix secondes") == Command("follow", "person:Moi", 10.0)
     assert parse_voice_command("avance") == Command("move", "forward", 1.0)
     assert parse_voice_command("cherche la balle rouge") == Command("search", "red_ball", 1.0)
 
@@ -83,7 +83,7 @@ def test_listen_loop_requires_wake_word_then_runs_chain(monkeypatch):
         app2._listen_and_run(None, {}, _args())
     assert executed == [
         [Command("move", "backward"), Command("move", "right")],
-        [Command("follow", "human", 10.0)],
+        [Command("follow", "person:Moi", 10.0)],
     ]
 
 
@@ -112,7 +112,7 @@ def test_cli_builds_a_validated_command():
 
 
 def test_cli_text_builds_a_chain_with_optional_wake_word():
-    expected = [Command("move", "forward", 2.0), Command("follow", "human", 1.0)]
+    expected = [Command("move", "forward", 2.0), Command("follow", "person:Moi", 1.0)]
     for text in ("avance deux secondes puis suis moi", "robot avance deux secondes puis suis moi"):
         assert app2._parse_args(["--text", text])[1] == expected
 
@@ -122,3 +122,29 @@ def test_cli_text_rejects_unknown_or_conflicting_input():
         app2._parse_args(["--text", "blabla"])
     with pytest.raises(SystemExit):
         app2._parse_args(["--text", "avance", "--audio"])
+
+
+def test_follow_named_person():
+    assert parse_voice_command("suis Mathieu") == Command("follow", "person:Mathieu")
+    assert parse_voice_command("suis Quentin pendant 5 secondes") == Command("follow", "person:Quentin", 5.0)
+    assert parse_voice_command("suis la balle rouge") == Command("follow", "red_ball")
+    assert parse_voice_command("suis un humain") == Command("follow", "human")
+    assert parse_voice_command("suis la balle") is None
+    assert parse_voice_command("approche moi") == Command("approach", "human")
+
+
+def test_cli_accepts_person_target():
+    _, commands = app2._parse_args(["--behavior", "follow", "--target", "person:Mathieu"])
+    assert commands == [Command("follow", "person:Mathieu")]
+    for argv in (["--behavior", "follow", "--target", "person:"], ["--behavior", "search", "--target", "person:Bob"]):
+        with pytest.raises(SystemExit):
+            app2._parse_args(argv)
+
+
+def test_follow_unknown_person_fails_without_starting_the_skill():
+    gallery = SimpleNamespace(resolve=lambda name: None)
+    hardware = {"camera": SimpleNamespace(set_face_target=lambda *a: pytest.fail("camera touched")),
+                "gallery": gallery}
+    result = app2._run_follow(None, hardware, Command("follow", "person:Bob"))
+    assert result.status == "failed"
+    assert "Personne inconnue : Bob" in result.message

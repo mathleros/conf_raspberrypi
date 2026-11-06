@@ -28,6 +28,7 @@ class ObjectDetection:
     distance_visual_cm: float | None = None
     bbox_px: tuple[int, int, int, int] | None = None
     cached: bool = False  # True : détection mémorisée, cible non vue à cette image
+    identity: str | None = None  # prénom reconnu (visage), None si non identifié
 
 
 class ObjectPerceptionPipeline(Protocol):

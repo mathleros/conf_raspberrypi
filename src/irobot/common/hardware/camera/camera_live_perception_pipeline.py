@@ -197,6 +197,13 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 except Exception:
                     logger.exception("Échec de la fermeture de la caméra.")
 
+    def set_face_target(self, name: str | None, embedding: NDArray[np.float32] | None = None) -> None:
+        """Restreint la détection de visage à une personne connue (`None` : tout visage)."""
+        setter = getattr(self._detector, "set_face_target", None)
+        if setter is None:
+            raise RuntimeError("Le détecteur de la caméra ne gère pas la reconnaissance de visage.")
+        setter(name, embedding)
+
     def detect(self, *, target: PerceptionTarget) -> ObjectDetection | None:
         with self._frame_condition:
             if target is not self._requested_target:

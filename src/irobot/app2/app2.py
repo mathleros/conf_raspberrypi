@@ -5,6 +5,7 @@ Exemples :
     python -m irobot.app2.app2 --behavior search --target marker --duration 10
     python -m irobot.app2.app2 --behavior approach --target red_ball --duration 8
     python -m irobot.app2.app2 --behavior follow --target human --duration 20
+    python -m irobot.app2.app2 --behavior follow --target person:Mathieu --duration 20   # assets/face/Mathieu.jpg
     python -m irobot.app2.app2 --text "avance deux secondes puis suis moi"   # sans micro
     python -m irobot.app2.app2 --audio        # écoute en continu : « robot, avance puis suis moi »
 """
@@ -14,12 +15,14 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from typing import TYPE_CHECKING
 
 from irobot.app2.command_parser import (
     BEHAVIORS,
     DEFAULT_DURATION_S,
     DEFAULT_WAKE_WORD,
     MOVE_TARGETS,
+    PERSON_PREFIX,
     VISION_TARGETS,
     Command,
     parse_command_chain,
@@ -35,6 +38,9 @@ from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
 )
+
+if TYPE_CHECKING:
+    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
 
 MOVE_SKILLS = {
     "forward": "move_forward",
@@ -85,8 +91,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--behavior", choices=BEHAVIORS)
     parser.add_argument(
         "--target",
-        choices=[*MOVE_TARGETS, *VISION_TARGETS],
-        help="move : forward|backward|left|right ; autres : marker|red_ball|yellow_ball|human.",
+        help=f"move : {'|'.join(MOVE_TARGETS)} ; autres : {'|'.join(VISION_TARGETS)} ; "
+        f"follow : {PERSON_PREFIX}<Prénom> (photo assets/face/<Prénom>.jpg).",
     )
     parser.add_argument(
         "--duration", type=float, default=DEFAULT_DURATION_S, help="Durée en secondes (défaut : 1).",
@@ -166,7 +172,26 @@ def _run_approach(registry: SkillRegistry, hardware: dict, command: Command) -> 
     return SkillExecutor(context).run(registry.get("approach_target"))
 
 
+def _run_follow_person(registry: SkillRegistry, hardware: dict, command: Command) -> SkillResult:
+    name = command.target[len(PERSON_PREFIX):].strip()
+    gallery: FaceGallery | None = hardware.get("gallery")
+    canonical = gallery.resolve(name) if gallery is not None else None
+    if canonical is None:
+        message = f"Personne inconnue : {name}"
+        print(f"[APP2] {message}", flush=True)
+        return SkillResult(status="failed", message=message)
+    params = {"target_object": "human", "duration_s": command.duration}
+    context = _build_context(hardware, "human", "follow_person", params)
+    hardware["camera"].set_face_target(canonical, gallery.get(canonical))
+    try:
+        return SkillExecutor(context).run(registry.get("follow_object"))
+    finally:
+        hardware["camera"].set_face_target(None)
+
+
 def _run_follow(registry: SkillRegistry, hardware: dict, command: Command) -> SkillResult:
+    if command.target.startswith(PERSON_PREFIX):
+        return _run_follow_person(registry, hardware, command)
     params = {"target_object": command.target, "duration_s": command.duration}
     intent_name = FOLLOW_INTENT_BY_TARGET.get(command.target, "follow_object")
     context = _build_context(hardware, command.target, intent_name, params)
@@ -197,6 +222,19 @@ def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Comman
     return True
 
 
+def _load_gallery(settings: RuntimeSettings) -> FaceGallery | None:
+    # Import paresseux : OpenCV n'est requis que sur le robot.
+    import cv2
+
+    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
+
+    try:
+        return FaceGallery.load(settings)
+    except (FileNotFoundError, cv2.error) as exc:
+        print(f"[APP2] galerie de visages indisponible : {exc}", flush=True)
+        return None
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(asctime)s %(name)s %(message)s")
     args, commands = _parse_args(argv)
@@ -207,6 +245,7 @@ def main(argv: list[str] | None = None) -> None:
         if hardware["robot"] is None:
             raise RuntimeError("Hardware indisponible (Raspberry Pi/Linux requis).")
         registry = SkillRegistry.default(settings)
+        hardware["gallery"] = _load_gallery(settings)
         if args.audio:
             _listen_and_run(registry, hardware, args)
         elif not _run_commands(registry, hardware, commands):

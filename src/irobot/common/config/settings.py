@@ -98,6 +98,12 @@ class RuntimeSettings:
     camera_face_model_path: str = str(
         Path(__file__).resolve().parents[4] / "assets" / "vision" / "face_detection_yunet_2023mar.onnx",
     )
+    camera_face_recognition_model_path: str = str(
+        Path(__file__).resolve().parents[4] / "assets" / "vision" / "face_recognition_sface_2021dec.onnx",
+    )
+    camera_face_gallery_dir: str = str(Path(__file__).resolve().parents[4] / "assets" / "face")
+    camera_face_match_threshold: float = 0.363
+    camera_face_recognition_every_n: int = 5
     backward_cm_per_second: float | None = None
     human_marker_identity: MarkerIdentity | None = None
     human_max_age_seconds: float = 0.2
@@ -128,6 +134,20 @@ class RuntimeSettings:
         )
         if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
             raise ValueError("camera_face_model_path must be a non-empty path string")
+        for name in ("camera_face_recognition_model_path", "camera_face_gallery_dir"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty path string")
+        _require_number(
+            "camera_face_match_threshold", self.camera_face_match_threshold, "a finite number in (0, 1]",
+            positive=True,
+        )
+        if self.camera_face_match_threshold > 1:
+            raise ValueError("camera_face_match_threshold must be at most 1")
+        _require_number(
+            "camera_face_recognition_every_n", self.camera_face_recognition_every_n, "a positive integer",
+            integer=True, positive=True,
+        )
         if not isinstance(self.camera_clahe_enabled, bool):
             raise ValueError("camera_clahe_enabled must be a boolean")
         for name in ("camera_clahe_clip_limit", "camera_exposure_value"):
@@ -248,14 +268,34 @@ def _load_camera_section(
         "capture_size_px", "oriented_frame_size_px", "ball_diameter_cm", "focal_px", "exposure_value",
         "clahe_enabled", "clahe_clip_limit", "face_model_path", "face_width_cm",
         "face_score_threshold", "face_grace_frames", "edge_offset_threshold",
+        "face_recognition_model_path", "face_gallery_dir", "face_match_threshold",
+        "face_recognition_every_n",
     })
     model_path = Path(_string(
         table, "face_model_path", current.camera_face_model_path, "camera_face_model_path",
     ))
     if not model_path.is_absolute():
         model_path = config_path.parent / model_path
+    recognition_path = Path(_string(
+        table, "face_recognition_model_path", current.camera_face_recognition_model_path,
+        "camera_face_recognition_model_path",
+    ))
+    if not recognition_path.is_absolute():
+        recognition_path = config_path.parent / recognition_path
+    gallery_dir = Path(_string(table, "face_gallery_dir", current.camera_face_gallery_dir, "camera_face_gallery_dir"))
+    if not gallery_dir.is_absolute():
+        gallery_dir = config_path.parent / gallery_dir
     return replace(
         current,
+        camera_face_recognition_model_path=str(recognition_path),
+        camera_face_gallery_dir=str(gallery_dir),
+        camera_face_match_threshold=_float(
+            table, "face_match_threshold", current.camera_face_match_threshold, "camera_face_match_threshold",
+        ),
+        camera_face_recognition_every_n=_int(
+            table, "face_recognition_every_n", current.camera_face_recognition_every_n,
+            "camera_face_recognition_every_n",
+        ),
         camera_capture_size_px=_size_px(
             table, "capture_size_px", current.camera_capture_size_px, "camera.capture_size_px",
         ),

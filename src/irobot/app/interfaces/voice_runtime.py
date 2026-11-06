@@ -32,6 +32,7 @@ class VoiceRuntime:
         trace_dir: str | None = None,
         threaded: bool = True,
         settings: RuntimeSettings | None = None,
+        gallery=None,
     ):
         self.robot = robot
         self.input_device = input_device
@@ -50,6 +51,7 @@ class VoiceRuntime:
             use_llm=use_llm,
             trace_dir=trace_dir,
             settings=settings,
+            gallery=gallery,
         )
         self._emergency_event = self.command_service.emergency_event
 

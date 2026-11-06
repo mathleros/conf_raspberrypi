@@ -310,6 +310,12 @@ class TextIntentParser:
         lowered = cleaned.lower()
         if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
             return Intent(name="follow_person", target="face", confidence=1.0, raw_text=text)
+        named = re.fullmatch(r"suis\s+([A-ZÀ-Ý][a-zà-ÿ]+)\s*[.!?]?", cleaned)
+        if named:
+            return Intent(
+                name="follow_person", target="face", parameters={"person": named.group(1)},
+                confidence=1.0, raw_text=text,
+            )
         if re.fullmatch(
             r"(?:(?:approche|rapproche)(?: toi)? (?:de|vers) moi|rejoins moi)", fold(cleaned).strip(),
         ):

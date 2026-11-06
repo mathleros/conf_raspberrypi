@@ -45,16 +45,18 @@ class CommandService:
         use_llm: bool = True,
         trace_dir: str | None = None,
         settings: RuntimeSettings | None = None,
+        gallery=None,
     ) -> None:
         self.robot = robot
         self.use_llm = use_llm
         self.settings = settings or load_runtime_settings()
+        self.gallery = gallery
         self._emergency_event = threading.Event()
         self.trace_dir = Path(trace_dir) if trace_dir else Path.cwd() / "target" / "logs"
         self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.controller = LanguageController(
             robot=robot, camera=camera, sensor=sensor,
-            perception=perception, registry=registry, settings=self.settings,
+            perception=perception, registry=registry, settings=self.settings, gallery=gallery,
         )
         self.planner = self.controller.planner
         self.parser: IntentPlanParser = TextIntentParser()
@@ -233,7 +235,13 @@ class CommandService:
             }) for it in intents
         ):
             return "unsupported_follow_target"
+        if any(it.name == "follow_person" and it.parameters.get("person") and not self._known_person(it.parameters["person"])
+               for it in intents):
+            return "personne inconnue"
         return None
+
+    def _known_person(self, name: str) -> bool:
+        return self.gallery is not None and self.gallery.resolve(name) is not None
 
     def _trace_raw_plan(
         self, trace_path: Path, intents: list[Intent],

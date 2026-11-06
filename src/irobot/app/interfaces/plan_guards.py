@@ -42,7 +42,7 @@ ALLOWED_PARAMS = {
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
     "search_and_approach_object": {"stand_off_cm", "target_object"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
-    "follow_person": set(),
+    "follow_person": {"person"},
     "move_square": {"side", "unit"},
 }
 
@@ -66,6 +66,7 @@ PLAN_SCHEMA = {
                             "distance": {"type": "number"}, "duration": {"type": "number"},
                             "angle": {"type": "number"}, "stand_off_cm": {"type": "number"},
                             "duration_s": {"type": "number"}, "side": {"type": "number"},
+                            "person": {"type": "string"},
                         },
                         "additionalProperties": False,
                     },
@@ -108,8 +109,15 @@ def is_pure_stop(text: str) -> bool:
         and all(w in STOP_WORDS or w.startswith(("arret", "attend")) for w in words)
 
 
+# Prénom suivant « suis » : mot capitalisé dans la phrase d'origine (« suis Mathieu »), pas un article ni un objet.
+_NAMED_FOLLOW = re.compile(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis)\s+([A-ZÀ-Ý][a-zà-ÿ]+)\b")
+
+
 def requests_human_follow(text: str) -> bool:
     """Identifies human-follow wording so target validation does not reject it."""
+    named = _NAMED_FOLLOW.search(text or "")
+    if named and fold(named.group(1)) not in {"moi", "personne", "humain"}:
+        return True
     normalized = fold(text)
     return bool(re.search(
         r"\b(?:suis|suit|suivre|suivez|suivez moi|follow|track|poursuis|rejoins)\s+"
@@ -143,8 +151,10 @@ def supported_follow_target(value: Any) -> bool:
 
 
 def follow_request_refusal(text: str) -> str | None:
-    for segment in re.split(r"\b(?:puis|ensuite|then|and|et)\b", fold(text)):
-        if requests_human_follow(segment):
+    split_words = r"\b(?:puis|ensuite|then|and|et)\b"
+    raw_segments = re.split(split_words, text or "", flags=re.IGNORECASE)
+    for raw_segment, segment in zip(raw_segments, re.split(split_words, fold(text))):
+        if requests_human_follow(raw_segment):
             continue
         follow = re.search(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis|rejoins)\b", segment)
         if follow is None:

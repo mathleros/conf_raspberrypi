@@ -28,13 +28,27 @@ class LanguageController:
         perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
         settings: RuntimeSettings | None = None,
+        gallery: Any | None = None,
     ):
         self.robot = robot
         self.camera = camera
         self.sensor = sensor
         self.perception = perception
+        self.gallery = gallery
         self.validator = IntentValidator()
         self.planner = SkillPlanner(registry=registry or SkillRegistry.default(settings))
+
+    def _select_face_target(self, intent) -> None:
+        """Cible faciale : prénom de la galerie pour follow_person, sinon le plus grand visage."""
+        set_target = getattr(self.camera, "set_face_target", None)
+        if set_target is None:
+            return
+        name = intent.parameters.get("person") if intent.name == "follow_person" else None
+        if not name or self.gallery is None:
+            set_target(None, None)
+            return
+        canonical = self.gallery.resolve(name)
+        set_target(canonical, self.gallery.get(name))
 
     def _inject_perception_state(self, context: SkillContext) -> None:
         if self.perception is None or context.perception_target is None:
@@ -68,6 +82,7 @@ class LanguageController:
         plan = step.skills
         if not plan:
             return {"intent": intent, "status": "rejected", "reason": "no skill plan"}
+        self._select_face_target(intent)
 
         context = SkillContext(
             robot=self.robot,

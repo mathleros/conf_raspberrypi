@@ -97,6 +97,8 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
         self._frame_condition = threading.Condition(self._lock)
         self._target_revision = 0
         self._frame_revision = -1
+        self._frame_sequence = 0
+        self._delivered_frame_sequence = -1
         self._capture_finished = False
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._capture_loop, name="camera-live-perception", daemon=False)
@@ -174,6 +176,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     if revision == self._target_revision:
                         self._last_detection = detection
                         self._frame_revision = revision
+                        self._frame_sequence += 1
                     self._frame_condition.notify_all()
 
                 if self.poll_interval_s > 0.0:
@@ -227,10 +230,12 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                 if self._frame_revision != revision:
                     return None
             detection = self._last_detection
+            repeated_frame = self._frame_sequence == self._delivered_frame_sequence
+            self._delivered_frame_sequence = self._frame_sequence
 
         if detection is None:
             return None
-        return dataclasses.replace(detection)
+        return dataclasses.replace(detection, cached=detection.cached or repeated_frame)
 
     def close(self, timeout_s: float | None = None) -> None:
         with self._frame_condition:

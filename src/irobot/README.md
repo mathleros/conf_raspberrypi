@@ -102,6 +102,11 @@ et lors d'un changement de cible (par exemple balle rouge vers marqueur avec
 « suis-moi »). Une image encore en traitement pour l'ancienne cible ne satisfait
 pas cette attente, limitée à une seconde et interrompue à la fermeture ou en cas
 d'échec caméra. Un dépassement est journalisé et ne fournit aucune détection.
+Une détection déjà fournie pour la même image est renvoyée avec `cached=True`,
+comme un visage mémorisé pendant le délai de grâce. Le suivi et l'approche ne
+pilotent pas les moteurs sur ces observations : une nouvelle image est nécessaire
+avant de répéter une correction. Cela évite les rotations répétées sur une
+position ancienne lorsque le traitement caméra est plus lent que la boucle moteur.
 Les intentions `follow_person`, `follow_red_ball` et `follow_object` utilisent
 le même suivi continu, sans limite de tentatives, de tracking ou de recherche
 lorsqu'aucune durée n'est demandée. À distance de consigne, le robot attend puis

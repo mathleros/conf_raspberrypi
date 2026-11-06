@@ -293,6 +293,21 @@ def test_matching_frame_is_cached_including_absence(live_pipeline, present, monk
         assert (cached is not None) == present
         assert (results[0] is not None) == present
         assert pipeline._frame_revision == pipeline._target_revision
+        if present:
+            assert results[0].cached is False
+            assert cached.cached is True
+            with pipeline._frame_condition:
+                previous = pipeline._last_detection
+                assert previous.cached is False
+                frames.put(_frame())
+                assert pipeline._frame_condition.wait_for(
+                    lambda: pipeline._last_detection is not previous, timeout=2,
+                )
+            fresh = pipeline.detect(target=strategy)
+            assert fresh is not None
+            assert fresh.cached is False
+            assert fresh.bbox_px == results[0].bbox_px
+            assert pipeline.detect(target=strategy).cached is True
     finally:
         with pipeline._frame_condition:
             pipeline._stop_event.set()

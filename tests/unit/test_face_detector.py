@@ -383,3 +383,55 @@ def test_follow_skill_aligns_approaches_and_holds_face_from_perception_mock(targ
     assert result.data["final_distance_cm"] == 100
     assert context.state["follow_target_state"]["phase"] == "holding"
     assert robot.commands[-1] == "stop"
+
+
+def test_follow_face_waits_for_new_frame_before_repeating_motion(pipeline):
+    camera, net = pipeline
+    target = camera_target(camera, "face")
+    camera.detect(target=target)
+    frame = np.zeros((1280, 960, 3), np.uint8)
+    net.faces = _faces((258, 258, 78, 93, 0.9))
+    camera._last_detection = camera._process_frame(frame, target=target)
+    camera._frame_sequence += 1
+    assert camera._last_detection.position == "left"
+    clock = [0.0]
+    published_center = False
+
+    def sleep(seconds):
+        nonlocal published_center
+        clock[0] += seconds
+        if clock[0] >= 0.3 and not published_center:
+            net.faces = _faces((440, 258, 78, 93, 0.9))
+            camera._last_detection = camera._process_frame(frame, target=target)
+            camera._frame_sequence += 1
+            published_center = True
+
+    robot = FakeRobot()
+    context = SkillContext(
+        robot=robot,
+        perception=camera,
+        perception_target=target,
+        state={"active_intent_parameters": {"target_object": "face", "duration_s": 0.8}},
+    )
+    skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=lambda: clock[0], sleep_fn=sleep)
+    result = skill.execute(context)
+
+    assert result.status == "success"
+    assert robot.commands.count("left") == 1
+    assert robot.commands.count("forward") == 1
+    assert robot.commands.index("left") < robot.commands.index("stop") < robot.commands.index("forward")
+    assert robot.commands[-1] == "stop"
+
+
+def test_new_frame_with_memorized_face_remains_cached(pipeline):
+    camera, net = pipeline
+    target = camera_target(camera, "face")
+    camera.detect(target=target)
+    frame = np.zeros((640, 480, 3), np.uint8)
+    net.faces = _faces((180, 20, 100, 100, 0.9))
+    camera._process_frame(frame, target=target)
+    net.faces = None
+    camera._last_detection = camera._process_frame(frame, target=target)
+    camera._frame_sequence += 1
+
+    assert camera.detect(target=target).cached is True

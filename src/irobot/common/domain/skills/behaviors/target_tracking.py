@@ -110,11 +110,13 @@ class TargetTrackingMixin:
             detection = detector(target=context.perception_target)
             if detection is None:
                 context.state["last_object_position"] = None
+                context.state["last_object_offset_x"] = None
                 context.state["last_object_distance_cm"] = None
                 context.state["last_ball_position"] = None
             else:
                 context.state["target_object"] = getattr(detection, "label", None)
                 context.state["last_object_position"] = getattr(detection, "position", None)
+                context.state["last_object_offset_x"] = getattr(detection, "offset_x", None)
                 context.state["last_object_distance_cm"] = getattr(detection, "distance_cm", None)
 
         raw_position = context.state.get("last_object_position") or context.state.get("last_ball_position")

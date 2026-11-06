@@ -167,9 +167,11 @@ class ColorDetector(Detector[ObjectDetection]):
             "Balle %s détectée : position=%s, distance=%s cm, diamètre=%.1f px, bbox=%s",
             self.color_name, position, distance, candidate["diameter_px"], (x, y, width, height),
         )
+        half_width = frame_width / 2
         return ObjectDetection(
             label=f"{self.color_name}_ball",
             position=position,
+            offset_x=(center_x - half_width) / half_width,
             distance_cm=distance,
             distance_visual_cm=distance,
             confidence=0.95,

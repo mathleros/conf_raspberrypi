@@ -92,7 +92,7 @@ def test_largest_eligible_face_and_distance(yunet):
 
 
 @pytest.mark.parametrize("center,position", [
-    (179, "left"), (180, "center"), (300, "center"), (301, "right"),
+    (159, "left"), (160, "center"), (320, "center"), (321, "right"),
 ])
 @pytest.mark.parametrize("scale", [1, 2])
 def test_position_thresholds_scale_with_frame_width(yunet, center, position, scale):

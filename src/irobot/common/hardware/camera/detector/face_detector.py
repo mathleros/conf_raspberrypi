@@ -18,8 +18,8 @@ from .distance_estimator import estimate_distance_cm
 logger = logging.getLogger(__name__)
 
 _POSITION_REFERENCE_WIDTH = 480
-_POSITION_LEFT_MAX = 180
-_POSITION_RIGHT_MIN = 300
+_POSITION_LEFT_MAX = 160
+_POSITION_RIGHT_MIN = 320
 
 
 class FaceDetector(Detector[ObjectDetection]):
@@ -124,9 +124,11 @@ class FaceDetector(Detector[ObjectDetection]):
         if distance is None or not math.isfinite(distance):
             raise ValueError("Distance visage inexploitable")
         self._bounding_box = bounding_box
-        position = _position_from_center_x((x + width / 2) * _POSITION_REFERENCE_WIDTH / size[0])
+        center_x = (x + width / 2) * _POSITION_REFERENCE_WIDTH / size[0]
+        half_width = _POSITION_REFERENCE_WIDTH / 2
         return ObjectDetection(
-            label="face", position=position, distance_cm=distance,
+            label="face", position=_position_from_center_x(center_x),
+            offset_x=(center_x - half_width) / half_width, distance_cm=distance,
             distance_visual_cm=distance, confidence=float(best[-1]), diameter_px=width,
             bbox_px=tuple(map(int, bounding_box)),
         )

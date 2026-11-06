@@ -105,7 +105,10 @@ class SimWorld(FakeRobot):
         position = "right" if bearing > CENTER_BAND_DEG else "left" if bearing < -CENTER_BAND_DEG else "center"
         distance = self.distance_cm()
         self.observations.append((self.now, position, distance))
-        return SimpleNamespace(label=f"{target}_ball", position=position, distance_cm=distance)
+        return SimpleNamespace(
+            label=f"{target}_ball", position=position, distance_cm=distance,
+            offset_x=bearing / HALF_FOV_DEG,
+        )
 
 
 def _timed(skill, world: SimWorld, spans: dict[str, list[tuple[float, float, object]]]):
@@ -192,8 +195,16 @@ def test_full_mission_search_approach_and_follow_five_minutes(tmp_path):
     followed = [(t, pos, d) for t, pos, d in world.observations if follow_start <= t <= follow_end]
     distances = [d for _, pos, d in followed if pos is not None]
     assert len(distances) > 1000
-    assert all(abs(d - STAND_OFF_CM) <= TOLERANCE_CM + 0.5 for d in distances), (min(distances), max(distances))
-    assert {"forward", "backward", "left", "right"} <= {cmd for t, cmd in world.timed_commands if t >= follow_start}
+    # Le robot ne réagit qu'après une période de boucle et une impulsion avant : la balle peut s'éloigner pendant ce délai.
+    reaction_s = FollowObjectSkill.CONTROL_LOOP_PERIOD_S + FollowObjectSkill.FORWARD_MAX_S
+    max_drift_cm_s = max(seg[2] for seg in BALL_MOTION)
+    assert all(
+        abs(d - STAND_OFF_CM) <= TOLERANCE_CM + max_drift_cm_s * reaction_s for d in distances
+    ), (min(distances), max(distances))
+    follow_cmds = {cmd for t, cmd in world.timed_commands if t >= follow_start}
+    assert {"forward", "backward"} <= follow_cmds
+    # Rotation seulement près du bord de l'image : au moins une correction latérale pendant le suivi.
+    assert {"left", "right"} & follow_cmds
     lost = [t for t, pos, _ in followed if pos is None]
     assert lost and all(OUT_OF_FIELD_S[0] <= t < OUT_OF_FIELD_S[1] for t in lost)
     assert not [cmd for t, cmd in world.timed_commands if OUT_OF_FIELD_S[0] <= t < OUT_OF_FIELD_S[1] and cmd in MOTIONS]

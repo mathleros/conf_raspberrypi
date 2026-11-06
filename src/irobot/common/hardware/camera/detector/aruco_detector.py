@@ -90,6 +90,7 @@ class ArucoFrameDetection:
     reason: str | None = None
     distance_cm: float | None = None
     position: str = "UNKNOWN"
+    offset_x: float | None = None
     bbox_px: tuple[int, int, int, int] | None = None
     confidence: float = 0.0
 
@@ -99,6 +100,7 @@ class ArucoFrameDetection:
         return ObjectDetection(
             label="marker_1",
             position=self.position,
+            offset_x=self.offset_x,
             distance_cm=self.distance_cm,
             distance_visual_cm=self.distance_cm,
             confidence=self.confidence,
@@ -226,6 +228,7 @@ class OpenCVMarkerDetector(Detector[ArucoFrameDetection]):
             corners_px=parsed_corners,
             distance_cm=distance,
             position=position,
+            offset_x=(center_x - frame_width / 2) / (frame_width / 2),
             bbox_px=(left, top, right - left, bottom - top),
             confidence=1.0,
         )

@@ -21,6 +21,7 @@ class TargetFrameDetector(Protocol):
 class ObjectDetection:
     label: str = "object"
     position: str = "UNKNOWN"  # left|center|right|UNKNOWN
+    offset_x: float | None = None  # -1 (bord gauche) à 1 (bord droit), 0 = centre de l'image
     distance_cm: float | None = None
     confidence: float = 0.0
     diameter_px: float | None = None

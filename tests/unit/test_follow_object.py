@@ -16,13 +16,14 @@ from tests.unit.fake_robot import FakeRobot
 class World(FakeRobot):
     """Robot + perception simulés avec horloge : la balle bouge selon les impulsions."""
 
-    def __init__(self, distance_cm=100.0, drift_cm_s=0.0, hidden=None, bearing="center"):
+    def __init__(self, distance_cm=100.0, drift_cm_s=0.0, hidden=None, bearing="center", offset_x=0.0):
         super().__init__()
         self.now = 0.0
         self.distance_cm = distance_cm
         self.drift_cm_s = drift_cm_s
         self.hidden = hidden or (0.0, 0.0)
         self.bearing = bearing
+        self.offset_x = offset_x
         self.emergency = False
         self.detect_error: Exception | None = None
 
@@ -62,7 +63,8 @@ class World(FakeRobot):
         if self.hidden[0] <= self.now < self.hidden[1]:
             return None
         return SimpleNamespace(
-            label=target.value, position=self.bearing, distance_cm=self.distance_cm
+            label=target.value, position=self.bearing, distance_cm=self.distance_cm,
+            offset_x=self.offset_x,
         )
 
 
@@ -220,3 +222,41 @@ def test_stand_off_is_clamped(raw, expected):
 
     assert not MOTIONS & set(world.commands)
     assert result.status == "success"
+
+
+def test_no_rotation_when_close_and_off_centre():
+    world = World(distance_cm=84.0, bearing="right")
+    run(world, duration_s=3)
+
+    assert not {"left", "right"} & set(world.commands)
+
+
+def test_holds_still_in_band_when_off_centre():
+    world = World(distance_cm=110.0, bearing="right")
+    result, context = run(world, duration_s=3)
+
+    assert not MOTIONS & set(world.commands)
+    assert context.state["follow_target_state"]["phase"] == "holding"
+    assert result.data["final_distance_cm"] == 110.0
+
+
+def test_rotation_threshold_follows_stand_off_parameters():
+    world = World(distance_cm=84.0, bearing="right")
+    run(world, duration_s=1, stand_off_cm=60, stand_off_tolerance_cm=5)
+
+    assert world.commands[0] == "right"
+
+
+def test_rotates_in_band_only_when_target_at_edge():
+    world = World(distance_cm=110.0, bearing="right", offset_x=0.8)
+    run(world, duration_s=1)
+
+    assert world.commands[0] == "right"
+
+
+def test_holds_in_band_when_target_inside_edge_zone():
+    world = World(distance_cm=110.0, bearing="right", offset_x=0.5)
+    result, context = run(world, duration_s=3)
+
+    assert not MOTIONS & set(world.commands)
+    assert context.state["follow_target_state"]["phase"] == "holding"

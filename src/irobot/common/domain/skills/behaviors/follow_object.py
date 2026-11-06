@@ -26,7 +26,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     DEFAULT_DURATION_S = 60.0
     DEFAULT_MAX_TARGET_LOSS_S = 3.0
     ALIGN_STEP_S = 0.08
-    ALIGN_SETTLE_S = 0.0
+    EDGE_OFFSET_THRESHOLD = 0.6
     FORWARD_MIN_S = 0.05
     FORWARD_MAX_S = 0.25
     BACKWARD_MIN_S = 0.05
@@ -185,6 +185,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
                 return self._safety_stop(context, emergency, iterations, final_distance_cm)
 
             position, distance_cm = self._detect_target(context)
+            offset_x = to_float(context.state.get("last_object_offset_x"))
             current = now()
 
             if position is None:
@@ -219,12 +220,14 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             if distance_cm is not None:
                 final_distance_cm = distance_cm
 
-            if position in {"left", "right"}:
+            # Dans la bande de consigne, on ne tourne que si la cible est proche du bord de l'image.
+            too_far = distance_cm is None or distance_cm > stand_off_cm + tolerance_cm
+            at_edge = offset_x is not None and abs(offset_x) >= self.EDGE_OFFSET_THRESHOLD
+            if position in {"left", "right"} and (too_far or at_edge):
                 sweep_direction = position
                 self._pulse_motion(context, position, self.ALIGN_STEP_S)
                 context.state["motion"] = f"align_{position}"
                 set_state("aligning", direction=position)
-                self.sleep_fn(self.ALIGN_SETTLE_S)
             elif distance_cm is not None and distance_cm > stand_off_cm + tolerance_cm:
                 self._pulse_motion(
                     context, "forward", self._step(distance_cm - stand_off_cm, self.FORWARD_MIN_S, self.FORWARD_MAX_S),

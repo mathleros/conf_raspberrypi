@@ -269,6 +269,8 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                         "direction": target_position,
                         "iterations": iterations,
                     }
+                    self.sleep_fn(self.ALIGN_SETTLE_S)
+                    continue
                 else:
                     step_s = self._forward_step(forward_step_s, distance_cm, stand_off_cm)
                     self._pulse_motion(context, "forward", step_s)

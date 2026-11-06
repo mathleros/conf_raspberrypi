@@ -17,6 +17,8 @@ class TargetTrackingMixin:
     """Briques communes aux behaviors de suivi visuel (détection, sécurité, balayage)."""
 
     SEARCH_SETTLE_S = 0.15
+    # Laisse la caméra produire une image postérieure à l'impulsion avant de décider à nouveau.
+    ALIGN_SETTLE_S = 0.3
     CONTROL_LOOP_PERIOD_S = 0.02
 
     sleep_fn: Callable[[float], None]

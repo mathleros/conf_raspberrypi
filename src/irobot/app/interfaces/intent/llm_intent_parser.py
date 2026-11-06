@@ -7,14 +7,12 @@ import threading
 from typing import Any
 
 from irobot.app.domain.intent import Intent
-from irobot.common.config.llm_settings import load_llm_settings
 from irobot.app.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.app.interfaces.plan_guards import (
     contains_unsupported_follow_step,
     follow_request_refusal,
     grounding_check,
 )
-from irobot.common.interfaces.text_normalizer import preprocess
 from irobot.app.interfaces.voice_constants import PLAN_INTENT_SYNONYMS
 from irobot.app.interfaces.voice_llm_transport import (
     LLM_DEFAULT_CONFIDENCE,
@@ -28,6 +26,8 @@ from irobot.app.interfaces.voice_llm_transport import (
     post_llm_chat,
     select_formats,
 )
+from irobot.common.config.llm_settings import load_llm_settings
+from irobot.common.interfaces.text_normalizer import preprocess
 
 
 def _llm_confidence(value: Any) -> float:

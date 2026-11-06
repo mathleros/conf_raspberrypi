@@ -13,8 +13,8 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.app.domain.intent import Intent
-from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
 from irobot.app.interfaces.plan_guards import fold, follow_request_refusal
+from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
 
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
 _DECIMAL_MARK = "\ue000"

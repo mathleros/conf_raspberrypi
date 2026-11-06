@@ -6,13 +6,13 @@ import argparse
 import sys
 from collections.abc import Iterable
 
+from irobot.app.interfaces.intent.llm_intent_parser import LLMWarmup
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from irobot.common.config.settings import load_runtime_settings
 from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
 )
-from irobot.app.interfaces.intent.llm_intent_parser import LLMWarmup
-from irobot.app.interfaces.voice_runtime import VoiceRuntime
 
 
 def _microphone_transcripts(input_device: str) -> Iterable[str]:

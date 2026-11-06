@@ -8,11 +8,11 @@ import threading
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from irobot.app.interfaces.command_service import CommandService
+from irobot.app.interfaces.plan_guards import fold, is_pure_stop
 from irobot.common.config.settings import RuntimeSettings
 from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.app.interfaces.command_service import CommandService
 from irobot.common.interfaces.perception_contracts import ObjectPerceptionPipeline
-from irobot.app.interfaces.plan_guards import fold, is_pure_stop
 
 
 class VoiceRuntime:

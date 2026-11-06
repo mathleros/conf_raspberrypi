@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import time
 
 from irobot.app2.command_parser import (
     BEHAVIORS,
@@ -49,10 +48,6 @@ FOLLOW_INTENT_BY_TARGET = {
     "human": "follow_person",
     "red_ball": "follow_red_ball",
 }
-
-SEARCH_STEP_S = 0.08
-SEARCH_SETTLE_S = 0.15
-
 
 def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Namespace) -> None:
     """Boucle d'écoute : mot d'activation, puis commande (même phrase ou phrase suivante)."""
@@ -178,50 +173,9 @@ def _run_follow(registry: SkillRegistry, hardware: dict, command: Command) -> Sk
     return SkillExecutor(context).run(registry.get("follow_object"))
 
 
-def _inject_detection(context: SkillContext) -> None:
-    """Copie la dernière détection de la caméra dans le blackboard lu par detect_object."""
-    detection = context.perception.detect(target=context.perception_target)
-    context.state["last_object_position"] = detection.position if detection else None
-    context.state["last_object_distance_cm"] = detection.distance_cm if detection else None
-    if detection:
-        context.state["target_object"] = detection.label
-
-
-def _run_search(registry: SkillRegistry, hardware: dict, command: Command) -> SkillResult:
-    """Rotation par impulsions + detect_object, jusqu'à détection ou fin de la durée."""
-    context = _build_context(hardware, command.target, "search_and_approach_object", {"target_object": command.target})
-    executor = SkillExecutor(context)
-    detect_skill = registry.get("detect_object")
-    turn_skill = registry.get("turn_right")
-    deadline = time.monotonic() + command.duration
-    steps = 0
-
-    while time.monotonic() < deadline:
-        _inject_detection(context)
-        result = executor.run(detect_skill)
-        if result.status == "success":
-            result.data["search_steps"] = steps
-            executor.run(registry.get("stop_motion"))
-            return result
-
-        context.state["active_intent_parameters"] = {"target_object": command.target, "duration": SEARCH_STEP_S}
-        turn_result = executor.run(turn_skill)
-        steps += 1
-        if turn_result.status != "success" or turn_result.data.get("motion") == "stop":
-            return turn_result
-        time.sleep(SEARCH_SETTLE_S)
-
-    executor.run(registry.get("stop_motion"))
-    return SkillResult(
-        status="failed",
-        message=f"Cible '{command.target}' non trouvée en {command.duration:.1f} s.",
-        data={"search_steps": steps},
-    )
-
-
 RUNNERS = {
     "move": _run_move,
-    "search": _run_search,
+    "search": _run_approach,
     "approach": _run_approach,
     "follow": _run_follow,
 }

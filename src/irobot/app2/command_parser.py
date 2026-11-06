@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import unicodedata
+from dataclasses import dataclass
 
 from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
 
@@ -20,7 +20,7 @@ DEFAULT_WAKE_WORD = "robot"
 
 # Mots-clés (sans accents) reconnus dans la transcription Vosk française.
 _BEHAVIOR_STEMS = {
-    "search": ("cherch", "trouv", "search", "find"),
+    "search": ("cherch", "recherch", "trouv", "search", "find"),
     "approach": ("approch", "rapproch", "rejoin", "approach"),
     "follow": ("suis", "suit", "suiv", "poursu", "follow"),
 }

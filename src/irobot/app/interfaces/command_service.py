@@ -14,8 +14,6 @@ from typing import Any
 from irobot.app.domain.intent import Intent
 from irobot.app.domain.orchestrator.mission_orchestrator import MissionOrchestrator
 from irobot.app.domain.orchestrator.planner import SkillPlanStep
-from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
-from irobot.common.domain.orchestrator.registry import SkillRegistry
 from irobot.app.interfaces.intent.intent_parser import IntentPlanParser
 from irobot.app.interfaces.intent.llm_intent_parser import (
     LLMWarmup,
@@ -24,15 +22,17 @@ from irobot.app.interfaces.intent.llm_intent_parser import (
 from irobot.app.interfaces.intent.plan_validator import IntentPlanValidator
 from irobot.app.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.app.interfaces.language_controller import LanguageController
-from irobot.common.interfaces.perception_contracts import ObjectPerceptionPipeline
 from irobot.app.interfaces.plan_guards import (
     contains_unsupported_follow_step,
     follow_request_refusal,
     is_pure_stop,
 )
-from irobot.common.interfaces.text_normalizer import preprocess
 from irobot.app.interfaces.voice_constants import UNSUPPORTED_PLAN_SOURCES
 from irobot.app.interfaces.voice_llm_transport import llm_warmup_wait_seconds
+from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.common.domain.orchestrator.registry import SkillRegistry
+from irobot.common.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.common.interfaces.text_normalizer import preprocess
 
 
 class CommandService:

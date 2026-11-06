@@ -15,7 +15,10 @@ from irobot.common.hardware.camera.detector import (
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
-from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.common.hardware.camera.frame_enhancer import (
+    FrameEnhancer,
+    configure_exposure,
+)
 from irobot.common.interfaces.perception_contracts import ObjectDetection
 
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")

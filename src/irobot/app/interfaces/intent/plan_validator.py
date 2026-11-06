@@ -7,11 +7,6 @@ from typing import Any
 
 from irobot.app.domain.intent import Intent
 from irobot.app.domain.intent_validator import IntentValidator
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.domain.numbers import to_float
-from irobot.common.domain.skills.primitives.base_motion_primitive import (
-    normalize_distance_unit,
-)
 from irobot.app.interfaces.plan_guards import (
     TARGET_COLOR_SYNONYMS,
     contains_unsupported_follow_step,
@@ -27,6 +22,11 @@ from irobot.app.interfaces.voice_constants import (
     MIN_SEARCH_TIMEOUT_SEC,
     OBJECT_INTENTS,
     PLAN_INTENT_SYNONYMS,
+)
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.domain.numbers import to_float
+from irobot.common.domain.skills.primitives.base_motion_primitive import (
+    normalize_distance_unit,
 )
 
 

@@ -19,7 +19,10 @@ import cv2
 
 from irobot.common.config.settings import load_runtime_settings
 from irobot.common.hardware.camera.detector import ColorDetector
-from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.common.hardware.camera.frame_enhancer import (
+    FrameEnhancer,
+    configure_exposure,
+)
 
 try:
     from picamera2 import Picamera2

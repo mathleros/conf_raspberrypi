@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from irobot.interfaces import plan_guards as pg
+from irobot.app.interfaces import plan_guards as pg
 
 
 def step(intent, target=None, **params):

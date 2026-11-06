@@ -4,12 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.interfaces import RobotController
-from irobot.domain.skills import SkillContext
-from irobot.domain.skills.behaviors.approach_target import ApproachTargetSkill
-from irobot.domain.skills.behaviors.move_circle import MoveCircleSkill
-from irobot.domain.perception import PerceptionTarget
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.interfaces import RobotController
+from irobot.common.domain.skills import SkillContext
+from irobot.common.domain.skills.behaviors.approach_target import ApproachTargetSkill
+from irobot.common.domain.skills.behaviors.move_circle import MoveCircleSkill
+from irobot.common.domain.perception import PerceptionTarget
 from tests.unit.fake_robot import FakeRobot
 
 

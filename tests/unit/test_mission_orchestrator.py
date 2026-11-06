@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.intent import Intent
-from irobot.domain.orchestrator.mission_orchestrator import MissionOrchestrator
-from irobot.domain.orchestrator.planner import SkillPlanStep
-from irobot.domain.skills.base_skill import SkillResult
+from irobot.common.config.settings import RuntimeSettings
+from irobot.app.domain.intent import Intent
+from irobot.app.domain.orchestrator.mission_orchestrator import MissionOrchestrator
+from irobot.app.domain.orchestrator.planner import SkillPlanStep
+from irobot.common.domain.skills.base_skill import SkillResult
 
 
 def plan(*names):
@@ -167,13 +167,16 @@ def test_empty_plan_is_an_explicit_error():
 
 
 def test_domain_has_no_interface_or_hardware_imports():
-    domain = Path(__file__).resolve().parents[2] / "src" / "irobot" / "domain"
-    for path in domain.rglob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.ImportFrom):
-                assert not (node.module or "").startswith(("irobot.interfaces", "irobot.hardware")), path
-            elif isinstance(node, ast.Import):
-                assert all(
-                    not alias.name.startswith(("irobot.interfaces", "irobot.hardware"))
-                    for alias in node.names
-                ), path
+    root = Path(__file__).resolve().parents[2] / "src" / "irobot"
+    forbidden = (
+        "irobot.common.interfaces",
+        "irobot.app.interfaces",
+        "irobot.common.hardware",
+    )
+    for domain in (root / "common" / "domain", root / "app" / "domain"):
+        for path in domain.rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.ImportFrom):
+                    assert not (node.module or "").startswith(forbidden), path
+                elif isinstance(node, ast.Import):
+                    assert all(not alias.name.startswith(forbidden) for alias in node.names), path

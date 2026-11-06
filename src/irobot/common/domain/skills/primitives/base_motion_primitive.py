@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.common.domain.numbers import to_float
+from irobot.common.domain.skills.base_skill import Skill, SkillContext, SkillResult
+
+MotionCommand = Literal["forward", "backward", "left", "right"]
+MotionCommandFor = Literal["forward_for", "backward_for", "left_for", "right_for"]
+
+_METER_UNITS = {"m", "meter", "meters", "metre", "metres", "mètre", "mètres"}
+
+
+def normalize_distance_unit(unit: Any) -> str:
+    """Ramène une unité libre à "m" ou "cm" (inconnue -> "cm")."""
+    text = str(unit if unit is not None else "cm").strip().lower()
+    if text in _METER_UNITS:
+        return "m"
+    return "cm"
+
+
+class BaseMotionPrimitiveSkill(Skill):
+    """Classe de base factorisée pour les primitives de mouvement."""
+
+    motion: str = "motion"
+    command_method: MotionCommand
+    command_for_method: MotionCommandFor
+    parameter_mode: str = "distance"  # distance|angle
+    success_message: str = "Mouvement exécuté."
+    failure_message: str = "Le robot ne fournit pas la méthode requise"
+    error_prefix: str = "Erreur lors du mouvement"
+
+    def __init__(self, settings: RuntimeSettings | None = None) -> None:
+        # Sans injection, les réglages sont chargés à l'exécution.
+        self.settings = settings
+
+    def validate(self, context: SkillContext) -> bool:
+        return context.robot is not None
+
+    def _resolve_motion_parameters(self, context: SkillContext) -> dict[str, Any]:
+        params = dict(context.state.get("active_intent_parameters") or {})
+        settings = self.settings or load_runtime_settings()
+
+        if self.parameter_mode == "angle":
+            angle = params.get("angle")
+            if angle is None and params.get("full_rotation"):
+                angle = 360
+            angle_value = to_float(angle)
+            duration_value = to_float(params.get("duration"))
+            if duration_value is None and angle_value is not None:
+                duration_value = max(0.1, angle_value / settings.deg_per_second)
+            return {
+                "angle": angle_value,
+                "duration": duration_value,
+            }
+
+        distance = params.get("distance", params.get("side"))
+        unit = normalize_distance_unit(params.get("unit")) if distance is not None else None
+        distance_value = to_float(distance)
+        duration_value = to_float(params.get("duration"))
+        if duration_value is None and distance_value is not None:
+            distance_cm = distance_value * 100.0 if unit == "m" else distance_value
+            speed = settings.cm_per_second
+            if self.motion == "backward" and settings.backward_cm_per_second is not None:
+                speed = settings.backward_cm_per_second
+            duration_value = max(0.1, distance_cm / speed)
+        return {
+            "distance": distance_value,
+            "unit": unit,
+            "duration": duration_value,
+        }
+
+    def _execute_motion(self, context: SkillContext, duration_value: float | None) -> tuple[bool, str | None]:
+        command = getattr(context.robot, self.command_method, None)
+        if not callable(command):
+            return False, None
+
+        command_for = getattr(context.robot, self.command_for_method, None)
+        previous_speed = getattr(context.robot, "speed", None)
+        set_speed = getattr(context.robot, "set_speed", None)
+        use_turn_speed = self.parameter_mode == "angle" and callable(set_speed)
+        if use_turn_speed:
+            set_speed((self.settings or load_runtime_settings()).turn_speed)
+        stop_reason = None
+        try:
+            if duration_value is not None and callable(command_for):
+                outcome = command_for(duration_value)
+                if isinstance(outcome, str) and outcome in {"obstacle", "emergency_stop"}:
+                    stop_reason = outcome
+            else:
+                command()
+        finally:
+            if use_turn_speed and previous_speed is not None and duration_value is not None:
+                set_speed(previous_speed)
+        return True, stop_reason
+
+    def execute(self, context: SkillContext) -> SkillResult:
+        try:
+            payload = self._resolve_motion_parameters(context)
+            duration_value = to_float(payload.get("duration"))
+
+            executed, stop_reason = self._execute_motion(context, duration_value)
+            if not executed:
+                return SkillResult(
+                    status="failed",
+                    message=self.failure_message,
+                    data={"skill": self.name},
+                    confidence=0.0,
+                    next_action=None,
+                )
+
+            if stop_reason is not None:
+                context.state["motion"] = "stop"
+                return SkillResult(
+                    status="success",
+                    message="Mouvement interrompu par un arrêt de sécurité.",
+                    data={
+                        **payload,
+                        "motion": "stop",
+                        "obstacle_detected": stop_reason == "obstacle",
+                        "emergency_stop": stop_reason == "emergency_stop",
+                    },
+                    confidence=1.0,
+                    next_action="stop_motion",
+                )
+
+            context.state["motion"] = self.motion
+            return SkillResult(
+                status="success",
+                message=self.success_message,
+                data={"motion": self.motion, **payload},
+                confidence=1.0,
+                next_action="track_target",
+            )
+        except Exception as exc:  # pragma: no cover - logique métier
+            return SkillResult(
+                status="failed",
+                message=f"{self.error_prefix} : {exc}",
+                data={"error": str(exc), "skill": self.name},
+                confidence=0.0,
+                next_action=None,
+            )

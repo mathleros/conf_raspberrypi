@@ -1,12 +1,12 @@
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.skills import SkillContext
-from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.domain.skills.primitives.move_backward import MoveBackwardSkill
-from irobot.domain.skills.primitives.move_forward import MoveForwardSkill
-from irobot.domain.skills.primitives.turn_left import TurnLeftSkill
-from irobot.domain.skills.primitives.turn_right import TurnRightSkill
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.domain.skills import SkillContext
+from irobot.common.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.common.domain.skills.primitives.move_backward import MoveBackwardSkill
+from irobot.common.domain.skills.primitives.move_forward import MoveForwardSkill
+from irobot.common.domain.skills.primitives.turn_left import TurnLeftSkill
+from irobot.common.domain.skills.primitives.turn_right import TurnRightSkill
 
 
 @pytest.mark.parametrize(

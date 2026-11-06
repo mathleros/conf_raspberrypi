@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from irobot.domain.intent_validator import IntentValidator
-from irobot.interfaces.intent.text_intent_parser import TextIntentParser
-from irobot.interfaces.command_service import CommandService
-from irobot.domain.orchestrator.planner import SkillPlanner
-from irobot.interfaces.language_controller import LanguageController
-from irobot.interfaces.perception_contracts import ObjectDetection
+from irobot.app.domain.intent_validator import IntentValidator
+from irobot.app.interfaces.intent.text_intent_parser import TextIntentParser
+from irobot.app.interfaces.command_service import CommandService
+from irobot.app.domain.orchestrator.planner import SkillPlanner
+from irobot.app.interfaces.language_controller import LanguageController
+from irobot.common.interfaces.perception_contracts import ObjectDetection
 from tests.unit.fake_robot import FakeRobot
 
 

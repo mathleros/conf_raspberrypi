@@ -8,12 +8,12 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.config.settings import MarkerIdentity, RuntimeSettings
-from irobot.hardware.camera import camera_live_perception_pipeline
+from irobot.common.config.settings import MarkerIdentity, RuntimeSettings
+from irobot.common.hardware.camera import camera_live_perception_pipeline
 
-from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
-from irobot.interfaces.robot_controller import RobotController
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.common.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
+from irobot.common.interfaces.robot_controller import RobotController
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.perception_helpers import camera_target
 

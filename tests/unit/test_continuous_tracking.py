@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.intent import Intent
-from irobot.domain.perception import PerceptionTarget
-from irobot.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.domain.skills.base_skill import SkillResult
-from irobot.interfaces.robot_controller import RobotController
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.common.config.settings import RuntimeSettings
+from irobot.app.domain.intent import Intent
+from irobot.common.domain.perception import PerceptionTarget
+from irobot.common.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.common.domain.skills.base_skill import SkillResult
+from irobot.common.interfaces.robot_controller import RobotController
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 
 from tests.unit.test_follow_object import World, run
 

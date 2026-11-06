@@ -55,8 +55,8 @@ sans caméra, sans visage réel et sans moteur :
 ```bash
 uv run python - <<'PY'
 import numpy as np
-from irobot.config.settings import load_runtime_settings
-from irobot.hardware.camera.detector import FaceDetector
+from irobot.common.config.settings import load_runtime_settings
+from irobot.common.hardware.camera.detector import FaceDetector
 
 detector = FaceDetector(load_runtime_settings())
 assert detector.detect(np.zeros((640, 480, 3), dtype=np.uint8)) is None
@@ -65,7 +65,7 @@ PY
 ```
 
 Le chemin `face_model_path` de la section `[camera]` de
-[runtime_settings.toml](../src/irobot/config/runtime_settings.toml) est relatif à ce
+[runtime_settings.toml](../src/irobot/common/config/runtime_settings.toml) est relatif à ce
 fichier TOML, ou absolu. Une absence du modèle ou une erreur OpenCV est signalée,
 sans téléchargement automatique ni repli silencieux. Le contrôle ci-dessus
 ne qualifie ni la caméra Picamera2 sur le Pi, ni la précision des distances,

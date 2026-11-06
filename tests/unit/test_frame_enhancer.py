@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.hardware.camera import camera_live_perception_pipeline, frame_enhancer
-from irobot.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.hardware.camera import camera_live_perception_pipeline, frame_enhancer
+from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer, configure_exposure
 from tests.unit.perception_helpers import camera_target
 
 

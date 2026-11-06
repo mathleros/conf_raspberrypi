@@ -10,11 +10,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
-from irobot.interfaces.robot_controller import RobotController
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.domain.orchestrator.registry import SkillRegistry
+from irobot.common.domain.skills import ApproachTargetSkill, FollowObjectSkill
+from irobot.common.interfaces.robot_controller import RobotController
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 

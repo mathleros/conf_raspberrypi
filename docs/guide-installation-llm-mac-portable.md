@@ -88,7 +88,7 @@ curl http://127.0.0.1:8080/v1/models
 ```bash
 cd /Users/mathieu/Documents/Mathieu/Development/iRobotCacib/conf_raspberrypi
 PYTHONPATH=src uv run python - <<'PY'
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 runtime = VoiceRuntime(robot=FakeRobot(), use_llm=True)

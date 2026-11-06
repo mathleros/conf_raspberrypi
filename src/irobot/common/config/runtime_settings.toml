@@ -1,0 +1,44 @@
+[runtime]
+cm_per_second = 33.0
+backward_cm_per_second = 25.0
+deg_per_second = 180.0
+drive_speed = 0.5
+turn_speed = 0.5
+obstacle_threshold_cm = 5.0
+step_timeout_seconds = 6.0
+mission_timeout_seconds = 45.0
+max_step_retries = 2
+search_timeout_seconds = 25.0
+timeout_margin_seconds = 10.0
+
+[limits]
+max_plan_steps = 20
+max_distance_cm = 300.0
+max_angle_deg = 360.0
+max_duration_sec = 12.0
+max_follow_duration_sec = 600.0
+min_stand_off_cm = 30.0
+max_stand_off_cm = 300.0
+
+[camera]
+capture_size_px = [640, 480]
+oriented_frame_size_px = [480, 640]
+ball_diameter_cm = 6.0
+# Focale en pixels (image 640x480 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
+focal_px = 680.0
+# Contre-jour : compensation automatique d'exposition (EV) et contraste local LAB.
+# Pour retrouver le flux non corrigé : clahe_enabled = false et exposure_value = 0.0.
+exposure_value = 1.0
+clahe_enabled = true
+clahe_clip_limit = 3.0
+# YuNet : chemin relatif à ce fichier TOML (ou chemin absolu).
+face_model_path = "../../../../assets/vision/face_detection_yunet_2023mar.onnx"
+face_width_cm = 15.0
+face_score_threshold = 0.7
+# Tolérance en images traitées sans visage ; 0 désactive la mémoire.
+face_grace_frames = 10
+
+[human_follow]
+# Budgets provisoires autorises, NON qualifies ; ne debloquent pas le suivi moteur.
+max_age_seconds = 0.2
+announcement_timeout_seconds = 2.0

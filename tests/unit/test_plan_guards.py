@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from irobot.interfaces import plan_guards as pg
-from irobot.interfaces.text_normalizer import preprocess
+from irobot.app.interfaces import plan_guards as pg
+from irobot.common.interfaces.text_normalizer import preprocess
 
 
 def _load_eval_script():

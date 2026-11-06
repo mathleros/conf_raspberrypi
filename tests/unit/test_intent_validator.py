@@ -1,10 +1,10 @@
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.intent import Intent
-from irobot.domain.intent_validator import IntentValidator
-from irobot.interfaces.intent.plan_validator import IntentPlanValidator
-from irobot.interfaces.language_controller import LanguageController
+from irobot.common.config.settings import RuntimeSettings
+from irobot.app.domain.intent import Intent
+from irobot.app.domain.intent_validator import IntentValidator
+from irobot.app.interfaces.intent.plan_validator import IntentPlanValidator
+from irobot.app.interfaces.language_controller import LanguageController
 from tests.unit.fake_robot import FakeRobot
 
 

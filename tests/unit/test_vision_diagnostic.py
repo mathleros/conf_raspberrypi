@@ -6,14 +6,14 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.config.settings import MarkerIdentity, RuntimeSettings
-from irobot.hardware.camera import camera_live_perception_pipeline
-from irobot.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
-from irobot.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.interfaces.perception_contracts import ObjectDetection
-from irobot.tools.vision_diagnostic import detect_balls, format_object_status
-from irobot.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
-from irobot.tools.vision_diagnostic import (
+from irobot.common.config.settings import MarkerIdentity, RuntimeSettings
+from irobot.common.hardware.camera import camera_live_perception_pipeline
+from irobot.common.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
+from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.common.interfaces.perception_contracts import ObjectDetection
+from irobot.common.tools.vision_diagnostic import detect_balls, format_object_status
+from irobot.common.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
+from irobot.common.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
     format_detection_status,
@@ -246,7 +246,7 @@ def test_overlay_shows_current_pose_distance_and_failures():
 
 @pytest.mark.parametrize("inference_error", [False, True])
 def test_main_configures_reference_resolution_and_rotates_without_camera(monkeypatch, capsys, inference_error):
-    from irobot.tools import vision_diagnostic
+    from irobot.common.tools import vision_diagnostic
 
     calls = []
     texts = []
@@ -359,7 +359,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(monkeyp
 
 
 def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypatch, capsys):
-    from irobot.tools import vision_diagnostic
+    from irobot.common.tools import vision_diagnostic
 
     calls = []
     windows = []
@@ -433,7 +433,7 @@ def test_both_balls_are_detected_independently_with_existing_distance_model():
 
 
 def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkeypatch):
-    from irobot.tools import vision_diagnostic
+    from irobot.common.tools import vision_diagnostic
 
     monkeypatch.setattr(
         vision_diagnostic.ColorDetector,
@@ -445,7 +445,7 @@ def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkey
 
 
 def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
-    from irobot.tools import vision_diagnostic
+    from irobot.common.tools import vision_diagnostic
 
     frame = np.zeros((640, 480, 3), np.uint8)
     monkeypatch.setattr(

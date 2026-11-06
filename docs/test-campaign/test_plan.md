@@ -13,7 +13,7 @@ Les tests Python et les scénarios simulés restent nécessaires mais **ne prouv
 Documents de référence :
 
 - [Installation et utilisation](../../README.md) et [guide LLM Pi 5](../guide-installation-llm-local-pi5.md).
-- [Paramètres livrés](../../src/irobot/config/runtime_settings.toml).
+- [Paramètres livrés](../../src/irobot/common/config/runtime_settings.toml).
 - [Tolérances de préparation](../../specs/backlog/05_measurements_tolerance_sheet.md).
 - [Modèle de compte rendu à remplir](rapport-test-pi-modele.md).
 
@@ -58,7 +58,7 @@ export CAMPAGNE="$PWD/target/logs/test-campaign/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$CAMPAGNE/traces"
 touch "$CAMPAGNE/debut"
 cp docs/test-campaign/rapport-test-pi-modele.md "$CAMPAGNE/rapport.md"
-cp src/irobot/config/runtime_settings.toml "$CAMPAGNE/parametres-avant.toml"
+cp src/irobot/common/config/runtime_settings.toml "$CAMPAGNE/parametres-avant.toml"
 {
   date -u
   uname -a
@@ -67,7 +67,7 @@ cp src/irobot/config/runtime_settings.toml "$CAMPAGNE/parametres-avant.toml"
   uv run python --version
   git rev-parse HEAD
   git status --short
-  sha256sum uv.lock src/irobot/config/runtime_settings.toml
+  sha256sum uv.lock src/irobot/common/config/runtime_settings.toml
   env | grep '^LLM_'
   free -h
   df -h .
@@ -160,7 +160,7 @@ run_case H02-calibration uv run calibrate-distance --color yellow \
 Remplacer `6.5` par le diamètre réel. Reporter manuellement la focale affichée **et** ce diamètre dans `[camera]` du TOML, puis :
 
 ```bash
-cp src/irobot/config/runtime_settings.toml "$CAMPAGNE/parametres-camera.toml"
+cp src/irobot/common/config/runtime_settings.toml "$CAMPAGNE/parametres-camera.toml"
 run_case H02-controle uv run calibrate-distance --color yellow
 ```
 
@@ -175,7 +175,7 @@ Une initialisation peut échouer sans arrêter le CLI ; un objet caméra créé 
 ```bash
 uv run python - <<'PY' 2>&1 | tee "$CAMPAGNE/H03.log"
 import time
-from irobot.interfaces.voice_runtime import build_hardware_runtime
+from irobot.app.interfaces.voice_runtime import build_hardware_runtime
 
 hardware = build_hardware_runtime()
 try:
@@ -472,7 +472,7 @@ Une réserve connue n'autorise jamais un défaut d'arrêt physique. Toute dérog
 Tous les runtimes arrêtés, roues sécurisées et moteurs coupés :
 
 ```bash
-cp src/irobot/config/runtime_settings.toml "$CAMPAGNE/parametres-apres.toml"
+cp src/irobot/common/config/runtime_settings.toml "$CAMPAGNE/parametres-apres.toml"
 find target/logs -maxdepth 1 -type f -name 'runtime_trace_*.jsonl' \
   -newer "$CAMPAGNE/debut" -exec cp {} "$CAMPAGNE/traces/" \;
 journalctl -u llm.service --since "$(date -r "$CAMPAGNE/debut" --iso-8601=seconds)" \

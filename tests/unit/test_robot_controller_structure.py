@@ -5,10 +5,10 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
-from irobot.interfaces import RobotController
+from irobot.common.interfaces import RobotController
 
 
-INTERFACES = Path(__file__).resolve().parents[2] / "src/irobot/interfaces"
+INTERFACES = Path(__file__).resolve().parents[2] / "src/irobot/common/interfaces"
 CONTROLLER_FILES = (
     "robot_controller.py",
 )
@@ -27,7 +27,7 @@ class RobotControllerStructureTests(unittest.TestCase):
                         self.assertLessEqual(node.end_lineno - start + 1, 50)
 
     def test_controller_logic_never_imports_concrete_hardware(self):
-        forbidden = ("irobot.hardware", "gpiozero", "RPi", "cv2", "picamera", "vosk")
+        forbidden = ("irobot.common.hardware", "gpiozero", "RPi", "cv2", "picamera", "vosk")
         for name in CONTROLLER_FILES:
             tree = ast.parse((INTERFACES / name).read_text(encoding="utf-8"))
             for node in ast.walk(tree):

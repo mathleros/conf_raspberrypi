@@ -4,19 +4,19 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.intent import Intent
-from irobot.domain.orchestrator.planner import SkillPlanner
-from irobot.domain.orchestrator.registry import SkillRegistry
-from irobot.domain.perception import PerceptionTarget
-from irobot.domain.skills import ApproachTargetSkill, FollowObjectSkill
-from irobot.domain.intent_validator import IntentValidator
-from irobot.interfaces.intent.text_intent_parser import (
+from irobot.common.config.settings import RuntimeSettings
+from irobot.app.domain.intent import Intent
+from irobot.app.domain.orchestrator.planner import SkillPlanner
+from irobot.common.domain.orchestrator.registry import SkillRegistry
+from irobot.common.domain.perception import PerceptionTarget
+from irobot.common.domain.skills import ApproachTargetSkill, FollowObjectSkill
+from irobot.app.domain.intent_validator import IntentValidator
+from irobot.app.interfaces.intent.text_intent_parser import (
     TextIntentParser,
     _extract_duration,
     _extract_stand_off_cm,
 )
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 

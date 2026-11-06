@@ -70,7 +70,7 @@
 - Toute garde déterministe portée depuis `scripts/scenarios/eval_prompt_plan.py` reste identique au script (test d'égalité) : modifier les deux ensemble.
 - LLM : petit modèle (1,5B) -> entrée normalisée côté Python, prompt court et statique, sortie JSON minimale ; le parseur local reste le filet de sécurité.
 - Priorité sécurité : obstacle > mouvement (arrêt prioritaire).
-- Paramètres du runtime configurables par fichier : `src/irobot/config/runtime_settings.toml`.
+- Paramètres du runtime configurables par fichier : `src/irobot/common/config/runtime_settings.toml`.
 - Distance balle : estimation visuelle (diamètre apparent, frame 640x480 tournée de 90°) lissée ; ultrason optionnel, jamais lu depuis le thread caméra (HC-SR04 chronométré à la main : lectures concurrentes non sûres).
 - Organisation dépôt maintenue : `scripts/install`, `scripts/test`, `tests`, `specs/backlog`.
 

@@ -10,21 +10,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.config.settings import RuntimeSettings
-from irobot.domain.intent import Intent
-from irobot.hardware.audio import voice_input
-from irobot.hardware import runtime_factory
-from irobot.interfaces import voice_runtime
-from irobot.interfaces.intent.llm_intent_parser import ask_llm_for_intent_plan_with_trace
+from irobot.common.config.settings import RuntimeSettings
+from irobot.app.domain.intent import Intent
+from irobot.common.hardware.audio import voice_input
+from irobot.common.hardware import runtime_factory
+from irobot.app.interfaces import voice_runtime
+from irobot.app.interfaces.intent.llm_intent_parser import ask_llm_for_intent_plan_with_trace
 
 
 PACKAGE = Path(__file__).resolve().parents[2] / "src" / "irobot"
-VOICE_FILES = sorted((PACKAGE / "interfaces").glob("voice*.py")) + [
-    PACKAGE / "interfaces" / "command_service.py",
-    PACKAGE / "interfaces" / "intent" / "plan_validator.py",
-    PACKAGE / "domain" / "orchestrator" / "mission_orchestrator.py",
-    PACKAGE / "hardware" / "audio" / "voice_input.py",
-    PACKAGE / "hardware" / "runtime_factory.py",
+VOICE_FILES = sorted((PACKAGE / "app" / "interfaces").glob("voice*.py")) + [
+    PACKAGE / "app" / "interfaces" / "command_service.py",
+    PACKAGE / "app" / "interfaces" / "intent" / "plan_validator.py",
+    PACKAGE / "app" / "domain" / "orchestrator" / "mission_orchestrator.py",
+    PACKAGE / "common" / "hardware" / "audio" / "voice_input.py",
+    PACKAGE / "common" / "hardware" / "runtime_factory.py",
 ]
 
 
@@ -46,9 +46,9 @@ def test_voice_logic_does_not_import_hardware_at_module_load(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Import):
-            assert all(not name.name.startswith("irobot.hardware") for name in node.names)
+            assert all(not name.name.startswith("irobot.common.hardware") for name in node.names)
         elif isinstance(node, ast.ImportFrom):
-            assert not (node.module or "").startswith("irobot.hardware")
+            assert not (node.module or "").startswith("irobot.common.hardware")
 
 
 def test_audio_stream_terminates_and_closes_on_consumer_error(monkeypatch):
@@ -147,8 +147,8 @@ def test_hardware_factory_stays_offline_on_mac(monkeypatch):
 
 
 def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeypatch):
-    from irobot.hardware.smart_car import smart_car
-    from irobot.hardware.runtime_factory import close_hardware_runtime
+    from irobot.common.hardware.smart_car import smart_car
+    from irobot.common.hardware.runtime_factory import close_hardware_runtime
 
     class Sensor:
         def __init__(self):
@@ -175,7 +175,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
     monkeypatch.setattr(smart_car, "SmartCar2WD", Car)
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.sensors.hc_sr04",
+        "irobot.common.hardware.sensors.hc_sr04",
         SimpleNamespace(HC_SR04=lambda: sensor),
     )
     camera_kwargs = {}
@@ -186,7 +186,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
 
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.camera.camera_live_perception_pipeline",
+        "irobot.common.hardware.camera.camera_live_perception_pipeline",
         SimpleNamespace(CameraLivePerceptionPipeline=create_camera),
     )
 
@@ -204,7 +204,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
 
 
 def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
-    from irobot.hardware.smart_car import smart_car
+    from irobot.common.hardware.smart_car import smart_car
 
     calls = []
 
@@ -232,12 +232,12 @@ def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
     monkeypatch.setattr(smart_car, "SmartCar2WD", Car)
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.sensors.hc_sr04",
+        "irobot.common.hardware.sensors.hc_sr04",
         SimpleNamespace(HC_SR04=Sensor),
     )
     monkeypatch.setitem(
         sys.modules,
-        "irobot.hardware.camera.camera_live_perception_pipeline",
+        "irobot.common.hardware.camera.camera_live_perception_pipeline",
         SimpleNamespace(CameraLivePerceptionPipeline=fail_camera),
     )
 

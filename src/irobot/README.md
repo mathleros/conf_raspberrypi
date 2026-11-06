@@ -220,7 +220,7 @@ dernière boîte et ses anciennes mesures. Le diagnostic utilise les réglages
 caméra du TOML, ne commande aucun moteur et n'enregistre aucune image.
 Le modèle YuNet doit être disponible ; une erreur de détection n'est pas
 assimilée à une absence. Appuyer sur `q` ou Ctrl+C pour quitter.
-Pour le lancement Python direct, utiliser `python -m irobot.tools.vision_diagnostic`.
+Pour le lancement Python direct, utiliser `python -m irobot.common.tools.vision_diagnostic`.
 
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement

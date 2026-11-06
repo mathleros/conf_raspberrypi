@@ -5,19 +5,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from irobot.config import settings
-from irobot.hardware.camera.detector import color_detector
-from irobot.hardware.camera.camera_live_perception_pipeline import (
+from irobot.common.config import settings
+from irobot.common.hardware.camera.detector import color_detector
+from irobot.common.hardware.camera.camera_live_perception_pipeline import (
     CameraLivePerceptionPipeline,
     ExponentialSmoother,
 )
-from irobot.hardware.camera.detector import ColorDetector, Detector
-from irobot.hardware.camera.detector.distance_estimator import estimate_distance_cm
-from irobot.domain.perception import PerceptionTarget
-from irobot.interfaces.perception_contracts import (
+from irobot.common.hardware.camera.detector import ColorDetector, Detector
+from irobot.common.hardware.camera.detector.distance_estimator import estimate_distance_cm
+from irobot.common.domain.perception import PerceptionTarget
+from irobot.common.interfaces.perception_contracts import (
     ObjectDetection,
 )
-from irobot.tools.calibrate_distance import focal_from_known_distance
+from irobot.common.tools.calibrate_distance import focal_from_known_distance
 from tests.unit.perception_helpers import camera_target
 
 

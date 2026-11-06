@@ -6,10 +6,10 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.tools import calibrate_distance
-from irobot.hardware.camera import camera_live_perception_pipeline
-from irobot.config.settings import RuntimeSettings
-from irobot.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.common.tools import calibrate_distance
+from irobot.common.hardware.camera import camera_live_perception_pipeline
+from irobot.common.config.settings import RuntimeSettings
+from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
 from tests.unit.perception_helpers import camera_target
 
 
@@ -116,9 +116,9 @@ def _entrypoint(monkeypatch, name, camera):
 
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Factory))
     module_name = (
-        "irobot.tools.vision_diagnostic"
+        "irobot.common.tools.vision_diagnostic"
         if name == "vision_diagnostic"
-        else f"irobot.tools.{name}"
+        else f"irobot.common.tools.{name}"
     )
     module = importlib.import_module(module_name)
     if hasattr(module, "Picamera2"):

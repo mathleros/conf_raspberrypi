@@ -2,8 +2,8 @@ import threading
 
 import pytest
 
-from irobot.hardware.camera import camera_live_perception_pipeline as camera_module
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.common.hardware.camera import camera_live_perception_pipeline as camera_module
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 

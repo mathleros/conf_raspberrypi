@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from irobot.interfaces.voice_runtime import VoiceRuntime
+from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 
 LLM_BASE_URL = "http://127.0.0.1:8080"

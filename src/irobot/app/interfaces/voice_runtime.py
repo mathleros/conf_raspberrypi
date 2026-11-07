@@ -9,10 +9,12 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from irobot.app.interfaces.command_service import CommandService
-from irobot.app.interfaces.plan_guards import fold, is_pure_stop
+from irobot.app.interfaces.plan_guards import is_pure_stop
 from irobot.common.config.settings import RuntimeSettings
 from irobot.common.domain.orchestrator.registry import SkillRegistry
 from irobot.common.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.common.interfaces.text_normalizer import fold
+from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
 
 
 class VoiceRuntime:
@@ -27,6 +29,7 @@ class VoiceRuntime:
         perception: ObjectPerceptionPipeline | None = None,
         registry: SkillRegistry | None = None,
         input_device: str = "auto",
+        wake_word: str = DEFAULT_WAKE_WORD,
         transcript_source: Callable[[str], Iterable[str]] | None = None,
         use_llm: bool = True,
         trace_dir: str | None = None,
@@ -36,6 +39,8 @@ class VoiceRuntime:
     ):
         self.robot = robot
         self.input_device = input_device
+        self.wake_word = wake_word
+        self._armed = False
         self.transcript_source = transcript_source
         self.threaded = threaded
         self._worker: threading.Thread | None = None
@@ -123,6 +128,19 @@ class VoiceRuntime:
         if self.mission_running():
             print("[RUNTIME] Mission en cours : phrase ignorée (dis « stop » pour arrêter).", flush=True)
             return None
+
+        if self.wake_word:
+            remainder = split_wake_word(text, self.wake_word)
+            if remainder is None and not self._armed:
+                print("[RUNTIME] mot d'activation absent : phrase ignorée.", flush=True)
+                return None
+            phrase = remainder if remainder is not None else text
+            if not phrase:
+                self._armed = True
+                print("[RUNTIME] oui ? j'attends votre commande.", flush=True)
+                return None
+            self._armed = False
+            text = phrase
 
         # Effacé ici (thread principal) et non dans le worker pour ne pas écraser un stop tardif.
         self.clear_emergency_stop()

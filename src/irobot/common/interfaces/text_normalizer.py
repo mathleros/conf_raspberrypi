@@ -9,6 +9,15 @@ minutes -> secondes, mètres -> centimètres).
 from __future__ import annotations
 
 import re
+import unicodedata
+
+
+def fold(text: str) -> str:
+    """Minuscules, sans accents ni ponctuation (comparaison lexicale)."""
+    t = unicodedata.normalize("NFD", (text or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9 ]+", " ", t)
+
 
 _UNITS = {
     "zéro": 0, "zero": 0, "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,

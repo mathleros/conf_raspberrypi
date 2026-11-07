@@ -34,7 +34,7 @@ Intents :
 - move_forward, move_backward : parameters {"distance":cm} ou {"duration":secondes}
 - turn_left, turn_right : parameters {"angle":degrés} ou {"duration":secondes}
 - stop
-- search_and_approach_object : target "red", "yellow", "ball", "marker" (tag) ou "face" (personne, humain, visage, moi), parameters {"stand_off_cm":cm}
+- search_and_approach_object : target "red", "yellow", "ball", "marker" (tag) ou "face" (personne, humain, visage, moi), parameters {"stand_off_cm":cm,"person":"Prénom"} si la consigne nomme quelqu'un
 - follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
 - follow_red_ball : target "red_ball"
 - follow_person : target "face", parameters {"person":"Prénom"} si la consigne nomme quelqu'un (« suis Mathieu »), parameters {} sinon (« suis un humain », « suis une personne »)
@@ -45,6 +45,7 @@ Règles : une étape par action, dans l'ordre exact des verbes de la phrase (« 
 Exemples :
 « approche toi de moi » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
 « approche toi du visage » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{}}]}
+« approche toi de Mathieu » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{"person":"Mathieu"}}]}
 « rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
 « suis-moi » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{"person":"Moi"}}]}
 « suis Mathieu » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{"person":"Mathieu"}}]}
@@ -276,7 +277,7 @@ NUMERIC_KEYS = ("distance", "duration", "angle", "stand_off_cm", "duration_s", "
 ALLOWED_PARAMS = {
     "move_forward": {"distance", "duration", "unit"}, "move_backward": {"distance", "duration", "unit"},
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
-    "search_and_approach_object": {"stand_off_cm", "target_object"},
+    "search_and_approach_object": {"stand_off_cm", "target_object", "person"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
     "follow_person": {"person"},
     "move_square": {"side", "unit"},

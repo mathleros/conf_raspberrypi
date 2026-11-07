@@ -13,6 +13,7 @@ from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
 )
+from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD
 
 
 def _microphone_transcripts(input_device: str) -> Iterable[str]:
@@ -48,6 +49,11 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Traite cette phrase (sans micro) puis s'arrête.",
     )
+    parser.add_argument(
+        "--wake-word",
+        default=DEFAULT_WAKE_WORD,
+        help="Mot d'activation en écoute continue ; chaîne vide pour désactiver",
+    )
     return parser.parse_args()
 
 
@@ -78,6 +84,7 @@ def main() -> None:
             sensor=hardware["sensor"],
             perception=hardware["camera"],
             input_device=args.input_device,
+            wake_word=args.wake_word,
             transcript_source=_microphone_transcripts,
             use_llm=not args.no_llm,
             settings=settings,

@@ -21,13 +21,11 @@ from irobot.app2.command_parser import (
     BEHAVIORS,
     DEFAULT_DURATION_S,
     DEFAULT_VISION_DURATION_S,
-    DEFAULT_WAKE_WORD,
     MOVE_TARGETS,
     PERSON_PREFIX,
     VISION_TARGETS,
     Command,
     parse_command_chain,
-    split_wake_word,
 )
 from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.common.domain.orchestrator.executor import SkillExecutor
@@ -39,6 +37,7 @@ from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
 )
+from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
 
 if TYPE_CHECKING:
     from irobot.common.hardware.camera.detector.face_gallery import FaceGallery

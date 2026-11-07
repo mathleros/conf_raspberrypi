@@ -9,10 +9,9 @@ Porté depuis `scripts/scenarios/eval_prompt_plan.py` (comportement identique, v
 from __future__ import annotations
 
 import re
-import unicodedata
 from typing import Any
 
-from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
+from irobot.common.interfaces.text_normalizer import fold, fr_numbers_to_digits
 
 STOP_WORDS = {"stop", "arrete", "arrete-toi", "halte", "pause", "robot", "toi", "vite",
               "s", "il", "te", "plait", "attends", "attend"}
@@ -40,7 +39,7 @@ NUMERIC_KEYS = ("distance", "duration", "angle", "stand_off_cm", "duration_s", "
 ALLOWED_PARAMS = {
     "move_forward": {"distance", "duration", "unit"}, "move_backward": {"distance", "duration", "unit"},
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
-    "search_and_approach_object": {"stand_off_cm", "target_object"},
+    "search_and_approach_object": {"stand_off_cm", "target_object", "person"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
     "follow_person": {"person"},
     "move_square": {"side", "unit"},
@@ -95,13 +94,6 @@ def build_formats(no_response_format: bool, use_schema: bool) -> list[dict[str, 
     return [{"type": "json_object"}, None]
 
 
-def fold(text: str) -> str:
-    """Minuscules, sans accents ni ponctuation (comparaison lexicale)."""
-    t = unicodedata.normalize("NFD", (text or "").lower())
-    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
-    return re.sub(r"[^a-z0-9 ]+", " ", t)
-
-
 def is_pure_stop(text: str) -> bool:
     """Phrase composée uniquement de mots d'arrêt : traitée localement, sans LLM."""
     words = fold(text).split()
@@ -109,14 +101,26 @@ def is_pure_stop(text: str) -> bool:
         and all(w in STOP_WORDS or w.startswith(("arret", "attend")) for w in words)
 
 
-# Prénom suivant « suis » : mot capitalisé dans la phrase d'origine (« suis Mathieu »), pas un article ni un objet.
-_NAMED_FOLLOW = re.compile(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis)\s+([A-ZÀ-Ý][a-zà-ÿ]+)\b")
+NON_NAME_WORDS = frozenset({
+    "la", "le", "les", "l", "un", "une", "des", "the", "a", "an", "it", "them",
+    "moi", "me", "nous", "us", "personne", "humain", "humaine", "homme", "femme", "person", "human",
+    "balle", "balles", "ball", "balls", "objet", "objets", "object", "objects",
+    "jaune", "rouge", "yellow", "red", "marqueur", "tag", "aruco",
+    "pendant", "pour", "durant", "for", "during", "at", "de", "du", "d", "of", "jusqu", "until",
+    "quand", "when", "puis", "ensuite", "then", "et", "and", "please", "svp", "s",
+})
+_NAMED_FOLLOW = re.compile(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis)\s+([a-z]+)\b")
+
+
+def named_follow_target(text: str) -> str | None:
+    """Prénom juste après un verbe de suivi (casse libre : Vosk transcrit en minuscules)."""
+    match = _NAMED_FOLLOW.search(fold(text))
+    return match.group(1).capitalize() if match and match.group(1) not in NON_NAME_WORDS else None
 
 
 def requests_human_follow(text: str) -> bool:
     """Identifies human-follow wording so target validation does not reject it."""
-    named = _NAMED_FOLLOW.search(text or "")
-    if named and fold(named.group(1)) not in {"moi", "personne", "humain"}:
+    if named_follow_target(text):
         return True
     normalized = fold(text)
     return bool(re.search(

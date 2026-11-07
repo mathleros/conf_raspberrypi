@@ -140,6 +140,7 @@ def run_scenario(tmp_path: Path, **world_kwargs):
         use_llm=False,
         threaded=False,
         trace_dir=str(tmp_path),
+        wake_word="",
     )
     result = runtime.handle_transcript(SENTENCE)
     events = [json.loads(line) for line in Path(result["trace_path"]).read_text(encoding="utf-8").splitlines()]

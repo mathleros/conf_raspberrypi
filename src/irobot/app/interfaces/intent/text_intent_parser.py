@@ -13,8 +13,8 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.app.domain.intent import Intent
-from irobot.app.interfaces.plan_guards import fold, follow_request_refusal
-from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
+from irobot.app.interfaces.plan_guards import NON_NAME_WORDS, follow_request_refusal, named_follow_target
+from irobot.common.interfaces.text_normalizer import fold, fr_numbers_to_digits
 
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
 _DECIMAL_MARK = "\ue000"
@@ -310,10 +310,10 @@ class TextIntentParser:
         lowered = cleaned.lower()
         if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
             return Intent(name="follow_person", target="face", confidence=1.0, raw_text=text)
-        named = re.fullmatch(r"suis\s+([A-ZÀ-Ý][a-zà-ÿ]+)\s*[.!?]?", cleaned)
-        if named:
+        person = named_follow_target(cleaned) if re.fullmatch(r"suis\s+\w+\s*[.!?]?", cleaned, re.IGNORECASE) else None
+        if person:
             return Intent(
-                name="follow_person", target="face", parameters={"person": named.group(1)},
+                name="follow_person", target="face", parameters={"person": person},
                 confidence=1.0, raw_text=text,
             )
         if re.fullmatch(
@@ -325,6 +325,15 @@ class TextIntentParser:
             fold(cleaned).strip(),
         ):
             return Intent(name="search_and_approach_object", target="face", confidence=1.0, raw_text=text)
+        named_approach = re.fullmatch(
+            r"(?:approche|rapproche)[ -]toi (?:de|du|vers) ([a-z]+)", fold(cleaned).strip(),
+        )
+        if named_approach and named_approach.group(1) not in NON_NAME_WORDS:
+            return Intent(
+                name="search_and_approach_object", target="face",
+                parameters={"person": named_approach.group(1).capitalize()},
+                confidence=1.0, raw_text=text,
+            )
 
         if follow_request_refusal(cleaned):
             return Intent(name="unknown", raw_text=text)

@@ -39,11 +39,14 @@ class LanguageController:
         self.planner = SkillPlanner(registry=registry or SkillRegistry.default(settings))
 
     def _select_face_target(self, intent) -> None:
-        """Cible faciale : prénom de la galerie pour follow_person, sinon le plus grand visage."""
+        """Cible faciale : prénom de la galerie (follow_person, search_and_approach_object), sinon plus grand visage."""
         set_target = getattr(self.camera, "set_face_target", None)
         if set_target is None:
             return
-        name = intent.parameters.get("person") if intent.name == "follow_person" else None
+        name = (
+            intent.parameters.get("person")
+            if intent.name in {"follow_person", "search_and_approach_object"} else None
+        )
         if not name or self.gallery is None:
             set_target(None, None)
             return

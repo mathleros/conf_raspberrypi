@@ -8,8 +8,9 @@ from irobot.app2.command_parser import (
     Command,
     parse_command_chain,
     parse_voice_command,
-    split_wake_word,
 )
+
+from irobot.common.interfaces.wake_word import split_wake_word
 
 
 def test_single_command_with_spoken_duration():

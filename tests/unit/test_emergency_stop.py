@@ -67,7 +67,7 @@ def test_stop_from_other_thread_interrupts_follow_object(params):
 
 class BlockingRuntime(VoiceRuntime):
     def __init__(self, **kwargs):
-        super().__init__(use_llm=False, **kwargs)
+        super().__init__(use_llm=False, wake_word="", **kwargs)
         self.texts: list[str] = []
         self.entered = threading.Event()
         self.flag_at_start: bool | None = None
@@ -125,7 +125,7 @@ def test_close_stops_robot_and_joins_worker():
 
 
 def test_sync_path_runs_inline():
-    runtime = VoiceRuntime(robot=RobotController(FakeRobot()), use_llm=False, threaded=False)
+    runtime = VoiceRuntime(robot=RobotController(FakeRobot()), use_llm=False, threaded=False, wake_word="")
     result = runtime.handle_transcript("stop maintenant")
     assert result is None
     assert runtime.command_service.mission_orchestrator.state_machine.state.phase == "aborted"
@@ -140,7 +140,7 @@ def test_sync_path_runs_inline():
 @pytest.mark.parametrize("threaded", [False, True])
 def test_stop_is_immediate_even_without_a_mission(tmp_path, monkeypatch, text, threaded):
     fake = FakeRobot()
-    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path), threaded=threaded)
+    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path), threaded=threaded, wake_word="")
     calls = []
     original_request = runtime._request_emergency_stop
 
@@ -163,7 +163,7 @@ def test_stop_during_llm_planning_prevents_all_motion(tmp_path, monkeypatch):
     from irobot.app.domain.intent import Intent
 
     fake = FakeRobot()
-    runtime = VoiceRuntime(robot=RobotController(fake), trace_dir=str(tmp_path))
+    runtime = VoiceRuntime(robot=RobotController(fake), trace_dir=str(tmp_path), wake_word="")
     entered, release = threading.Event(), threading.Event()
 
     def plan(_):
@@ -191,7 +191,7 @@ def test_stop_during_llm_planning_prevents_all_motion(tmp_path, monkeypatch):
 def test_stop_does_not_wait_for_blocked_ultrasound(tmp_path):
     fake = FakeRobot()
     controller = RobotController(fake)
-    runtime = VoiceRuntime(robot=controller, use_llm=False, trace_dir=str(tmp_path))
+    runtime = VoiceRuntime(robot=controller, use_llm=False, trace_dir=str(tmp_path), wake_word="")
     entered, release = threading.Event(), threading.Event()
 
     def obstacle():
@@ -241,7 +241,7 @@ def test_stop_cancels_timed_motion_and_remaining_steps(tmp_path):
 
     controller = RobotController(fake, time_fn=lambda: now, sleep_fn=sleep)
     runtime = VoiceRuntime(
-        robot=controller, use_llm=False, threaded=False, trace_dir=str(tmp_path),
+        robot=controller, use_llm=False, threaded=False, trace_dir=str(tmp_path), wake_word="",
     )
     result = runtime.handle_transcript("avance pendant cinq secondes puis recule")
     assert result["status"] == "aborted"
@@ -264,7 +264,7 @@ def test_invalid_duration_stops_and_raises(duration):
 
 def test_stop_failure_still_requests_cancellation(tmp_path, monkeypatch):
     fake = FakeRobot()
-    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path))
+    runtime = VoiceRuntime(robot=fake, trace_dir=str(tmp_path), wake_word="")
     calls = []
 
     def stop():

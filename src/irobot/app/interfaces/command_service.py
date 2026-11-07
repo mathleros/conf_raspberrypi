@@ -235,8 +235,11 @@ class CommandService:
             }) for it in intents
         ):
             return "unsupported_follow_target"
-        if any(it.name == "follow_person" and it.parameters.get("person") and not self._known_person(it.parameters["person"])
-               for it in intents):
+        if any(
+            it.name in {"follow_person", "search_and_approach_object"}
+            and it.parameters.get("person") and not self._known_person(it.parameters["person"])
+            for it in intents
+        ):
             return "personne inconnue"
         return None
 

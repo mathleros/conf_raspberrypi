@@ -18,7 +18,6 @@ VISION_TARGETS = ("marker", "red_ball", "yellow_ball", "human")
 DEFAULT_DURATION_S = 1.0
 # Une recherche ou un suivi a besoin de plus de temps qu'un mouvement simple.
 DEFAULT_VISION_DURATION_S = 15.0
-DEFAULT_WAKE_WORD = "robot"
 PERSON_PREFIX = "person:"
 SELF_NAME = "Moi"  # « suis moi » suit le visage de Moi.jpg
 
@@ -151,12 +150,3 @@ def parse_command_chain(text: str) -> list[Command] | None:
     if not commands or any(command is None for command in commands):
         return None
     return commands
-
-
-def split_wake_word(text: str, wake_word: str = DEFAULT_WAKE_WORD) -> str | None:
-    """Texte qui suit le mot d'activation (peut être vide) ; None si le mot est absent."""
-    tokens = tokenize(text)
-    target = tokenize(wake_word)
-    if not target or target[0] not in tokens:
-        return None
-    return " ".join(tokens[tokens.index(target[0]) + 1 :])

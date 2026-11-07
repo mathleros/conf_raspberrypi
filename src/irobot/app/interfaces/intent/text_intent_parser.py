@@ -13,7 +13,11 @@ from collections.abc import Callable
 from typing import Any
 
 from irobot.app.domain.intent import Intent
-from irobot.app.interfaces.plan_guards import NON_NAME_WORDS, follow_request_refusal, named_follow_target
+from irobot.app.interfaces.plan_guards import (
+    NON_NAME_WORDS,
+    follow_request_refusal,
+    named_follow_target,
+)
 from irobot.common.interfaces.text_normalizer import fold, fr_numbers_to_digits
 
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")

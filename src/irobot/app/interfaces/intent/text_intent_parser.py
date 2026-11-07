@@ -179,6 +179,21 @@ def _follow_object(cleaned: str, text: str) -> Intent:
     return Intent(name="follow_object", target=color, parameters=parameters, confidence=0.88, raw_text=text)
 
 
+_NAMED_FOLLOW_RE = re.compile(r"suis\s+\w+(?:\s+(?:pendant|durant|pour|à|a)\s+.+)?\s*[.!?]?", re.IGNORECASE)
+
+
+def _follow_person(cleaned: str, text: str, person: str | None = None) -> Intent:
+    """follow_person avec prénom éventuel, durée (« pendant 5 minutes ») et distance (« à 1 mètre »)."""
+    parameters: dict[str, Any] = {"person": person} if person else {}
+    duration_s = _extract_duration(cleaned)
+    if duration_s is not None:
+        parameters["duration_s"] = duration_s
+    stand_off_cm = _extract_stand_off_cm(cleaned)
+    if stand_off_cm is not None:
+        parameters["stand_off_cm"] = stand_off_cm
+    return Intent(name="follow_person", target="face", parameters=parameters, confidence=1.0, raw_text=text)
+
+
 def _move_square(cleaned: str, text: str) -> Intent:
     distance = _extract_distance(cleaned)
     side = distance[0] if distance else 40.0
@@ -299,6 +314,27 @@ def _apply_rules(rules: tuple[_Rule, ...], lowered: str, cleaned: str, text: str
     return None
 
 
+_SEARCH_PERSON_RE = re.compile(r"\b(?:cherche|chercher|recherche|rechercher|trouve|trouver|find|look for)\s+([a-z]+)\b")
+
+
+def _searched_person(cleaned: str) -> str | None:
+    """Prénom qui suit un verbe de recherche (« cherche mathieu »), casse libre ; None sinon."""
+    match = _SEARCH_PERSON_RE.search(fold(cleaned))
+    return match.group(1).capitalize() if match and match.group(1) not in NON_NAME_WORDS else None
+
+
+def _search_fallback(cleaned: str, text: str) -> Intent:
+    """« cherche X » sans cible connue : visage nommé si X est un prénom, sinon refus (jamais de suivi par défaut)."""
+    person = _searched_person(cleaned)
+    if person:
+        return Intent(
+            name="search_and_approach_object", target="face",
+            parameters={"search": True, "approach": True, "person": person},
+            confidence=0.8, raw_text=text,
+        )
+    return Intent(name="unknown", confidence=0.0, raw_text=text)
+
+
 class TextIntentParser:
     """Parse localement du texte libre en intentions métier structurées."""
 
@@ -309,13 +345,10 @@ class TextIntentParser:
 
         lowered = cleaned.lower()
         if any(phrase in lowered for phrase in ("suis-moi", "suis moi", "suivez-moi")):
-            return Intent(name="follow_person", target="face", confidence=1.0, raw_text=text)
-        person = named_follow_target(cleaned) if re.fullmatch(r"suis\s+\w+\s*[.!?]?", cleaned, re.IGNORECASE) else None
+            return _follow_person(cleaned, text)
+        person = named_follow_target(cleaned) if _NAMED_FOLLOW_RE.fullmatch(cleaned) else None
         if person:
-            return Intent(
-                name="follow_person", target="face", parameters={"person": person},
-                confidence=1.0, raw_text=text,
-            )
+            return _follow_person(cleaned, text, person)
         if re.fullmatch(
             r"(?:(?:approche|rapproche)(?: toi)? (?:de|vers) moi|rejoins moi)", fold(cleaned).strip(),
         ):
@@ -369,17 +402,20 @@ class TextIntentParser:
             stand_off_cm = _extract_stand_off_cm(cleaned) if has_approach_verb else None
             if stand_off_cm is not None:
                 parameters["stand_off_cm"] = stand_off_cm
+            person = None if color else _searched_person(cleaned)
+            if person:
+                parameters["person"] = person
             return Intent(
                 name="search_and_approach_object",
-                target=color,
+                target="face" if person else color,
                 parameters=parameters,
                 confidence=0.87,
                 raw_text=text,
             )
 
-        return _apply_rules(_RULES_AFTER_APPROACH, lowered, cleaned, text) or Intent(
-            name="unknown", confidence=0.0, raw_text=text,
-        )
+        if _searched_person(cleaned):
+            return _search_fallback(cleaned, text)
+        return _apply_rules(_RULES_AFTER_APPROACH, lowered, cleaned, text) or _search_fallback(cleaned, text)
 
     _SEGMENT_SPLIT_RE = re.compile(r"\s*(?:(?<!\d),(?!\d)|\bet puis\b|\bpuis\b|\bensuite\b)\s*")
     _PRONOUN_RE = re.compile(r"\b(?:la|le|l'|lui)\b|-(?:la|le|lui)\b")
@@ -394,6 +430,7 @@ class TextIntentParser:
 
         plan: list[Intent] = []
         last_target: str | None = None
+        last_person: str | None = None
         last_stand_off: float | None = None
         for segment in segments:
             intent = self.parse(segment)
@@ -410,6 +447,25 @@ class TextIntentParser:
                     raw_text=text,
                 )
 
+            # Le dernier référent nommé l'emporte : prénom (« cherche mathieu puis suis-le ») ou couleur.
+            if intent.parameters.get("person"):
+                last_person, last_target = intent.parameters["person"], None
+            elif (
+                last_person and intent.target is None and self._PRONOUN_RE.search(lowered)
+                and intent.name in {"search_and_approach_object", "follow_object"}
+            ):
+                if intent.name == "follow_object":
+                    kept = {k: v for k, v in intent.parameters.items() if k in {"duration_s", "stand_off_cm"}}
+                    if "stand_off_cm" not in kept and last_stand_off:
+                        kept["stand_off_cm"] = last_stand_off
+                    intent = Intent(
+                        name="follow_person", target="face", parameters={**kept, "person": last_person},
+                        confidence=intent.confidence, raw_text=text,
+                    )
+                else:
+                    intent.target = "face"
+                    intent.parameters["person"] = last_person
+
             if intent.name in {"search_and_approach_object", "follow_object"}:
                 if intent.target is None and last_target and self._PRONOUN_RE.search(lowered):
                     intent.target = last_target
@@ -417,7 +473,7 @@ class TextIntentParser:
                 if intent.name == "follow_object" and "stand_off_cm" not in intent.parameters and last_stand_off:
                     intent.parameters["stand_off_cm"] = last_stand_off
                 if intent.target in {"yellow", "red"}:
-                    last_target = intent.target
+                    last_target, last_person = intent.target, None
                 if "stand_off_cm" in intent.parameters:
                     last_stand_off = float(intent.parameters["stand_off_cm"])
 

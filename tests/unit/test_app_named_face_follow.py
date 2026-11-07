@@ -2,6 +2,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from irobot.app.domain.intent import Intent
+from irobot.app.interfaces.command_service import CommandService
 from irobot.app.interfaces.language_controller import LanguageController
 from irobot.app.interfaces.plan_guards import follow_request_refusal, requests_human_follow
 
@@ -64,3 +66,29 @@ def test_local_parser_extracts_person_name() -> None:
     assert intent.name == "follow_person"
     assert intent.parameters == {"person": "Mathieu"}
     assert TextIntentParser().parse("suis le chat").name != "follow_person"
+
+
+def test_search_and_approach_selects_named_face_target() -> None:
+    camera = _Camera()
+    controller = LanguageController(camera=camera, gallery=_Gallery())
+    controller._select_face_target(
+        SimpleNamespace(name="search_and_approach_object", parameters={"person": "Mathieu"}),
+    )
+    controller._select_face_target(SimpleNamespace(name="search_and_approach_object", parameters={}))
+
+    assert camera.calls[0][0] == "Mathieu"
+    assert np.array_equal(camera.calls[0][1], np.ones(4, dtype=np.float32))
+    assert camera.calls[1] == (None, None)
+
+
+def test_plan_refusal_flags_unknown_person_only() -> None:
+    service = CommandService(use_llm=False, gallery=_Gallery())
+
+    def refusal(name: str):
+        intent = Intent(
+            name="search_and_approach_object", target="face", parameters={"person": name}, raw_text="approche toi",
+        )
+        return service._plan_refusal([intent], {"source": "local"})
+
+    assert refusal("Inconnu") == "personne inconnue"
+    assert refusal("mathieu") is None

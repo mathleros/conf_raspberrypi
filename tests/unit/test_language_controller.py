@@ -156,3 +156,16 @@ def test_language_controller_injects_perception_detection():
     result = controller.handle_planned_step(controller.planner.plan_intents([intent])[0])
 
     assert result["status"] == "accepted"
+
+
+def test_parse_plan_extracts_person_for_approach_and_follow() -> None:
+    parser = TextIntentParser()
+
+    named = parser.parse_plan("approche toi de mathieu")[0]
+    assert (named.name, named.target, named.parameters) == (
+        "search_and_approach_object", "face", {"person": "Mathieu"},
+    )
+    for text in ("approche toi de moi", "approche toi de la balle jaune"):
+        assert "person" not in parser.parse_plan(text)[0].parameters
+    follow = parser.parse_plan("suis mathieu")[0]
+    assert (follow.name, follow.parameters) == ("follow_person", {"person": "Mathieu"})

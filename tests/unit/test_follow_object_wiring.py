@@ -138,6 +138,73 @@ def test_validator_follow_object_targets():
 
 def test_planner_maps_follow_object():
     assert SkillPlanner.INTENT_TO_SKILLS["follow_object"] == ["follow_object"]
+
+
+@pytest.mark.parametrize("text", ["cherche mathieu puis suis le", "cherche mathieu puis suis-le"])
+def test_search_named_person_then_follow_pronoun(text):
+    plan = _plan(text)
+
+    assert [(i.name, i.target) for i in plan] == [
+        ("search_and_approach_object", "face"), ("follow_person", "face"),
+    ]
+    assert plan[0].parameters["person"] == "Mathieu"
+    assert plan[1].parameters == {"person": "Mathieu"}
+
+
+def test_search_named_person_with_stand_off_and_duration():
+    search, follow = _plan("cherche mathieu approche toi à un mètre puis suis le pendant cinq minutes")
+
+    assert search.parameters["person"] == "Mathieu"
+    assert search.parameters["stand_off_cm"] == 100.0
+    assert follow.name == "follow_person"
+    assert follow.parameters == {"duration_s": 300.0, "stand_off_cm": 100.0, "person": "Mathieu"}
+
+
+@pytest.mark.parametrize("text", ["suis mathieu pendant 5 minutes", "suis mathieu pendant cinq minutes"])
+def test_follow_named_person_with_duration(text):
+    [intent] = _plan(text)
+
+    assert (intent.name, intent.target, intent.parameters) == (
+        "follow_person", "face", {"person": "Mathieu", "duration_s": 300.0},
+    )
+
+
+def test_follow_person_with_distance_and_duration():
+    [named] = _plan("suis mathieu à un mètre pendant 30 secondes")
+    [anonymous] = _plan("suis moi pendant dix secondes")
+
+    assert named.parameters == {"person": "Mathieu", "duration_s": 30.0, "stand_off_cm": 100.0}
+    assert (anonymous.name, anonymous.target, anonymous.parameters) == (
+        "follow_person", "face", {"duration_s": 10.0},
+    )
+
+
+def test_follow_regressions_without_duration_or_name():
+    assert _plan("suis moi")[0].parameters == {}
+    assert _plan("suis mathieu")[0].parameters == {"person": "Mathieu"}
+    assert _plan("suis la balle jaune pendant 5 minutes")[0].parameters == {
+        "target_object": "yellow", "duration_s": 300.0,
+    }
+    assert _plan("suis le chien pendant 5 minutes")[0].name == "unknown"
+    assert _plan("cherche mathieu puis suis mathieu pendant 5 minutes")[1].parameters == {
+        "person": "Mathieu", "duration_s": 300.0,
+    }
+
+
+def test_pronoun_follow_keeps_colour_target_when_no_name():
+    _, follow = _plan(
+        "cherche la balle jaune approche toi à un mètre de la balle jaune puis suis la pendant cinq minutes"
+    )
+    assert follow.name == "follow_object"
+    assert follow.target == "yellow"
+    assert "person" not in follow.parameters
+
+    assert _plan("cherche mathieu puis suis la balle jaune")[-1].name == "follow_object"
+    assert _plan("cherche mathieu puis suis la balle jaune")[-1].target == "yellow"
+
+    last = _plan("cherche la balle jaune puis cherche mathieu puis suis le")[-1]
+    assert last.name == "follow_person"
+    assert last.parameters == {"person": "Mathieu"}
     assert [s.name for s in SkillPlanner().plan("follow_object")] == ["follow_object"]
 
 

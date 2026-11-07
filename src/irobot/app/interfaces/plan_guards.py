@@ -108,6 +108,7 @@ NON_NAME_WORDS = frozenset({
     "jaune", "rouge", "yellow", "red", "marqueur", "tag", "aruco",
     "pendant", "pour", "durant", "for", "during", "at", "de", "du", "d", "of", "jusqu", "until",
     "quand", "when", "puis", "ensuite", "then", "et", "and", "please", "svp", "s",
+    "lui", "elle", "eux", "elles",
 })
 _NAMED_FOLLOW = re.compile(r"\b(?:suis|suit|suivre|suivez|follow|track|poursuis)\s+([a-z]+)\b")
 

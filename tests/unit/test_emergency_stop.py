@@ -297,3 +297,19 @@ def test_ultrasound_failure_is_logged_and_prevents_motion(caplog, mode):
     assert RobotController(fake).forward_for(5) == "obstacle"
     assert fake.commands == ["stop"]
     assert caplog.records
+
+
+def test_wake_word_gates_commands_but_not_stop(tmp_path):
+    fake = FakeRobot()
+    runtime = VoiceRuntime(robot=fake, use_llm=False, threaded=False, wake_word="robot", trace_dir=str(tmp_path))
+
+    assert runtime.handle_transcript("avance") is None
+    assert fake.commands == []
+
+    assert runtime.handle_transcript("robot") is None
+    assert runtime.handle_transcript("avance") is not None
+    assert fake.commands
+
+    fake.commands.clear()
+    runtime.handle_transcript("stop")
+    assert "stop" in fake.commands

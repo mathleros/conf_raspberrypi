@@ -149,3 +149,11 @@ def test_guards_match_eval_script():
         sent = preprocess(text)
         for steps in candidates:
             assert pg.grounding_check(sent, steps) == script.grounding_check(sent, steps), (text, steps)
+
+
+def test_person_param_and_named_follow_guards() -> None:
+    assert "person" in pg.ALLOWED_PARAMS["search_and_approach_object"]
+    assert pg.named_follow_target("suis mathieu") == "Mathieu"
+    assert pg.named_follow_target("suis la balle jaune") is None
+    assert pg.follow_request_refusal("suis mathieu") is None
+    assert pg.follow_request_refusal("suis le chien") == "unsupported_follow_target"

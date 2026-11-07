@@ -10,7 +10,7 @@ cat "$f"
 echo
 done > irobot_docs_all.txt
 
-find test -name "*.py" -not -name "__init__.py" | sort | while IFS= read -r f; do  echo "### FILE: $f"
+find tests -name "*.py" -not -name "__init__.py" | sort | while IFS= read -r f; do  echo "### FILE: $f"
 cat "$f"
 echo
 done > irobot_test_all.txt

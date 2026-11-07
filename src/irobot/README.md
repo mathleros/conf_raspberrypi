@@ -56,6 +56,7 @@ Le point d'entrée `voice-runtime` est [app.py](app.py) : il assemble le matéri
 [interfaces/voice_runtime.py](interfaces/voice_runtime.py), et ferme toujours le matériel
 (`close_hardware_runtime`) dans son `finally`.
 `VoiceRuntime` gère le micro, les transcriptions et les arrêts vocaux immédiats.
+En écoute continue, les commandes exigent le mot d'activation `--wake-word` (défaut « robot » ; chaîne vide pour le désactiver) ; « stop » fonctionne sans lui, et `--text` comme `--once` ne l'exigent pas.
 Le texte direct et les transcriptions passent ensuite par
 [interfaces/command_service.py](interfaces/command_service.py), qui choisit le
 parseur, prépare et valide les intents, puis soumet le plan à
@@ -116,6 +117,7 @@ ou arrêt. Cela vaut aussi pour le marqueur ArUco.
 Une durée explicitement demandée (`duration_s`) conserve le mode temporisé et
 ses bornes. `search_and_approach_object` reste une approche ponctuelle bornée,
 y compris « approche-toi de moi » avec ou sans LLM.
+`follow_person` et `search_and_approach_object` acceptent un paramètre `person` : le prénom de la galerie (casse libre) ; un prénom inconnu est refusé avec « personne inconnue ».
 Les arrêts vocaux, les obstacles, la validation et les erreurs matérielles restent
 prioritaires ; une erreur de suivi n'est pas relancée automatiquement.
 Les traces `step_result` incluent le statut, le message et les données des skills.

@@ -37,7 +37,7 @@ Intents :
 - search_and_approach_object : target "red", "yellow", "ball", "marker" (tag) ou "face" (personne, humain, visage, moi), parameters {"stand_off_cm":cm,"person":"Prénom"} si la consigne nomme quelqu'un
 - follow_object : target "red" ou "yellow", parameters {"stand_off_cm":cm,"duration_s":secondes}
 - follow_red_ball : target "red_ball"
-- follow_person : target "face", parameters {"person":"Prénom"} si la consigne nomme quelqu'un (« suis Mathieu »), parameters {} sinon (« suis un humain », « suis une personne »)
+- follow_person : target "face", parameters {"person":"Prénom","duration_s":secondes,"stand_off_cm":cm}, chaque clé seulement si la consigne la donne (« suis Mathieu » : person ; « suis un humain » : parameters {})
 - avoid_obstacle, spin_360, return_to_start
 - move_square : parameters {"side":cm}
 Règles : une étape par action, dans l'ordre exact des verbes de la phrase (« recule, tourne à droite puis avance » : recule, puis tourne à droite, puis avance). Les nombres sont déjà en chiffres, distances en centimètres, durées en secondes. Sans valeur donnée : avance/recule -> duration 1 ; tourne -> angle 90. jaune = "yellow", rouge = "red". Consigne impossible ou hors liste -> {"steps":[]}.
@@ -49,6 +49,7 @@ Exemples :
 « rapproche toi à 100 centimètres de moi puis tourne à gauche » -> {"steps":[{"intent":"search_and_approach_object","target":"face","parameters":{"stand_off_cm":100}},{"intent":"turn_left","target":null,"parameters":{"angle":90}}]}
 « suis-moi » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{"person":"Moi"}}]}
 « suis Mathieu » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{"person":"Mathieu"}}]}
+« suis Mathieu pendant 300 secondes » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{"person":"Mathieu","duration_s":300}}]}
 « suis un humain » -> {"steps":[{"intent":"follow_person","target":"face","parameters":{}}]}
 « cherche la balle jaune approche toi à 100 centimètres de la balle jaune puis suis la pendant 300 secondes » -> {"steps":[{"intent":"search_and_approach_object","target":"yellow","parameters":{"stand_off_cm":100}},{"intent":"follow_object","target":"yellow","parameters":{"stand_off_cm":100,"duration_s":300}}]}
 « avance de 50 centimètres puis tourne à gauche de 45 degrés » -> {"steps":[{"intent":"move_forward","target":null,"parameters":{"distance":50}},{"intent":"turn_left","target":null,"parameters":{"angle":45}}]}
@@ -279,7 +280,7 @@ ALLOWED_PARAMS = {
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
     "search_and_approach_object": {"stand_off_cm", "target_object", "person"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
-    "follow_person": {"person"},
+    "follow_person": {"person", "duration_s", "stand_off_cm"},
     "move_square": {"side", "unit"},
 }
 

@@ -41,7 +41,7 @@ ALLOWED_PARAMS = {
     "turn_left": {"angle", "duration", "unit"}, "turn_right": {"angle", "duration", "unit"},
     "search_and_approach_object": {"stand_off_cm", "target_object", "person"},
     "follow_object": {"stand_off_cm", "duration_s", "target_object"},
-    "follow_person": {"person"},
+    "follow_person": {"person", "duration_s", "stand_off_cm"},
     "move_square": {"side", "unit"},
 }
 

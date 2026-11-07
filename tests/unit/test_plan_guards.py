@@ -157,3 +157,21 @@ def test_person_param_and_named_follow_guards() -> None:
     assert pg.named_follow_target("suis la balle jaune") is None
     assert pg.follow_request_refusal("suis mathieu") is None
     assert pg.follow_request_refusal("suis le chien") == "unsupported_follow_target"
+
+
+def test_follow_person_keeps_grounded_duration() -> None:
+    steps = [step("follow_person", "face", person="Mathieu", duration_s=300)]
+
+    kept, reason, _ = pg.grounding_check(preprocess("suis mathieu pendant cinq minutes"), steps)
+
+    assert reason is None
+    assert kept == steps
+
+
+def test_follow_person_rejects_ungrounded_stand_off() -> None:
+    steps = [step("follow_person", "face", person="Mathieu", duration_s=300, stand_off_cm=100)]
+
+    kept, reason, _ = pg.grounding_check(preprocess("suis mathieu pendant cinq minutes"), steps)
+
+    assert kept == []
+    assert reason is not None

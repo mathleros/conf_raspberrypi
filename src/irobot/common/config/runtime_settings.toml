@@ -21,10 +21,10 @@ min_stand_off_cm = 30.0
 max_stand_off_cm = 300.0
 
 [camera]
-capture_size_px = [640, 480]
-oriented_frame_size_px = [480, 640]
-ball_diameter_cm = 6.0
-# Focale en pixels (image 640x480 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
+capture_size_px = [1024, 728]
+oriented_frame_size_px = [728, 1024]
+ball_diameter_cm = 6.2
+# Focale en pixels (image 1024x728 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
 focal_px = 680.0
 # Contre-jour : compensation automatique d'exposition (EV) et contraste local LAB.
 # Pour retrouver le flux non corrigé : clahe_enabled = false et exposure_value = 0.0.

@@ -169,3 +169,27 @@ def test_parse_plan_extracts_person_for_approach_and_follow() -> None:
         assert "person" not in parser.parse_plan(text)[0].parameters
     follow = parser.parse_plan("suis mathieu")[0]
     assert (follow.name, follow.parameters) == ("follow_person", {"person": "Mathieu"})
+
+
+def test_parse_plan_splits_on_et_only_before_action_verb() -> None:
+    parser = TextIntentParser()
+
+    plan = parser.parse_plan("suis mathieu et avance")
+    assert [(i.name, i.parameters) for i in plan] == [
+        ("follow_person", {"person": "Mathieu"}), ("move_forward", {"duration": 1.0}),
+    ]
+    assert [i.name for i in parser.parse_plan("avance, recule et tourne à droite")] == [
+        "move_forward", "move_backward", "turn_right",
+    ]
+
+
+def test_parse_plan_keeps_et_inside_non_action_phrases() -> None:
+    parser = TextIntentParser()
+
+    assert [i.name for i in parser.parse_plan("tourne à gauche et à droite")] == ["turn_left"]
+    duration = parser.parse_plan("avance pendant une minute et trente secondes")
+    assert [(i.name, i.parameters) for i in duration] == [("move_forward", {"duration": 90.0})]
+    mixed = parser.parse_plan("cherche mathieu et suis le pendant 5 minutes")
+    assert [(i.name, i.parameters.get("person"), i.parameters.get("duration_s")) for i in mixed] == [
+        ("search_and_approach_object", "Mathieu", None), ("follow_person", "Mathieu", 300.0),
+    ]

@@ -417,7 +417,12 @@ class TextIntentParser:
             return _search_fallback(cleaned, text)
         return _apply_rules(_RULES_AFTER_APPROACH, lowered, cleaned, text) or _search_fallback(cleaned, text)
 
-    _SEGMENT_SPLIT_RE = re.compile(r"\s*(?:(?<!\d),(?!\d)|\bet puis\b|\bpuis\b|\bensuite\b)\s*")
+    _SEGMENT_SPLIT_RE = re.compile(
+        r"\s*(?:(?<!\d),(?!\d)|\bet puis\b|\bpuis\b|\bensuite\b"
+        r"|\bet\b(?=\s+(?:suis|suivez|avance|avancez|recule|reculez|tourne|tournez|pivote|cherche|recherche"
+        r"|approche|rapproche|rejoins|reviens|retourne|contourne|evite|évite|stop|arrete|arrête)\b))\s*",
+        re.IGNORECASE,
+    )
     _PRONOUN_RE = re.compile(r"\b(?:la|le|l'|lui)\b|-(?:la|le|lui)\b")
 
     def parse_plan(self, text: str) -> list[Intent]:

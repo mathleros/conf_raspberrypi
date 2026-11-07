@@ -3,7 +3,8 @@
 Les paramètres du robot sont dans [runtime_settings.toml](runtime_settings.toml).
 Ils sont chargés par `settings.py` au démarrage.
 
-- `[runtime]` : vitesses et délais d’exécution.
+- `[runtime]` : vitesses et délais d’exécution, et nombre de manœuvres inverses après un alignement trop fort
+  (`target_recovery_attempts`, 0 désactive).
 - `[limits]` : bornes des déplacements, durées et plans.
 - `[stand_off]` : distance de consigne par défaut (`default_cm`) et tolérance en % (`tolerance_percent`) communes au suivi
   et à l’approche ; une distance dite dans la phrase reste prioritaire.

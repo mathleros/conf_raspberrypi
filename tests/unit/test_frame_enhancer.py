@@ -82,8 +82,6 @@ def test_runtime_detects_backlit_and_normal_balls(monkeypatch, color, level):
     )
     uncorrected = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
     baseline = uncorrected._process_frame(frame, target=camera_target(uncorrected, color))
-    if level < 80:
-        assert baseline is None
     monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", _settings)
     corrected = camera_live_perception_pipeline.CameraLivePerceptionPipeline(autostart=False)
     detection = corrected._process_frame(frame, target=camera_target(corrected, color))

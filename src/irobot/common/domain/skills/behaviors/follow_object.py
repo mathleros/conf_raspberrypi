@@ -10,6 +10,7 @@ from irobot.common.domain.numbers import to_float
 from irobot.common.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.common.domain.skills.behaviors.target_tracking import (
     Direction,
+    OvershootRecovery,
     TargetTrackingMixin,
 )
 
@@ -165,6 +166,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         last_seen_at = started_at
         search_started_at: float | None = None
         sweep_direction: Direction = "right"
+        recovery = OvershootRecovery(settings.target_recovery_attempts, self.ALIGN_SETTLE_S, self.RECOVERY_WINDOW_S)
         iterations = 0
         reacquisitions = 0
         final_distance_cm: float | None = None
@@ -185,6 +187,11 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
             if position is None:
                 self._stop_robot(context)
+                reverse = None if context.state.get("last_object_cached") else recovery.reverse(current)
+                if reverse is not None:
+                    sweep_direction, step_s = reverse
+                    self._sweep_step(context, sweep_direction, step_s, iterations)
+                    continue
                 if current - last_seen_at < max_loss_s:
                     context.state["motion"] = "search_target"
                     set_state("searching", lost_for_s=round(current - last_seen_at, 3))
@@ -220,6 +227,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             if self._needs_angular_correction(position, distance_cm, offset_x, band_max_cm):
                 sweep_direction = position
                 self._pulse_motion(context, position, self.ALIGN_STEP_S)
+                recovery.aligned(position, self.ALIGN_STEP_S, now())
                 context.state["motion"] = f"align_{position}"
                 set_state("aligning", direction=position)
             elif distance_cm is not None and distance_cm > band_max_cm:

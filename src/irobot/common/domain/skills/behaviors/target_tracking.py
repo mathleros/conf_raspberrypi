@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
@@ -13,12 +14,39 @@ Direction = Literal["forward", "backward", "left", "right"]
 Position = Literal["left", "right", "center"]
 
 
+@dataclass
+class OvershootRecovery:
+    """Mémorise la dernière impulsion d'alignement ; si la cible disparaît juste après, propose l'impulsion inverse."""
+
+    max_attempts: int
+    settle_s: float
+    window_s: float
+    attempts_left: int = 0
+    direction: Direction | None = None
+    duration_s: float = 0.0
+    pulsed_at: float = 0.0
+
+    def aligned(self, direction: Direction, duration_s: float, now: float) -> None:
+        self.direction, self.duration_s, self.pulsed_at = direction, duration_s, now
+        self.attempts_left = self.max_attempts
+
+    def reverse(self, now: float) -> tuple[Direction, float] | None:
+        """(direction, durée) de l'impulsion inverse à jouer, ou None si aucune tentative n'est justifiée."""
+        if self.direction is None or self.attempts_left <= 0 or not self.settle_s <= now - self.pulsed_at <= self.window_s:
+            return None
+        self.attempts_left -= 1
+        self.pulsed_at = now
+        return ("left" if self.direction == "right" else "right"), self.duration_s
+
+
 class TargetTrackingMixin:
     """Briques communes aux behaviors de suivi visuel (détection, sécurité, balayage)."""
 
     SEARCH_SETTLE_S = 0.15
     # Latence caméra + flou après une impulsion : une image trop proche de l'impulsion ne reflète pas son effet.
     ALIGN_SETTLE_S = 0.4
+    # Fenêtre pendant laquelle une disparition de la cible est attribuée à l'impulsion d'alignement précédente.
+    RECOVERY_WINDOW_S = 1.5
     CONTROL_LOOP_PERIOD_S = 0.02
 
     sleep_fn: Callable[[float], None]

@@ -10,6 +10,7 @@ from irobot.common.domain.numbers import to_float
 from irobot.common.domain.skills.base_skill import Skill, SkillContext, SkillResult
 from irobot.common.domain.skills.behaviors.target_tracking import (
     Direction,
+    OvershootRecovery,
     TargetTrackingMixin,
 )
 
@@ -227,6 +228,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
         search_spent_s = 0.0
         last_seen_at: float | None = None
         sweep_direction: Direction = "right"
+        recovery = OvershootRecovery(self.settings.target_recovery_attempts, self.ALIGN_SETTLE_S, self.RECOVERY_WINDOW_S)
         iterations = 0
 
         while True:
@@ -275,6 +277,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 if self._needs_angular_correction(target_position, distance_cm, offset_x, reached_threshold_cm):
                     logger.info("Suivi #%d décision : alignement %s (%.2f s)", iterations, target_position, align_step_s)
                     self._pulse_motion(context, target_position, align_step_s)
+                    recovery.aligned(target_position, align_step_s, now())
                     context.state["motion"] = f"align_{target_position}"
                     context.state["follow_target_state"] = {
                         "phase": "aligning",
@@ -297,6 +300,11 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
 
             # Cible non visible
             if phase == self.PHASE_TRACK:
+                reverse = None if context.state.get("last_object_cached") else recovery.reverse(current)
+                if reverse is not None:
+                    sweep_direction, step_s = reverse
+                    self._sweep_step(context, sweep_direction, step_s, iterations)
+                    continue
                 lost_for_s = current - (last_seen_at if last_seen_at is not None else current)
                 if lost_for_s < max(0.1, max_target_loss_s):
                     self._stop_robot(context)

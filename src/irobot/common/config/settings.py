@@ -84,6 +84,7 @@ class RuntimeSettings:
     step_timeout_seconds: float = 6.0
     mission_timeout_seconds: float = 45.0
     max_step_retries: int = 2
+    target_recovery_attempts: int = 1
     max_plan_steps: int = 20
     max_distance_cm: float = 300.0
     max_angle_deg: float = 360.0
@@ -147,6 +148,10 @@ class RuntimeSettings:
             raise ValueError("camera_edge_offset_threshold must be at most 1")
         _require_number(
             "camera_face_grace_frames", self.camera_face_grace_frames, "a non-negative integer",
+            integer=True, non_negative=True,
+        )
+        _require_number(
+            "target_recovery_attempts", self.target_recovery_attempts, "a non-negative integer",
             integer=True, non_negative=True,
         )
         if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
@@ -238,7 +243,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "turn_speed",
         "obstacle_threshold_cm",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
-        "search_timeout_seconds", "timeout_margin_seconds",
+        "search_timeout_seconds", "timeout_margin_seconds", "target_recovery_attempts",
     })
     backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
     if backward is not None:
@@ -256,6 +261,9 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         step_timeout_seconds=_float(table, "step_timeout_seconds", current.step_timeout_seconds, "runtime.step_timeout_seconds"),
         mission_timeout_seconds=_float(table, "mission_timeout_seconds", current.mission_timeout_seconds, "runtime.mission_timeout_seconds"),
         max_step_retries=_int(table, "max_step_retries", current.max_step_retries, "runtime.max_step_retries"),
+        target_recovery_attempts=_int(
+            table, "target_recovery_attempts", current.target_recovery_attempts, "runtime.target_recovery_attempts",
+        ),
         search_timeout_seconds=_float(table, "search_timeout_seconds", current.search_timeout_seconds, "runtime.search_timeout_seconds"),
         timeout_margin_seconds=_float(table, "timeout_margin_seconds", current.timeout_margin_seconds, "runtime.timeout_margin_seconds"),
     )

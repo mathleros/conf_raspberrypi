@@ -84,7 +84,7 @@ class ScriptedPerception:
         return SimpleNamespace(label=target.value, position=position, distance_cm=distance, offset_x=offset_x)
 
 
-def live_run(script, clock=None, robot=None, **params):
+def live_run(script, clock=None, robot=None, recovery_attempts=1, **params):
     clock = clock or FakeClock()
     fake = robot or FakeRobot()
     context = SkillContext(
@@ -93,7 +93,10 @@ def live_run(script, clock=None, robot=None, **params):
         perception_target=PerceptionTarget.YELLOW_BALL,
         state={"active_intent_parameters": {"alignment_step_s": 0.0, "forward_step_s": 0.0, **params}},
     )
-    settings = RuntimeSettings(min_stand_off_cm=10.0, stand_off_default_cm=20.0, stand_off_tolerance_percent=50.0)
+    settings = RuntimeSettings(
+        min_stand_off_cm=10.0, stand_off_default_cm=20.0, stand_off_tolerance_percent=50.0,
+        target_recovery_attempts=recovery_attempts,
+    )
     skill = ApproachTargetSkill(settings=settings, time_fn=clock.time, sleep_fn=clock.sleep)
     return skill.execute(context), fake, context, clock
 
@@ -154,11 +157,20 @@ def test_approach_target_aligns_toward_target_side():
 
 def test_approach_target_search_sweeps_toward_last_known_side():
     script = [("left", None)] + [None] * 10 + [("center", 50.0)]
-    result, fake, _, _ = live_run(script, max_target_loss_s=0.1, stand_off_cm=100)
+    result, fake, _, _ = live_run(script, max_target_loss_s=0.1, stand_off_cm=100, recovery_attempts=0)
 
     assert result.status == "success"
     assert "right" not in fake.commands
     assert fake.commands.count("left") >= 2
+
+
+def test_approach_target_recovers_after_overshoot_with_one_reverse_pulse():
+    script = [("left", None), None, None, ("center", 50.0)]
+    result, fake, _, _ = live_run(script, max_target_loss_s=0.1, stand_off_cm=100, recovery_attempts=1)
+
+    assert result.status == "success"
+    assert [command for command in fake.commands if command != "stop"][:2] == ["left", "right"]
+    assert fake.commands.count("left") == 1
 
 
 def test_approach_target_search_defaults_to_right_without_history():

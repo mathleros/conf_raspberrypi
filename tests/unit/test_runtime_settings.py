@@ -9,6 +9,18 @@ from irobot.common.config.llm_settings import LLMSettings as SeparateLLMSettings
 from irobot.common.config.llm_settings import load_llm_settings as load_separate_llm_settings
 
 
+def test_runtime_recovery_attempts_default_and_loaded(tmp_path, monkeypatch):
+    assert settings.RuntimeSettings().target_recovery_attempts == 1
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text("[runtime]\ntarget_recovery_attempts = 3\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    assert settings.load_runtime_settings().target_recovery_attempts == 3
+    for value in ("-1", "1.5"):
+        cfg.write_text(f"[runtime]\ntarget_recovery_attempts = {value}\n")
+        with pytest.raises(ValueError, match="target_recovery_attempts"):
+            settings.load_runtime_settings()
+
+
 def test_load_runtime_settings_defaults_when_file_missing(monkeypatch):
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 
@@ -46,14 +58,14 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "camera_capture_size_px": (1280, 720),
         "camera_oriented_frame_size_px": (720, 1280),
         "camera_ball_diameter_cm": 6.2,
-        "camera_focal_px": 690.0,
+        "camera_focal_px": 1394.2,
         "camera_clahe_enabled": True,
         "camera_clahe_clip_limit": 3.0,
         "camera_exposure_value": 1.0,
         "camera_face_width_cm": 8.0,
         "camera_face_score_threshold": 0.85,
-        "camera_face_grace_frames": 10,
-        "camera_edge_offset_threshold": 0.6,
+        "camera_face_grace_frames": 8,
+        "camera_edge_offset_threshold": 0.55,
         "human_max_age_seconds": 0.2,
         "human_announcement_timeout_seconds": 2.0,
     }

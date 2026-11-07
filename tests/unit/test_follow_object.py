@@ -69,7 +69,7 @@ class World(FakeRobot):
         )
 
 
-def run(world: World, **params):
+def run(world: World, recovery_attempts: int = 1, **params):
     context = SkillContext(
         robot=world,
         perception=world,
@@ -77,7 +77,9 @@ def run(world: World, **params):
         state={"active_intent_parameters": params},
     )
     skill = FollowObjectSkill(
-        settings=RuntimeSettings(stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0),
+        settings=RuntimeSettings(
+            stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0, target_recovery_attempts=recovery_attempts,
+        ),
         time_fn=world.time, sleep_fn=world.sleep,
     )
     return skill.execute(context), context
@@ -323,3 +325,55 @@ def test_explicit_stand_off_overrides_default_and_tolerance():
 
     assert skill._resolve_stand_off({"stand_off_cm": 100}) == (100.0, 5.0)
     assert skill._resolve_stand_off({"stand_off_cm": 100, "stand_off_tolerance_cm": 3}) == (100.0, 3.0)
+
+
+class OvershootWorld(World):
+    """La cible sort du champ juste après le premier alignement à gauche ; elle revient après un `right`."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.lost = False
+
+    def left_for(self, duration: float) -> None:
+        super().left_for(duration)
+        self.lost = True
+
+    def right_for(self, duration: float) -> None:
+        super().right_for(duration)
+        self.lost = False
+
+    def detect(self, *, target):
+        return None if self.lost else super().detect(target=target)
+
+
+@pytest.mark.parametrize("attempts,expected_prefix,status", [
+    (1, ["left", "right", "forward"], "success"),
+    (0, ["left", "left"], "failed"),
+])
+def test_overshoot_recovery_reverses_only_within_attempts(attempts, expected_prefix, status):
+    world = OvershootWorld(distance_cm=200.0, bearing="left", offset_x=0.9)
+    result, _ = run(world, duration_s=30, max_target_loss_s=3.0, search_timeout_s=5, recovery_attempts=attempts)
+
+    moves = [command for command in world.commands if command != "stop"]
+    assert moves[:len(expected_prefix)] == expected_prefix
+    assert result.status == status
+    if attempts == 0:
+        assert "right" not in world.commands
+
+
+class CachedAfterAlignWorld(World):
+    """Après un alignement, la cible reste visible mais ne provient que de la mémoire."""
+
+    def left_for(self, duration: float) -> None:
+        super().left_for(duration)
+        self.cached = True
+
+
+def test_no_overshoot_recovery_without_recent_alignment_or_with_cached_detection():
+    silent_loss = World(distance_cm=200.0, hidden=(0.0, 1e9))
+    result, _ = run(silent_loss, duration_s=600, max_target_loss_s=1.0, search_timeout_s=3)
+    assert "left" not in silent_loss.commands and result.status == "failed"
+
+    cached = CachedAfterAlignWorld(distance_cm=200.0, bearing="left", offset_x=0.9)
+    result, _ = run(cached, duration_s=600, max_target_loss_s=1.0, search_timeout_s=3, recovery_attempts=1)
+    assert "right" not in cached.commands and result.status == "failed"

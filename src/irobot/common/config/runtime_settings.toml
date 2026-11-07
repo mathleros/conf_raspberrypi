@@ -30,7 +30,7 @@ tolerance_percent = 5.0
 capture_size_px = [1280, 720]
 oriented_frame_size_px = [720, 1280]
 ball_diameter_cm = 6.2
-# Focale en pixels (image 1024x728 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
+# Focale en pixels (image 1280x720 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
 focal_px = 690.0
 # Contre-jour : compensation automatique d'exposition (EV) et contraste local LAB.
 # Pour retrouver le flux non corrigé : clahe_enabled = false et exposure_value = 0.0.

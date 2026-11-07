@@ -41,7 +41,9 @@ def test_continuous_tracking_survives_old_limits_until_stop(tmp_path, monkeypatc
         use_llm=False,
         trace_dir=str(tmp_path),
     )
-    runtime.command_service.settings = RuntimeSettings()
+    runtime.command_service.settings = RuntimeSettings(
+        min_stand_off_cm=10.0, stand_off_default_cm=20.0, stand_off_tolerance_percent=50.0,
+    )
     runtime.command_service.controller.planner.registry.register(
         FollowObjectSkill(settings=runtime.command_service.settings, time_fn=world.time, sleep_fn=world.sleep)
     )

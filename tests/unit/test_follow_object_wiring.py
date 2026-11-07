@@ -270,7 +270,7 @@ def test_sanitize_non_numeric_falls_back_to_defaults():
     bad = {"stand_off_cm": "près", "duration_s": None, "search_timeout_s": float("nan")}
     out, _ = runtime.command_service.plan_validator.validate([Intent(name="follow_object", target="yellow", parameters=bad)])
 
-    assert out[0].parameters["stand_off_cm"] == 100.0
+    assert out[0].parameters["stand_off_cm"] == runtime.command_service.settings.stand_off_default_cm
     assert out[0].parameters["duration_s"] == 60.0
     assert out[0].parameters["search_timeout_s"] == runtime.command_service.settings.search_timeout_seconds
 

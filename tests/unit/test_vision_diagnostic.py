@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.common.config.settings import MarkerIdentity, RuntimeSettings
+from irobot.common.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
 from irobot.common.hardware.camera import camera_live_perception_pipeline
 from irobot.common.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
 from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
@@ -21,14 +21,18 @@ from irobot.common.tools.vision_diagnostic import (
 )
 from tests.unit.perception_helpers import camera_target
 
+SETTINGS = load_runtime_settings()
+CAPTURE_W, CAPTURE_H = SETTINGS.camera_capture_size_px
+ORIENTED_W, ORIENTED_H = SETTINGS.camera_oriented_frame_size_px
+
 
 def _project_marker(
     translation,
     yaw=0,
     pitch=0,
     roll=0,
-    size=RuntimeSettings().camera_oriented_frame_size_px,
-    focal_px=RuntimeSettings().camera_focal_px,
+    size=SETTINGS.camera_oriented_frame_size_px,
+    focal_px=SETTINGS.camera_focal_px,
 ):
     # Independently project the physical square through a pinhole camera.
     y, p, r = map(math.radians, (yaw, pitch, roll))
@@ -43,8 +47,8 @@ def _project_marker(
     width, height = size
     image_points = points[:, :2] / points[:, 2, None]
     image_points *= (
-        focal_px * width / RuntimeSettings().camera_oriented_frame_size_px[0],
-        focal_px * height / RuntimeSettings().camera_oriented_frame_size_px[1],
+        focal_px * width / ORIENTED_W,
+        focal_px * height / ORIENTED_H,
     )
     image_points += (width / 2, height / 2)
     corners = tuple((float(x), float(y)) for x, y in image_points)
@@ -57,7 +61,7 @@ def _project_marker(
 
 @pytest.fixture
 def runtime_pipeline(monkeypatch):
-    monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", RuntimeSettings)
+    monkeypatch.setattr(camera_live_perception_pipeline, "load_runtime_settings", lambda: SETTINGS)
     return camera_live_perception_pipeline.CameraLivePerceptionPipeline(
         autostart=False,
     )
@@ -93,7 +97,7 @@ def test_tilted_off_axis_distance_is_not_based_on_width_only():
     corners = detection.corners_px
     width = (math.dist(corners[0], corners[1]) + math.dist(corners[3], corners[2])) / 2
     expected = math.hypot(20, 80)
-    assert abs(4800 / width - expected) > 5
+    assert abs(SETTINGS.camera_focal_px * 8 / width - expected) > 5
     assert detection.distance_cm == pytest.approx(expected, abs=0.01)
 
 
@@ -109,13 +113,13 @@ def test_84_cm_off_axis_with_subpixel_corner_noise(x):
         TEST_MARKER_IDENTITY,
         noisy_corners,
         distance_cm=estimate_marker_distance_cm(
-            noisy_corners, RuntimeSettings().camera_focal_px,
+            noisy_corners, SETTINGS.camera_focal_px,
         ),
     )
     assert noisy_detection.distance_cm == pytest.approx(84, abs=1)
 
 
-@pytest.mark.parametrize("size", [RuntimeSettings().camera_oriented_frame_size_px, (960, 1280)])
+@pytest.mark.parametrize("size", [SETTINGS.camera_oriented_frame_size_px, (960, 1280)])
 def test_distance_uses_actual_frame_dimensions(size):
     detection = _project_marker((20, 10, 80), yaw=30, size=size)
     assert detection.distance_cm == pytest.approx(
@@ -124,7 +128,7 @@ def test_distance_uses_actual_frame_dimensions(size):
 
 
 @pytest.mark.parametrize("x,yaw", [(-20, -30), (0, 0), (20, 45)])
-@pytest.mark.parametrize("size", [RuntimeSettings().camera_oriented_frame_size_px, (960, 1280)])
+@pytest.mark.parametrize("size", [SETTINGS.camera_oriented_frame_size_px, (960, 1280)])
 @pytest.mark.parametrize("target", ["marker", "tag"])
 @pytest.mark.parametrize("identifier", ["1", "2"])
 def test_runtime_uses_pose_distance_for_configured_marker(
@@ -176,7 +180,7 @@ def test_invalid_geometry_reports_unavailable(corners, runtime_pipeline, monkeyp
     strategy = camera_target(runtime_pipeline, "marker")
     marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, corners)
-    frame = np.zeros((640, 480, 3), np.uint8)
+    frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
     detection = marker_detector.detect(frame)
     assert detection.distance_cm is None
     if detection.disposition is ObservationDisposition.VALID:
@@ -201,7 +205,7 @@ def test_failed_pose_does_not_produce_a_distance(
     strategy = camera_target(runtime_pipeline, "marker")
     marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
-    frame = np.zeros((640, 480, 3), np.uint8)
+    frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
     detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
     assert runtime_pipeline._process_frame(frame, target=strategy) is None
@@ -219,7 +223,7 @@ def test_opencv_pose_error_is_logged_without_width_fallback(
     strategy = camera_target(runtime_pipeline, "marker")
     marker_detector = runtime_pipeline._detector._marker_detector
     _patch_marker_corners(monkeypatch, marker_detector, projected.corners_px)
-    frame = np.zeros((640, 480, 3), np.uint8)
+    frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
     detection = marker_detector.detect(frame)
     assert "distance=indisponible" in format_detection_status(detection)
     assert runtime_pipeline._process_frame(frame, target=strategy) is None
@@ -259,9 +263,9 @@ def test_face_identity_overlay_fits_frame_and_removes_accents(monkeypatch):
 
     texts = []
     monkeypatch.setattr(cv2, "putText", lambda frame, text, *args: texts.append(text))
-    _draw_face_identity(np.zeros((640, 480, 3), np.uint8), "IDENTITY: Élodie" + "a" * 100, cv2)
+    _draw_face_identity(np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8), "IDENTITY: Élodie" + "a" * 100, cv2)
     assert texts[0].startswith("IDENTITY: Elodie")
-    assert cv2.getTextSize(texts[0], cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0] <= 468
+    assert cv2.getTextSize(texts[0], cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0] <= ORIENTED_W - 12
 
 
 @pytest.mark.parametrize("inference_error,identity,gallery_state", [
@@ -277,9 +281,9 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
     texts = []
     boxes = []
     windows = []
-    frame = np.zeros((480, 640, 3), dtype=np.uint8)
-    cv2.circle(frame, (180, 240), 25, (255, 0, 0), -1)
-    cv2.circle(frame, (460, 240), 25, (255, 255, 0), -1)
+    frame = np.zeros((CAPTURE_H, CAPTURE_W, 3), dtype=np.uint8)
+    cv2.circle(frame, (CAPTURE_W // 4, CAPTURE_H // 2), 25, (255, 0, 0), -1)
+    cv2.circle(frame, (3 * CAPTURE_W // 4, CAPTURE_H // 2), 25, (255, 255, 0), -1)
 
     class Camera:
         camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
@@ -292,7 +296,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
             assert index == 0
 
         def create_preview_configuration(self, *, main):
-            assert main == {"size": (640, 480), "format": "BGR888"}
+            assert main == {"size": (CAPTURE_W, CAPTURE_H), "format": "BGR888"}
             return main
 
         def configure(self, config):
@@ -315,8 +319,8 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
             calls.append("camera_close")
 
     def detect(frame_rgb):
-        assert frame_rgb.shape == (640, 480, 3)
-        expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
+        assert frame_rgb.shape == (ORIENTED_H, ORIENTED_W, 3)
+        expected_rgb = FrameEnhancer(SETTINGS).apply(
             cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
         )
         np.testing.assert_array_equal(frame_rgb, expected_rgb)
@@ -326,8 +330,8 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
     monkeypatch.setitem(sys.modules, "picamera2", SimpleNamespace(Picamera2=Camera))
 
     def create_marker_detector(identity, *, focal_px, oriented_frame_size_px):
-        assert focal_px == RuntimeSettings().camera_focal_px
-        assert oriented_frame_size_px == RuntimeSettings().camera_oriented_frame_size_px
+        assert focal_px == SETTINGS.camera_focal_px
+        assert oriented_frame_size_px == SETTINGS.camera_oriented_frame_size_px
         return SimpleNamespace(detect=detect)
 
     monkeypatch.setattr(
@@ -395,11 +399,11 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
     assert len(boxes) == 3
     assert boxes[0][:2] == ((20, 150), (120, 260))
     assert windows[0][0] == "Vision - ArUco / Face / Red / Yellow"
-    assert windows[0][1].shape == (640, 480, 3)
+    assert windows[0][1].shape == (ORIENTED_H, ORIENTED_W, 3)
     assert "MEM" in texts[1]
     for text in texts[1:]:
         width = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)[0][0]
-        assert width <= 480 - 12
+        assert width <= ORIENTED_W - 12
 
 
 def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypatch, capsys):
@@ -407,7 +411,7 @@ def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypat
 
     calls = []
     windows = []
-    frame = np.full((480, 640, 3), (10, 20, 30), dtype=np.uint8)
+    frame = np.full((CAPTURE_H, CAPTURE_W, 3), (10, 20, 30), dtype=np.uint8)
 
     class Camera:
         camera_controls = {"ExposureValue": (-8.0, 8.0, 0.0)}
@@ -456,15 +460,15 @@ def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypat
 
     assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
     assert windows[0][0] == "Vision - Preview"
-    expected_rgb = FrameEnhancer(RuntimeSettings()).apply(cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE))
+    expected_rgb = FrameEnhancer(SETTINGS).apply(cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE))
     np.testing.assert_array_equal(windows[0][1], cv2.cvtColor(expected_rgb, cv2.COLOR_RGB2BGR))
     assert "Aperçu caméra uniquement" in capsys.readouterr().out
 
 
 def test_both_balls_are_detected_independently_with_existing_distance_model():
-    frame = np.zeros((640, 480, 3), np.uint8)
-    cv2.circle(frame, (100, 320), 25, (255, 0, 0), -1)
-    cv2.circle(frame, (380, 320), 35, (255, 255, 0), -1)
+    frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
+    cv2.circle(frame, (ORIENTED_W // 5, ORIENTED_H // 2), 25, (255, 0, 0), -1)
+    cv2.circle(frame, (ORIENTED_W * 4 // 5, ORIENTED_H // 2), 35, (255, 255, 0), -1)
     results = detect_balls(frame, RuntimeSettings(camera_ball_diameter_cm=6, camera_focal_px=680))
     red, red_box = results["red"]
     yellow, yellow_box = results["yellow"]
@@ -486,13 +490,13 @@ def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkey
         lambda detector, frame: ObjectDetection(label=f"{detector.color_name}_ball"),
     )
     with pytest.raises(RuntimeError, match="missing its bounding box"):
-        detect_balls(np.zeros((640, 480, 3), np.uint8), RuntimeSettings())
+        detect_balls(np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8), RuntimeSettings())
 
 
 def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
     from irobot.common.tools import vision_diagnostic
 
-    frame = np.zeros((640, 480, 3), np.uint8)
+    frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
     monkeypatch.setattr(
         vision_diagnostic.ColorDetector,
         "detect",

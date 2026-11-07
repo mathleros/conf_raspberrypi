@@ -29,7 +29,7 @@ def test_directional_motion_duration(skill, parameters, expected):
 
 def test_missing_backward_calibration_preserves_shared_speed():
     skill = MoveBackwardSkill()
-    skill.settings = RuntimeSettings(cm_per_second=50)
+    skill.settings = RuntimeSettings(cm_per_second=50, backward_cm_per_second=None)
     context = SkillContext(state={"active_intent_parameters": {"distance": 10}})
 
     assert skill._resolve_motion_parameters(context)["duration"] == pytest.approx(0.2)

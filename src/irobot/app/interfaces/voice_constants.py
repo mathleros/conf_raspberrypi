@@ -28,7 +28,6 @@ PLAN_INTENT_SYNONYMS = {
 # Sources de plan rejetées sans repli parseur ni mouvement.
 UNSUPPORTED_PLAN_SOURCES = {"llm_unsupported", "llm_ungrounded"}
 OBJECT_INTENTS = {"search_and_approach_object", "follow_object"}
-DEFAULT_STAND_OFF_CM = 100.0
 DEFAULT_FOLLOW_DURATION_SEC = 60.0
 MIN_OBJECT_DURATION_SEC = 1.0
 MIN_SEARCH_TIMEOUT_SEC = 1.0

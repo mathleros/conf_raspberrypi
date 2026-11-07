@@ -43,14 +43,14 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "max_stand_off_cm": 300.0,
         "search_timeout_seconds": 25.0,
         "timeout_margin_seconds": 10.0,
-        "camera_capture_size_px": (640, 480),
-        "camera_oriented_frame_size_px": (480, 640),
-        "camera_ball_diameter_cm": 6.0,
-        "camera_focal_px": 680.0,
+        "camera_capture_size_px": (1280, 720),
+        "camera_oriented_frame_size_px": (720, 1280),
+        "camera_ball_diameter_cm": 6.2,
+        "camera_focal_px": 690.0,
         "camera_clahe_enabled": True,
         "camera_clahe_clip_limit": 3.0,
         "camera_exposure_value": 1.0,
-        "camera_face_width_cm": 15.0,
+        "camera_face_width_cm": 8.0,
         "camera_face_score_threshold": 0.85,
         "camera_face_grace_frames": 10,
         "camera_edge_offset_threshold": 0.6,
@@ -142,7 +142,7 @@ max_duration_sec = 8.0
     loaded = settings.load_runtime_settings()
 
     assert loaded.cm_per_second == 30.0
-    assert loaded.backward_cm_per_second is None
+    assert loaded.backward_cm_per_second == 25.0
     assert loaded.deg_per_second == 150.0
     assert loaded.drive_speed == 0.7
     assert loaded.obstacle_threshold_cm == 7.5
@@ -305,4 +305,32 @@ def test_invalid_face_settings_rejected(tmp_path, monkeypatch, key, value):
     cfg.write_text(f"[camera]\n{key} = {value}\n")
     monkeypatch.setattr(settings, "_config_file", lambda: cfg)
     with pytest.raises(ValueError, match=f"camera_{key}"):
+        settings.load_runtime_settings()
+
+
+def test_stand_off_defaults_and_section_loaded(tmp_path, monkeypatch):
+    defaults = settings.RuntimeSettings()
+    assert defaults.stand_off_default_cm == 60.0
+    assert defaults.stand_off_tolerance_percent == 5.0
+
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text("[stand_off]\ndefault_cm = 80.0\ntolerance_percent = 10.0\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    loaded = settings.load_runtime_settings()
+
+    assert loaded.stand_off_default_cm == 80.0
+    assert loaded.stand_off_tolerance_percent == 10.0
+
+
+@pytest.mark.parametrize("toml", [
+    "[stand_off]\ndefault_cm = 1000.0\n",
+    "[stand_off]\ntolerance_percent = 0.0\n",
+    "[stand_off]\ntolerance_percent = 100.0\n",
+    "[stand_off]\nunknown = 1\n",
+])
+def test_invalid_stand_off_settings_rejected(tmp_path, monkeypatch, toml):
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text(toml)
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    with pytest.raises(ValueError):
         settings.load_runtime_settings()

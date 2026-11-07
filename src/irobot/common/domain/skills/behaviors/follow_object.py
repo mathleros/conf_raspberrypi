@@ -21,8 +21,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
     description = "Suit une cible visuelle à distance constante jusqu'à un arrêt"
 
     DEFAULT_TARGET = "yellow"
-    DEFAULT_STAND_OFF_CM = 100.0
-    DEFAULT_TOLERANCE_CM = 15.0
     DEFAULT_DURATION_S = 60.0
     DEFAULT_MAX_TARGET_LOSS_S = 3.0
     ALIGN_STEP_S = 0.08
@@ -93,17 +91,15 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             context.state["active_intent_parameters"] = params
         return params
 
-    def _resolve_stand_off(self, params: dict, approach_follow: bool) -> tuple[float, float]:
-        """Distance de consigne et tolérance (cm) ; valeurs par défaut réduites pour follow_person/follow_red_ball."""
-        default_stand_off_cm = 20.0 if approach_follow else self.DEFAULT_STAND_OFF_CM
-        default_tolerance_cm = 10.0 if approach_follow else self.DEFAULT_TOLERANCE_CM
-        stand_off_cm = default_stand_off_cm if params.get("stand_off_cm") is None else min(
-            max(
-                to_float(params.get("stand_off_cm"), default_stand_off_cm),
-                float(self.settings.min_stand_off_cm),
-            ),
-            float(self.settings.max_stand_off_cm),
+    def _resolve_stand_off(self, params: dict) -> tuple[float, float]:
+        """Distance de consigne et tolérance (cm) issues des réglages ; la phrase peut surcharger la distance."""
+        settings = self.settings
+        default_cm = float(settings.stand_off_default_cm)
+        stand_off_cm = default_cm if params.get("stand_off_cm") is None else min(
+            max(to_float(params.get("stand_off_cm"), default_cm), float(settings.min_stand_off_cm)),
+            float(settings.max_stand_off_cm),
         )
+        default_tolerance_cm = stand_off_cm * float(settings.stand_off_tolerance_percent) / 100.0
         tolerance_cm = max(0.0, to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm))
         return stand_off_cm, tolerance_cm
 
@@ -153,7 +149,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         settings = self.settings
         params = self._prepare_params(context)
         approach_follow = context.state.get("active_intent_name") in {"follow_person", "follow_red_ball"}
-        stand_off_cm, tolerance_cm = self._resolve_stand_off(params, approach_follow)
+        stand_off_cm, tolerance_cm = self._resolve_stand_off(params)
         continuous = params.get("duration_s") is None
         duration_s = math.inf if continuous else min(
             max(0.0, to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),

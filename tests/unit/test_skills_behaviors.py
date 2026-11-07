@@ -93,7 +93,8 @@ def live_run(script, clock=None, robot=None, **params):
         perception_target=PerceptionTarget.YELLOW_BALL,
         state={"active_intent_parameters": {"alignment_step_s": 0.0, "forward_step_s": 0.0, **params}},
     )
-    skill = ApproachTargetSkill(settings=RuntimeSettings(), time_fn=clock.time, sleep_fn=clock.sleep)
+    settings = RuntimeSettings(min_stand_off_cm=10.0, stand_off_default_cm=20.0, stand_off_tolerance_percent=50.0)
+    skill = ApproachTargetSkill(settings=settings, time_fn=clock.time, sleep_fn=clock.sleep)
     return skill.execute(context), fake, context, clock
 
 
@@ -113,6 +114,24 @@ def test_approach_target_search_exhausted_fails_and_stops():
     assert result.data["target_lost"] is True
     assert fake.commands[-1] == "stop"
     assert clock.now >= 2.0
+
+
+@pytest.mark.parametrize("distance_cm, reached", [(63.0, True), (65.0, False)])
+def test_approach_target_reach_uses_stand_off_settings(distance_cm, reached):
+    clock = FakeClock()
+    context = SkillContext(
+        robot=RobotController(FakeRobot()),
+        perception=ScriptedPerception([("center", distance_cm)]),
+        perception_target=PerceptionTarget.YELLOW_BALL,
+        state={"active_intent_parameters": {
+            "alignment_step_s": 0.0, "forward_step_s": 0.0, "search_timeout_s": 0.5,
+        }},
+    )
+    settings = RuntimeSettings(stand_off_default_cm=60.0, stand_off_tolerance_percent=5.0)
+    skill = ApproachTargetSkill(settings=settings, time_fn=clock.time, sleep_fn=clock.sleep)
+    result = skill.execute(context)
+
+    assert (result.status == "success") is reached
 
 
 def test_approach_target_search_uses_search_timeout_not_target_loss_budget():
@@ -150,7 +169,9 @@ def test_approach_target_search_defaults_to_right_without_history():
 
 def test_approach_target_reaches_stand_off_100cm_with_decreasing_distances():
     distances = [250.0, 200.0, 160.0, 130.0, 118.0, 108.0]
-    result, fake, _, _ = live_run([("center", d) for d in distances], stand_off_cm=100)
+    result, fake, _, _ = live_run(
+        [("center", d) for d in distances], stand_off_cm=100, stand_off_tolerance_cm=10.0,
+    )
 
     assert result.status == "success"
     assert result.data["distance_cm"] == 108.0
@@ -174,7 +195,9 @@ def test_approach_target_forward_pulses_shorten_near_stand_off():
 
 
 def test_approach_target_turns_only_when_target_out_of_stand_off_band():
-    result, fake, _, _ = live_run([("right", 150.0, 0.1)], max_target_loss_s=0.1, max_tracking_s=0.5, stand_off_cm=100)
+    result, fake, _, _ = live_run(
+        [("right", 150.0, 0.1)], max_target_loss_s=0.1, max_tracking_s=0.5, stand_off_cm=100, stand_off_tolerance_cm=10.0,
+    )
 
     assert "right" in fake.commands
 

@@ -18,6 +18,15 @@ __all__ = [
     "load_runtime_settings",
 ]
 
+# Valeurs par défaut alignées sur runtime_settings.toml.
+DEFAULT_BACKWARD_CM_PER_SECOND = 25.0
+DEFAULT_CAMERA_CAPTURE_SIZE_PX = (1280, 720)
+DEFAULT_CAMERA_ORIENTED_FRAME_SIZE_PX = (720, 1280)
+DEFAULT_CAMERA_BALL_DIAMETER_CM = 6.2
+DEFAULT_CAMERA_FOCAL_PX = 690.0
+DEFAULT_CAMERA_FACE_WIDTH_CM = 8.0
+DEFAULT_CAMERA_FACE_SCORE_THRESHOLD = 0.85
+
 
 @dataclass(frozen=True)
 class MarkerIdentity:
@@ -82,17 +91,19 @@ class RuntimeSettings:
     max_follow_duration_sec: float = 600.0
     min_stand_off_cm: float = 30.0
     max_stand_off_cm: float = 300.0
+    stand_off_default_cm: float = 60.0
+    stand_off_tolerance_percent: float = 5.0
     search_timeout_seconds: float = 25.0
     timeout_margin_seconds: float = 10.0
-    camera_capture_size_px: tuple[int, int] = (640, 480)
-    camera_oriented_frame_size_px: tuple[int, int] = (480, 640)
-    camera_ball_diameter_cm: float = 6.0
-    camera_focal_px: float = 680.0
+    camera_capture_size_px: tuple[int, int] = DEFAULT_CAMERA_CAPTURE_SIZE_PX
+    camera_oriented_frame_size_px: tuple[int, int] = DEFAULT_CAMERA_ORIENTED_FRAME_SIZE_PX
+    camera_ball_diameter_cm: float = DEFAULT_CAMERA_BALL_DIAMETER_CM
+    camera_focal_px: float = DEFAULT_CAMERA_FOCAL_PX
     camera_clahe_enabled: bool = True
     camera_clahe_clip_limit: float = 3.0
     camera_exposure_value: float = 1.0
-    camera_face_width_cm: float = 15.0
-    camera_face_score_threshold: float = 0.45
+    camera_face_width_cm: float = DEFAULT_CAMERA_FACE_WIDTH_CM
+    camera_face_score_threshold: float = DEFAULT_CAMERA_FACE_SCORE_THRESHOLD
     camera_face_grace_frames: int = 10
     camera_edge_offset_threshold: float = 0.6
     camera_face_model_path: str = str(
@@ -104,7 +115,7 @@ class RuntimeSettings:
     camera_face_gallery_dir: str = str(Path(__file__).resolve().parents[4] / "assets" / "face")
     camera_face_match_threshold: float = 0.363
     camera_face_recognition_every_n: int = 5
-    backward_cm_per_second: float | None = None
+    backward_cm_per_second: float | None = DEFAULT_BACKWARD_CM_PER_SECOND
     human_marker_identity: MarkerIdentity | None = None
     human_max_age_seconds: float = 0.2
     human_announcement_timeout_seconds: float = 2.0
@@ -118,6 +129,12 @@ class RuntimeSettings:
                 raise ValueError(f"{name} must contain two positive integers")
         if self.obstacle_threshold_cm < 0:
             raise ValueError("obstacle_threshold_cm must be non-negative")
+        for name in ("stand_off_default_cm", "stand_off_tolerance_percent"):
+            _require_number(name, getattr(self, name), "a finite positive number", positive=True)
+        if not self.min_stand_off_cm <= self.stand_off_default_cm <= self.max_stand_off_cm:
+            raise ValueError("stand_off_default_cm must be between min_stand_off_cm and max_stand_off_cm")
+        if self.stand_off_tolerance_percent >= 100:
+            raise ValueError("stand_off_tolerance_percent must be less than 100")
         for name in ("camera_face_width_cm", "camera_face_score_threshold"):
             _require_number(name, getattr(self, name), "a finite positive number", positive=True)
         if self.camera_face_score_threshold > 1:
@@ -225,7 +242,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
     })
     backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
     if backward is not None:
-        backward = _float(table, "backward_cm_per_second", current.cm_per_second, "runtime.backward_cm_per_second")
+        backward = _float(table, "backward_cm_per_second", backward, "runtime.backward_cm_per_second")
     return replace(
         current,
         cm_per_second=_float(table, "cm_per_second", current.cm_per_second, "runtime.cm_per_second"),
@@ -258,6 +275,17 @@ def _load_limits_section(raw: Mapping[str, object], current: RuntimeSettings) ->
         max_follow_duration_sec=_float(table, "max_follow_duration_sec", current.max_follow_duration_sec, "limits.max_follow_duration_sec"),
         min_stand_off_cm=_float(table, "min_stand_off_cm", current.min_stand_off_cm, "limits.min_stand_off_cm"),
         max_stand_off_cm=_float(table, "max_stand_off_cm", current.max_stand_off_cm, "limits.max_stand_off_cm"),
+    )
+
+
+def _load_stand_off_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
+    table = _table(raw, "stand_off", {"default_cm", "tolerance_percent"})
+    return replace(
+        current,
+        stand_off_default_cm=_float(table, "default_cm", current.stand_off_default_cm, "stand_off.default_cm"),
+        stand_off_tolerance_percent=_float(
+            table, "tolerance_percent", current.stand_off_tolerance_percent, "stand_off.tolerance_percent",
+        ),
     )
 
 
@@ -341,7 +369,7 @@ def load_runtime_settings() -> RuntimeSettings:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, Mapping):
         raise ValueError("Configuration TOML must contain a table")
-    allowed_sections = {"runtime", "limits", "camera", "human_follow", "human_marker"}
+    allowed_sections = {"runtime", "limits", "stand_off", "camera", "human_follow", "human_marker"}
     unknown = set(raw) - allowed_sections
     if unknown:
         raise ValueError(f"Unknown top-level key(s): {', '.join(sorted(unknown))}")
@@ -349,5 +377,6 @@ def load_runtime_settings() -> RuntimeSettings:
     settings = RuntimeSettings()
     settings = _load_runtime_section(raw, settings)
     settings = _load_limits_section(raw, settings)
+    settings = _load_stand_off_section(raw, settings)
     settings = _load_camera_section(raw, settings, path)
     return _load_optional_sections(raw, settings)

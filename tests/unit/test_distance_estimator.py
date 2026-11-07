@@ -230,4 +230,4 @@ def test_camera_section_in_toml(tmp_path, monkeypatch):
 
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent.toml"))
     default = settings.load_runtime_settings()
-    assert (default.camera_ball_diameter_cm, default.camera_focal_px) == (6.0, 680.0)
+    assert (default.camera_ball_diameter_cm, default.camera_focal_px) == (6.2, 690.0)

@@ -20,9 +20,15 @@ max_follow_duration_sec = 600.0
 min_stand_off_cm = 30.0
 max_stand_off_cm = 300.0
 
+[stand_off]
+# Distance de consigne par défaut (cm), entre min_stand_off_cm et max_stand_off_cm.
+default_cm = 60.0
+# Tolérance autour de la consigne, en % de la distance (strictement inférieure à 100).
+tolerance_percent = 5.0
+
 [camera]
-capture_size_px = [1024, 728]
-oriented_frame_size_px = [728, 1024]
+capture_size_px = [1280, 720]
+oriented_frame_size_px = [720, 1280]
 ball_diameter_cm = 6.2
 # Focale en pixels (image 1024x728 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
 focal_px = 690.0

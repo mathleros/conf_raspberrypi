@@ -15,7 +15,6 @@ from irobot.app.interfaces.plan_guards import (
 from irobot.app.interfaces.voice_constants import (
     DEFAULT_FOLLOW_DURATION_SEC,
     DEFAULT_MOVE_DURATION_SEC,
-    DEFAULT_STAND_OFF_CM,
     DEFAULT_TURN_ANGLE_DEG,
     MAX_SEARCH_TIMEOUT_SEC,
     MIN_OBJECT_DURATION_SEC,
@@ -108,7 +107,7 @@ class IntentPlanValidator:
         settings = self.settings
 
         if "stand_off_cm" in params:
-            value = to_float(params["stand_off_cm"], DEFAULT_STAND_OFF_CM, require_finite=True)
+            value = to_float(params["stand_off_cm"], float(settings.stand_off_default_cm), require_finite=True)
             params["stand_off_cm"] = max(
                 float(settings.min_stand_off_cm), min(value, float(settings.max_stand_off_cm)),
             )

@@ -34,6 +34,10 @@ def yunet(tmp_path, monkeypatch):
         camera_face_model_path=str(model),
         camera_face_grace_frames=2,
         camera_focal_px=600.0,
+        camera_capture_size_px=(640, 480),
+        camera_oriented_frame_size_px=(480, 640),
+        camera_face_width_cm=15.0,
+        camera_face_score_threshold=0.45,
         camera_clahe_enabled=False,
         camera_exposure_value=0.0,
     )
@@ -375,7 +379,10 @@ def test_follow_skill_aligns_approaches_and_holds_face_from_perception_mock(targ
         perception_target=PerceptionTarget.FACE,
         state={"active_intent_parameters": {"target_object": target, "duration_s": 1}},
     )
-    skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=lambda: clock[0], sleep_fn=sleep)
+    skill = FollowObjectSkill(
+        settings=RuntimeSettings(stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0),
+        time_fn=lambda: clock[0], sleep_fn=sleep,
+    )
     result = skill.execute(context)
     assert result.status == "success"
     assert robot.commands.index("left") < robot.commands.index("forward")
@@ -413,7 +420,10 @@ def test_follow_face_waits_for_new_frame_before_repeating_motion(pipeline):
         perception_target=target,
         state={"active_intent_parameters": {"target_object": "face", "duration_s": 0.8}},
     )
-    skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=lambda: clock[0], sleep_fn=sleep)
+    skill = FollowObjectSkill(
+        settings=RuntimeSettings(stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0),
+        time_fn=lambda: clock[0], sleep_fn=sleep,
+    )
     result = skill.execute(context)
 
     assert result.status == "success"

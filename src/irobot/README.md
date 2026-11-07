@@ -181,8 +181,8 @@ Taille : 232 589 octets ; SHA-256 :
 Il est livré avec le projet, sans téléchargement automatique au démarrage.
 
 La section `[camera]` de [runtime_settings.toml](config/runtime_settings.toml)
-configure `face_model_path` (relatif au TOML ou absolu), `face_width_cm = 15.0`,
-`face_score_threshold = 0.45` et `face_grace_frames = 10`.
+configure `face_model_path` (relatif au TOML ou absolu), `face_width_cm = 8.0`,
+`face_score_threshold = 0.85` et `face_grace_frames = 10`.
 La distance indicative vaut `focal_px × face_width_cm / largeur_du_visage_px`,
 avec la focale caméra existante et les pixels de l'image orientée, sans fusion
 ultrason. Largeur et seuil doivent être finis et positifs, le seuil au plus 1,

@@ -76,7 +76,10 @@ def run(world: World, **params):
         perception_target=PerceptionTarget.RED_BALL,
         state={"active_intent_parameters": params},
     )
-    skill = FollowObjectSkill(settings=RuntimeSettings(), time_fn=world.time, sleep_fn=world.sleep)
+    skill = FollowObjectSkill(
+        settings=RuntimeSettings(stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0),
+        time_fn=world.time, sleep_fn=world.sleep,
+    )
     return skill.execute(context), context
 
 
@@ -272,7 +275,10 @@ def test_edge_threshold_comes_from_settings():
         state={"active_intent_parameters": {"duration_s": 3}},
     )
     skill = FollowObjectSkill(
-        settings=RuntimeSettings(camera_edge_offset_threshold=0.9), time_fn=world.time, sleep_fn=world.sleep,
+        settings=RuntimeSettings(
+            camera_edge_offset_threshold=0.9, stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0,
+        ),
+        time_fn=world.time, sleep_fn=world.sleep,
     )
     skill.execute(context)
 
@@ -284,3 +290,36 @@ def test_cached_detection_does_not_steer_robot():
     run(world, duration_s=1)
 
     assert not {"left", "right", "forward"} & set(world.commands)
+
+
+STAND_OFF_SETTINGS = RuntimeSettings(stand_off_default_cm=80.0, stand_off_tolerance_percent=10.0)
+
+
+@pytest.mark.parametrize("intent, distance_cm, expected_motion", [
+    ("follow_object", 85.0, None),
+    ("follow_object", 90.0, "forward"),
+    ("follow_object", 70.0, "backward"),
+    ("follow_person", 90.0, "forward"),
+    ("follow_red_ball", 90.0, "forward"),
+])
+def test_stand_off_defaults_from_settings(intent, distance_cm, expected_motion):
+    world = World(distance_cm=distance_cm)
+    context = SkillContext(
+        robot=world,
+        perception=world,
+        perception_target=PerceptionTarget.RED_BALL,
+        state={"active_intent_name": intent, "active_intent_parameters": {"duration_s": 1}},
+    )
+    FollowObjectSkill(settings=STAND_OFF_SETTINGS, time_fn=world.time, sleep_fn=world.sleep).execute(context)
+
+    if expected_motion is None:
+        assert not MOTIONS & set(world.commands)
+    else:
+        assert world.commands[0] == expected_motion
+
+
+def test_explicit_stand_off_overrides_default_and_tolerance():
+    skill = FollowObjectSkill(settings=RuntimeSettings(stand_off_default_cm=60.0, stand_off_tolerance_percent=5.0))
+
+    assert skill._resolve_stand_off({"stand_off_cm": 100}) == (100.0, 5.0)
+    assert skill._resolve_stand_off({"stand_off_cm": 100, "stand_off_tolerance_cm": 3}) == (100.0, 3.0)

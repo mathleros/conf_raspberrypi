@@ -30,8 +30,6 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
     DEFAULT_FORWARD_STEP_S = 0.12
     DEFAULT_MAX_TRACKING_S = 8.0
     DEFAULT_MAX_TARGET_LOSS_S = 1.0
-    DEFAULT_APPROACH_THRESHOLD_CM = 20.0
-    DEFAULT_STAND_OFF_TOLERANCE_CM = 10.0
     MIN_FORWARD_SCALE = 0.25
     PHASE_SEARCH = "search"
     PHASE_TRACK = "track"
@@ -47,12 +45,13 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
         self.sleep_fn = sleep_fn
 
     def _resolve_stand_off_cm(self, params: dict[str, Any]) -> float:
+        default_cm = float(self.settings.stand_off_default_cm)
         raw = params.get("approach_threshold_cm")
         if raw is None:
             raw = params.get("stand_off_cm")
         if raw is None:
-            return self.DEFAULT_APPROACH_THRESHOLD_CM
-        value = to_float(raw, self.DEFAULT_APPROACH_THRESHOLD_CM)
+            return default_cm
+        value = to_float(raw, default_cm)
         low = float(self.settings.min_stand_off_cm)
         high = float(self.settings.max_stand_off_cm)
         return min(max(value, low), high)
@@ -353,9 +352,10 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 float(self.settings.search_timeout_seconds),
             )
             stand_off_cm = self._resolve_stand_off_cm(params)
+            default_tolerance_cm = stand_off_cm * float(self.settings.stand_off_tolerance_percent) / 100.0
             tolerance_cm = max(
                 0.0,
-                to_float(params.get("stand_off_tolerance_cm"), self.DEFAULT_STAND_OFF_TOLERANCE_CM),
+                to_float(params.get("stand_off_tolerance_cm"), default_tolerance_cm),
             )
             reached_threshold_cm = max(1.0, stand_off_cm + tolerance_cm)
             has_live_perception = callable(getattr(context.perception, "detect", None))

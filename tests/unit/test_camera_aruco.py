@@ -30,6 +30,8 @@ def _frame(center_x=240, width=80, image_width=480, marker_id=1):
 def _runtime_settings(**kwargs):
     return RuntimeSettings(
         camera_focal_px=600.0,
+        camera_capture_size_px=(640, 480),
+        camera_oriented_frame_size_px=(480, 640),
         camera_clahe_enabled=False,
         camera_exposure_value=0.0,
         **kwargs,

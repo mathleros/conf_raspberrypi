@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
+from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.common.interfaces import RobotController
 from irobot.common.domain.skills import SkillContext
 from irobot.common.domain.skills.behaviors.approach_target import ApproachTargetSkill
@@ -12,6 +12,9 @@ from irobot.common.domain.skills.behaviors.move_circle import MoveCircleSkill
 from irobot.common.domain.perception import PerceptionTarget
 from tests.unit.fake_robot import FakeRobot
 
+
+
+TOML_FOCAL_PX = load_runtime_settings().camera_focal_px
 
 
 def build_context(fake_robot: FakeRobot | None = None, **state):
@@ -95,7 +98,7 @@ def live_run(script, clock=None, robot=None, recovery_attempts=1, **params):
     )
     settings = RuntimeSettings(
         min_stand_off_cm=10.0, stand_off_default_cm=20.0, stand_off_tolerance_percent=50.0,
-        target_recovery_attempts=recovery_attempts,
+        target_recovery_attempts=recovery_attempts, camera_focal_px=TOML_FOCAL_PX,
     )
     skill = ApproachTargetSkill(settings=settings, time_fn=clock.time, sleep_fn=clock.sleep)
     return skill.execute(context), fake, context, clock
@@ -153,6 +156,30 @@ def test_approach_target_aligns_toward_target_side():
         assert side in fake.commands
         opposite = "right" if side == "left" else "left"
         assert opposite not in fake.commands
+
+
+def test_approach_target_align_pulse_is_proportional_unless_explicit(monkeypatch):
+    pulses = []
+    original = ApproachTargetSkill._pulse_motion
+
+    def spy(self, context, position, duration):
+        pulses.append((position, duration))
+        return original(self, context, position, duration)
+
+    monkeypatch.setattr(ApproachTargetSkill, "_pulse_motion", spy)
+    script = [("left", 160.0, 0.8)]
+
+    live_run(script, stand_off_cm=100, alignment_step_s=0.05)
+    assert ("left", 0.05) in pulses
+
+    pulses.clear()
+    live_run(script, stand_off_cm=100, alignment_step_s=None)
+    left_pulses = [duration for position, duration in pulses if position == "left"]
+    expected = ApproachTargetSkill(
+        settings=RuntimeSettings(camera_focal_px=TOML_FOCAL_PX), time_fn=lambda: 0.0, sleep_fn=lambda seconds: None,
+    )._align_step_s(0.8, ApproachTargetSkill.DEFAULT_ALIGN_STEP_S)
+    assert left_pulses[0] == pytest.approx(expected)
+    assert left_pulses[0] != pytest.approx(0.05)
 
 
 def test_approach_target_search_sweeps_toward_last_known_side():

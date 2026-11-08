@@ -23,7 +23,7 @@ DEFAULT_BACKWARD_CM_PER_SECOND = 25.0
 DEFAULT_CAMERA_CAPTURE_SIZE_PX = (1280, 720)
 DEFAULT_CAMERA_ORIENTED_FRAME_SIZE_PX = (720, 1280)
 DEFAULT_CAMERA_BALL_DIAMETER_CM = 6.2
-DEFAULT_CAMERA_FOCAL_PX = 690.0
+DEFAULT_CAMERA_FOCAL_PX = 1394.2
 DEFAULT_CAMERA_FACE_WIDTH_CM = 8.0
 DEFAULT_CAMERA_FACE_SCORE_THRESHOLD = 0.85
 
@@ -88,6 +88,9 @@ class RuntimeSettings:
     target_loss_wait_seconds: float = 2.0
     align_settle_seconds: float = 0.4
     target_recovery_window_seconds: float = 1.5
+    align_gain: float = 0.6
+    align_step_min_seconds: float = 0.03
+    align_step_max_seconds: float = 0.25
     max_plan_steps: int = 20
     max_distance_cm: float = 300.0
     max_angle_deg: float = 360.0
@@ -169,6 +172,13 @@ class RuntimeSettings:
         )
         if self.target_recovery_window_seconds < self.align_settle_seconds:
             raise ValueError("target_recovery_window_seconds must be at least align_settle_seconds")
+        _require_number("align_gain", self.align_gain, "a finite number in (0, 1]", positive=True)
+        if self.align_gain > 1:
+            raise ValueError("align_gain must be at most 1")
+        for name in ("align_step_min_seconds", "align_step_max_seconds"):
+            _require_number(name, getattr(self, name), "a finite positive number", positive=True)
+        if self.align_step_max_seconds < self.align_step_min_seconds:
+            raise ValueError("align_step_max_seconds must be at least align_step_min_seconds")
         if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
             raise ValueError("camera_face_model_path must be a non-empty path string")
         for name in ("camera_face_recognition_model_path", "camera_face_gallery_dir"):
@@ -260,6 +270,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds", "target_recovery_attempts",
         "target_loss_wait_seconds", "align_settle_seconds", "target_recovery_window_seconds",
+        "align_gain", "align_step_min_seconds", "align_step_max_seconds",
     })
     backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
     if backward is not None:
@@ -289,6 +300,13 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         target_recovery_window_seconds=_float(
             table, "target_recovery_window_seconds", current.target_recovery_window_seconds,
             "runtime.target_recovery_window_seconds",
+        ),
+        align_gain=_float(table, "align_gain", current.align_gain, "runtime.align_gain"),
+        align_step_min_seconds=_float(
+            table, "align_step_min_seconds", current.align_step_min_seconds, "runtime.align_step_min_seconds",
+        ),
+        align_step_max_seconds=_float(
+            table, "align_step_max_seconds", current.align_step_max_seconds, "runtime.align_step_max_seconds",
         ),
         search_timeout_seconds=_float(table, "search_timeout_seconds", current.search_timeout_seconds, "runtime.search_timeout_seconds"),
         timeout_margin_seconds=_float(table, "timeout_margin_seconds", current.timeout_margin_seconds, "runtime.timeout_margin_seconds"),

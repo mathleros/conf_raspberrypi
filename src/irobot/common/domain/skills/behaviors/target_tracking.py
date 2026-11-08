@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -128,6 +129,16 @@ class TargetTrackingMixin:
             "iterations": iterations,
         }
         self.sleep_fn(self.SEARCH_SETTLE_S)
+
+    def _align_step_s(self, offset_x: float | None, fallback_s: float) -> float:
+        """Durée de l'impulsion d'alignement : angle estimé du décalage / vitesse de rotation, atténué par `align_gain`."""
+        settings = self.settings
+        if offset_x is None:
+            return fallback_s
+        half_width_px = settings.camera_oriented_frame_size_px[0] / 2.0
+        angle_deg = math.degrees(math.atan(abs(offset_x) * half_width_px / settings.camera_focal_px))
+        step_s = settings.align_gain * angle_deg / settings.deg_per_second
+        return min(max(step_s, settings.align_step_min_seconds), settings.align_step_max_seconds)
 
     def _needs_angular_correction(
         self, position: str | None, distance_cm: float | None, offset_x: float | None, band_max_cm: float,

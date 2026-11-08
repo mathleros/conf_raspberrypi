@@ -218,6 +218,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
         forward_step_s: float,
         stand_off_cm: float,
         reached_threshold_cm: float,
+        proportional_align: bool,
     ) -> SkillResult:
         """Mode perception live : boucle recherche / suivi jusqu'à atteinte, perte ou timeout."""
         now = self.time_fn
@@ -278,9 +279,10 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                     )
 
                 if self._needs_angular_correction(target_position, distance_cm, offset_x, reached_threshold_cm):
-                    logger.info("Suivi #%d décision : alignement %s (%.2f s)", iterations, target_position, align_step_s)
-                    self._pulse_motion(context, target_position, align_step_s)
-                    recovery.aligned(target_position, align_step_s, now())
+                    pulse_s = self._align_step_s(offset_x, align_step_s) if proportional_align else align_step_s
+                    logger.info("Suivi #%d décision : alignement %s (%.2f s)", iterations, target_position, pulse_s)
+                    self._pulse_motion(context, target_position, pulse_s)
+                    recovery.aligned(target_position, pulse_s, now())
                     context.state["motion"] = f"align_{target_position}"
                     context.state["follow_target_state"] = {
                         "phase": "aligning",
@@ -356,7 +358,8 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
             params = dict(context.state.get("active_intent_parameters") or {})
             max_tracking_s = to_float(params.get("tracking_timeout_s"), self.DEFAULT_MAX_TRACKING_S)
             max_target_loss_s = to_float(params.get("max_target_loss_s"), float(self.settings.target_loss_wait_seconds))
-            align_step_s = to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
+            explicit_align_step_s = to_float(params.get("alignment_step_s"))
+            align_step_s = self.DEFAULT_ALIGN_STEP_S if explicit_align_step_s is None else explicit_align_step_s
             forward_step_s = to_float(params.get("forward_step_s"), self.DEFAULT_FORWARD_STEP_S)
             search_timeout_s = to_float(
                 params.get("search_timeout_s"),
@@ -382,6 +385,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 forward_step_s=forward_step_s,
                 stand_off_cm=stand_off_cm,
                 reached_threshold_cm=reached_threshold_cm,
+                proportional_align=explicit_align_step_s is None,
             )
         except Exception as exc:  # pragma: no cover - logique métier
             return SkillResult(

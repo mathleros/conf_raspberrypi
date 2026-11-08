@@ -45,6 +45,20 @@ def test_target_loss_and_align_settle_settings(tmp_path, monkeypatch):
             settings.load_runtime_settings()
 
 
+def test_align_step_settings_defaults_load_and_validation(tmp_path, monkeypatch):
+    defaults = settings.RuntimeSettings()
+    assert (defaults.align_gain, defaults.align_step_min_seconds, defaults.align_step_max_seconds) == (0.6, 0.03, 0.25)
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text("[runtime]\nalign_gain = 0.5\nalign_step_min_seconds = 0.02\nalign_step_max_seconds = 0.2\n")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    loaded = settings.load_runtime_settings()
+    assert (loaded.align_gain, loaded.align_step_min_seconds, loaded.align_step_max_seconds) == (0.5, 0.02, 0.2)
+    for lines in ("align_gain = 1.5", "align_gain = 0", "align_step_min_seconds = 0.3\nalign_step_max_seconds = 0.2"):
+        cfg.write_text(f"[runtime]\n{lines}\n")
+        with pytest.raises(ValueError):
+            settings.load_runtime_settings()
+
+
 def test_load_runtime_settings_defaults_when_file_missing(monkeypatch):
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 

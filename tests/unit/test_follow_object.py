@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
+from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.common.domain.perception import PerceptionTarget
 from irobot.common.domain.orchestrator.registry import SkillRegistry
 from irobot.common.domain.skills import SkillContext
@@ -79,6 +79,7 @@ def run(world: World, recovery_attempts: int = 1, **params):
     skill = FollowObjectSkill(
         settings=RuntimeSettings(
             stand_off_default_cm=100.0, stand_off_tolerance_percent=15.0, target_recovery_attempts=recovery_attempts,
+            camera_focal_px=TOML_FOCAL_PX,
         ),
         time_fn=world.time, sleep_fn=world.sleep,
     )
@@ -86,6 +87,7 @@ def run(world: World, recovery_attempts: int = 1, **params):
 
 
 MOTIONS = {"forward", "backward", "left", "right"}
+TOML_FOCAL_PX = load_runtime_settings().camera_focal_px
 
 
 def test_registered_in_default_registry():
@@ -325,6 +327,48 @@ def test_explicit_stand_off_overrides_default_and_tolerance():
 
     assert skill._resolve_stand_off({"stand_off_cm": 100}) == (100.0, 5.0)
     assert skill._resolve_stand_off({"stand_off_cm": 100, "stand_off_tolerance_cm": 3}) == (100.0, 3.0)
+
+
+def _record_pulses(monkeypatch, skill_cls):
+    pulses = []
+    original = skill_cls._pulse_motion
+
+    def spy(self, context, position, duration):
+        pulses.append((position, duration))
+        return original(self, context, position, duration)
+
+    monkeypatch.setattr(skill_cls, "_pulse_motion", spy)
+    return pulses
+
+
+def _align_skill(**settings_kwargs):
+    return FollowObjectSkill(
+        settings=RuntimeSettings(camera_focal_px=TOML_FOCAL_PX, **settings_kwargs),
+        time_fn=lambda: 0.0, sleep_fn=lambda seconds: None,
+    )
+
+
+def test_align_step_s_is_proportional_clamped_and_falls_back():
+    skill = _align_skill()
+    assert skill._align_step_s(1.0, 0.08) == pytest.approx(0.048, abs=0.002)
+    assert skill._align_step_s(0.8, 0.08) == pytest.approx(0.039, abs=0.002)
+    assert skill._align_step_s(1.0, 0.08) > skill._align_step_s(0.8, 0.08)
+    assert skill._align_step_s(0.001, 0.08) == pytest.approx(0.03)
+    assert _align_skill(align_gain=1.0, align_step_max_seconds=0.05)._align_step_s(1.0, 0.08) == pytest.approx(0.05)
+    assert skill._align_step_s(None, 0.08) == 0.08
+
+
+def test_align_pulse_duration_scales_with_offset(monkeypatch):
+    pulses = _record_pulses(monkeypatch, FollowObjectSkill)
+    helper = _align_skill()
+    durations = []
+    for offset in (0.7, 0.95):
+        pulses.clear()
+        run(World(distance_cm=100.0, bearing="left", offset_x=offset), duration_s=1)
+        expected = helper._align_step_s(offset, FollowObjectSkill.ALIGN_STEP_S)
+        assert pulses[0] == ("left", pytest.approx(expected))
+        durations.append(pulses[0][1])
+    assert durations[0] < durations[1]
 
 
 class OvershootWorld(World):

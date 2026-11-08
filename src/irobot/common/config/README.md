@@ -7,6 +7,8 @@ Ils sont chargés par `settings.py` au démarrage.
   (`target_recovery_attempts`, 0 désactive) ; attente robot arrêté avant balayage après perte de cible
   (`target_loss_wait_seconds`, commune à `follow_object` et `approach_target`), stabilisation après un alignement
   (`align_settle_seconds`) et fenêtre de manœuvre inverse (`target_recovery_window_seconds`, ≥ `align_settle_seconds`).
+  La durée d’une impulsion d’alignement est proportionnelle au décalage horizontal de la cible : `align_gain` en est
+  la fraction appliquée, bornée entre `align_step_min_seconds` et `align_step_max_seconds` (max ≥ min).
 - `[limits]` : bornes des déplacements, durées et plans.
 - `[stand_off]` : distance de consigne par défaut (`default_cm`) et tolérance en % (`tolerance_percent`) communes au suivi
   et à l’approche ; une distance dite dans la phrase reste prioritaire.

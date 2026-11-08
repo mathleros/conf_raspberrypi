@@ -227,8 +227,9 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             band_max_cm = stand_off_cm + tolerance_cm
             if self._needs_angular_correction(position, distance_cm, offset_x, band_max_cm):
                 sweep_direction = position
-                self._pulse_motion(context, position, self.ALIGN_STEP_S)
-                recovery.aligned(position, self.ALIGN_STEP_S, now())
+                step_s = self._align_step_s(offset_x, self.ALIGN_STEP_S)
+                self._pulse_motion(context, position, step_s)
+                recovery.aligned(position, step_s, now())
                 context.state["motion"] = f"align_{position}"
                 set_state("aligning", direction=position)
             elif distance_cm is not None and distance_cm > band_max_cm:

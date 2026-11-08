@@ -21,6 +21,30 @@ def test_runtime_recovery_attempts_default_and_loaded(tmp_path, monkeypatch):
             settings.load_runtime_settings()
 
 
+def test_target_loss_and_align_settle_settings(tmp_path, monkeypatch):
+    defaults = settings.RuntimeSettings()
+    assert (defaults.target_loss_wait_seconds, defaults.align_settle_seconds,
+            defaults.target_recovery_window_seconds) == (2.0, 0.4, 1.5)
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text(
+        "[runtime]\ntarget_loss_wait_seconds = 0.5\nalign_settle_seconds = 0.2\ntarget_recovery_window_seconds = 1.0\n",
+    )
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    loaded = settings.load_runtime_settings()
+    assert (loaded.target_loss_wait_seconds, loaded.align_settle_seconds,
+            loaded.target_recovery_window_seconds) == (0.5, 0.2, 1.0)
+    invalid = (
+        "target_loss_wait_seconds = 0",
+        "target_recovery_window_seconds = 0",
+        "align_settle_seconds = -0.1",
+        "align_settle_seconds = 1.0\ntarget_recovery_window_seconds = 0.5",
+    )
+    for lines in invalid:
+        cfg.write_text(f"[runtime]\n{lines}\n")
+        with pytest.raises(ValueError):
+            settings.load_runtime_settings()
+
+
 def test_load_runtime_settings_defaults_when_file_missing(monkeypatch):
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 

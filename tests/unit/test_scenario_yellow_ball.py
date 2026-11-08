@@ -124,11 +124,11 @@ def _timed(skill, world: SimWorld, spans: dict[str, list[tuple[float, float, obj
     return skill
 
 
-def run_scenario(tmp_path: Path, **world_kwargs):
+def run_scenario(tmp_path: Path, *, settings: RuntimeSettings | None = None, **world_kwargs):
     world = SimWorld(**world_kwargs)
     controller = RobotController(world, time_fn=world.time, sleep_fn=world.sleep)
     world.controller = controller
-    settings = RuntimeSettings()
+    settings = settings or RuntimeSettings()
     spans: dict[str, list[tuple[float, float, object]]] = {}
     registry = SkillRegistry.default()
     registry.register(_timed(ApproachTargetSkill(settings=settings, time_fn=world.time, sleep_fn=world.sleep), world, spans))
@@ -164,7 +164,7 @@ def _assert_stopped_since(world: SimWorld, since_s: float) -> None:
 
 
 def test_full_mission_search_approach_and_follow_five_minutes(tmp_path):
-    world, result, events, spans = run_scenario(tmp_path)
+    world, result, events, spans = run_scenario(tmp_path, settings=RuntimeSettings(target_loss_wait_seconds=3.0))
 
     assert result["status"] == "accepted", result
     assert result["mission"]["phase"] == "success"

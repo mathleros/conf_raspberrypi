@@ -43,10 +43,6 @@ class TargetTrackingMixin:
     """Briques communes aux behaviors de suivi visuel (détection, sécurité, balayage)."""
 
     SEARCH_SETTLE_S = 0.15
-    # Latence caméra + flou après une impulsion : une image trop proche de l'impulsion ne reflète pas son effet.
-    ALIGN_SETTLE_S = 0.4
-    # Fenêtre pendant laquelle une disparition de la cible est attribuée à l'impulsion d'alignement précédente.
-    RECOVERY_WINDOW_S = 1.5
     CONTROL_LOOP_PERIOD_S = 0.02
 
     sleep_fn: Callable[[float], None]

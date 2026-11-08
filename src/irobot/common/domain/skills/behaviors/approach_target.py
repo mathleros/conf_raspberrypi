@@ -30,7 +30,6 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
     DEFAULT_ALIGN_STEP_S = 0.08
     DEFAULT_FORWARD_STEP_S = 0.12
     DEFAULT_MAX_TRACKING_S = 8.0
-    DEFAULT_MAX_TARGET_LOSS_S = 1.0
     MIN_FORWARD_SCALE = 0.25
     PHASE_SEARCH = "search"
     PHASE_TRACK = "track"
@@ -228,7 +227,11 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
         search_spent_s = 0.0
         last_seen_at: float | None = None
         sweep_direction: Direction = "right"
-        recovery = OvershootRecovery(self.settings.target_recovery_attempts, self.ALIGN_SETTLE_S, self.RECOVERY_WINDOW_S)
+        recovery = OvershootRecovery(
+            self.settings.target_recovery_attempts,
+            self.settings.align_settle_seconds,
+            self.settings.target_recovery_window_seconds,
+        )
         iterations = 0
 
         while True:
@@ -284,7 +287,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                         "direction": target_position,
                         "iterations": iterations,
                     }
-                    self.sleep_fn(self.ALIGN_SETTLE_S)
+                    self.sleep_fn(self.settings.align_settle_seconds)
                 else:
                     step_s = self._forward_step(forward_step_s, distance_cm, stand_off_cm)
                     logger.info("Suivi #%d décision : avance (%.2f s)", iterations, step_s)
@@ -352,7 +355,7 @@ class ApproachTargetSkill(TargetTrackingMixin, Skill):
                 )
             params = dict(context.state.get("active_intent_parameters") or {})
             max_tracking_s = to_float(params.get("tracking_timeout_s"), self.DEFAULT_MAX_TRACKING_S)
-            max_target_loss_s = to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S)
+            max_target_loss_s = to_float(params.get("max_target_loss_s"), float(self.settings.target_loss_wait_seconds))
             align_step_s = to_float(params.get("alignment_step_s"), self.DEFAULT_ALIGN_STEP_S)
             forward_step_s = to_float(params.get("forward_step_s"), self.DEFAULT_FORWARD_STEP_S)
             search_timeout_s = to_float(

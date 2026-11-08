@@ -23,7 +23,6 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
 
     DEFAULT_TARGET = "yellow"
     DEFAULT_DURATION_S = 60.0
-    DEFAULT_MAX_TARGET_LOSS_S = 3.0
     ALIGN_STEP_S = 0.08
     FORWARD_MIN_S = 0.05
     FORWARD_MAX_S = 0.25
@@ -156,7 +155,7 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
             max(0.0, to_float(params.get("duration_s"), self.DEFAULT_DURATION_S)),
             float(settings.max_follow_duration_sec),
         )
-        max_loss_s = max(0.0, to_float(params.get("max_target_loss_s"), self.DEFAULT_MAX_TARGET_LOSS_S))
+        max_loss_s = max(0.0, to_float(params.get("max_target_loss_s"), float(settings.target_loss_wait_seconds)))
         search_timeout_s = max(
             0.1, to_float(params.get("search_timeout_s"), float(settings.search_timeout_seconds)),
         )
@@ -166,7 +165,9 @@ class FollowObjectSkill(TargetTrackingMixin, Skill):
         last_seen_at = started_at
         search_started_at: float | None = None
         sweep_direction: Direction = "right"
-        recovery = OvershootRecovery(settings.target_recovery_attempts, self.ALIGN_SETTLE_S, self.RECOVERY_WINDOW_S)
+        recovery = OvershootRecovery(
+            settings.target_recovery_attempts, settings.align_settle_seconds, settings.target_recovery_window_seconds,
+        )
         iterations = 0
         reacquisitions = 0
         final_distance_cm: float | None = None

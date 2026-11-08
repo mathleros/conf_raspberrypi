@@ -85,6 +85,9 @@ class RuntimeSettings:
     mission_timeout_seconds: float = 45.0
     max_step_retries: int = 2
     target_recovery_attempts: int = 1
+    target_loss_wait_seconds: float = 2.0
+    align_settle_seconds: float = 0.4
+    target_recovery_window_seconds: float = 1.5
     max_plan_steps: int = 20
     max_distance_cm: float = 300.0
     max_angle_deg: float = 360.0
@@ -154,6 +157,18 @@ class RuntimeSettings:
             "target_recovery_attempts", self.target_recovery_attempts, "a non-negative integer",
             integer=True, non_negative=True,
         )
+        _require_number(
+            "target_loss_wait_seconds", self.target_loss_wait_seconds, "a finite positive number", positive=True,
+        )
+        _require_number(
+            "align_settle_seconds", self.align_settle_seconds, "a finite non-negative number", non_negative=True,
+        )
+        _require_number(
+            "target_recovery_window_seconds", self.target_recovery_window_seconds,
+            "a finite positive number", positive=True,
+        )
+        if self.target_recovery_window_seconds < self.align_settle_seconds:
+            raise ValueError("target_recovery_window_seconds must be at least align_settle_seconds")
         if not isinstance(self.camera_face_model_path, str) or not self.camera_face_model_path.strip():
             raise ValueError("camera_face_model_path must be a non-empty path string")
         for name in ("camera_face_recognition_model_path", "camera_face_gallery_dir"):
@@ -244,6 +259,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         "obstacle_threshold_cm",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds", "target_recovery_attempts",
+        "target_loss_wait_seconds", "align_settle_seconds", "target_recovery_window_seconds",
     })
     backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
     if backward is not None:
@@ -263,6 +279,16 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         max_step_retries=_int(table, "max_step_retries", current.max_step_retries, "runtime.max_step_retries"),
         target_recovery_attempts=_int(
             table, "target_recovery_attempts", current.target_recovery_attempts, "runtime.target_recovery_attempts",
+        ),
+        target_loss_wait_seconds=_float(
+            table, "target_loss_wait_seconds", current.target_loss_wait_seconds, "runtime.target_loss_wait_seconds",
+        ),
+        align_settle_seconds=_float(
+            table, "align_settle_seconds", current.align_settle_seconds, "runtime.align_settle_seconds",
+        ),
+        target_recovery_window_seconds=_float(
+            table, "target_recovery_window_seconds", current.target_recovery_window_seconds,
+            "runtime.target_recovery_window_seconds",
         ),
         search_timeout_seconds=_float(table, "search_timeout_seconds", current.search_timeout_seconds, "runtime.search_timeout_seconds"),
         timeout_margin_seconds=_float(table, "timeout_margin_seconds", current.timeout_margin_seconds, "runtime.timeout_margin_seconds"),

@@ -20,10 +20,17 @@ from irobot.app.interfaces.intent.llm_intent_parser import (
 from irobot.app.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.app.interfaces.plan_guards import PLAN_SCHEMA, build_formats
 from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
+from irobot.app.domain.orchestrator.mission_orchestrator import MissionOrchestrator
 from irobot.app.interfaces import voice_llm_transport
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.test_follow_object_wiring import World
+
+
+@pytest.fixture(autouse=True)
+def _no_motion_settle(monkeypatch):
+    """Ces tests ne portent pas sur la pause entre mouvements : évite des sleeps réels."""
+    monkeypatch.setattr(MissionOrchestrator, "_settle", lambda self, runner: None)
 
 
 

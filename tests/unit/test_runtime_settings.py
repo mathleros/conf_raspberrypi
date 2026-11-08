@@ -59,6 +59,17 @@ def test_align_step_settings_defaults_load_and_validation(tmp_path, monkeypatch)
             settings.load_runtime_settings()
 
 
+def test_motion_settle_default_load_and_validation(tmp_path, monkeypatch):
+    assert settings.RuntimeSettings().motion_settle_seconds == 0.3
+    cfg = tmp_path / "runtime_settings.toml"
+    cfg.write_text("[runtime]\nmotion_settle_seconds = 0.5\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "_config_file", lambda: cfg)
+    assert settings.load_runtime_settings().motion_settle_seconds == 0.5
+    cfg.write_text("[runtime]\nmotion_settle_seconds = -0.1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="motion_settle_seconds must be"):
+        settings.load_runtime_settings()
+
+
 def test_load_runtime_settings_defaults_when_file_missing(monkeypatch):
     monkeypatch.setattr(settings, "_config_file", lambda: Path("/tmp/nonexistent_runtime_settings.toml"))
 

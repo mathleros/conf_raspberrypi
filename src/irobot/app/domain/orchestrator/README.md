@@ -39,7 +39,9 @@ Formalise les phases d'une mission :
 Possède la machine d'état et exécute les `SkillPlanStep` dans l'ordre :
 retries, budgets par étape/mission et abandon à la première étape non terminée.
 Un suivi continu n'a pas d'échéance et n'est pas relancé après erreur.
-L'horloge monotone est injectable pour les tests.
+L'horloge monotone est injectable pour les tests. Entre deux mouvements en boucle ouverte
+(`move_forward`, `move_backward`, `turn_left`, `turn_right`), l'orchestrateur attend
+`motion_settle_seconds` pour laisser le châssis s'immobiliser ; cette pause est interruptible par un arrêt.
 
 Les dépendances d'exécution sont passées à `execute` : fonction d'exécution d'une
 étape, contrôle d'arrêt et observateur facultatif d'événements.

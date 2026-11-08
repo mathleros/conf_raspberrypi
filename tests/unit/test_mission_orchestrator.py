@@ -180,3 +180,59 @@ def test_domain_has_no_interface_or_hardware_imports():
                     assert not (node.module or "").startswith(forbidden), path
                 elif isinstance(node, ast.Import):
                     assert all(not alias.name.startswith(forbidden) for alias in node.names), path
+
+
+def _settling_orchestrator(settle_s=0.3, sleep_fn=None):
+    sleeps = []
+    orchestrator = MissionOrchestrator(
+        settings=RuntimeSettings(motion_settle_seconds=settle_s),
+        sleep_fn=sleep_fn or sleeps.append,
+    )
+    return orchestrator, sleeps
+
+
+def _run_names(orchestrator, *names, stop_requested=lambda: False):
+    return orchestrator.execute(
+        plan(*names),
+        lambda step: {"intent": step.intent, "status": "accepted", "results": [SkillResult()]},
+        stop_requested=stop_requested,
+    )
+
+
+def test_motion_settle_pause_between_open_loop_moves():
+    orchestrator, sleeps = _settling_orchestrator()
+    _run_names(orchestrator, "move_forward", "turn_left")
+    assert sum(sleeps) == pytest.approx(0.3)
+
+    orchestrator, sleeps = _settling_orchestrator()
+    _run_names(orchestrator, "move_forward", "move_forward", "turn_left")
+    assert sum(sleeps) == pytest.approx(0.6)
+
+    orchestrator, sleeps = _settling_orchestrator()
+    _, status = _run_names(orchestrator, "turn_left", "move_forward", "stop")
+    assert status == "accepted"
+    assert sum(sleeps) == pytest.approx(0.3)
+
+    orchestrator, sleeps = _settling_orchestrator()
+    _run_names(orchestrator, "follow_object", "turn_left")
+    assert sleeps == []
+
+    orchestrator, sleeps = _settling_orchestrator(settle_s=0.0)
+    _run_names(orchestrator, "move_forward", "turn_left")
+    assert sleeps == []
+
+
+def test_stop_requested_during_settle_aborts_before_next_step():
+    flag = {"stop": False}
+    executed = []
+    orchestrator, _ = _settling_orchestrator(sleep_fn=lambda _: flag.update(stop=True))
+
+    def execute(step):
+        executed.append(step.intent.name)
+        return {"intent": step.intent, "status": "accepted", "results": [SkillResult()]}
+
+    _, status = orchestrator.execute(
+        plan("move_forward", "turn_left"), execute, stop_requested=lambda: flag["stop"],
+    )
+    assert executed == ["move_forward"]
+    assert status == "aborted"

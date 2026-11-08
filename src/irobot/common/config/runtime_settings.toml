@@ -13,6 +13,7 @@ timeout_margin_seconds = 10.0
 target_recovery_attempts = 1  # manœuvres inverses tentées si la cible disparaît juste après une impulsion d'alignement ; 0 désactive
 target_loss_wait_seconds = 2.0  # attente robot arrêté avant le balayage quand la cible est perdue (follow_object et approach_target)
 align_settle_seconds = 0.4  # stabilisation après une impulsion d'alignement, avant de relire la caméra
+motion_settle_seconds = 0.3  # pause entre deux mouvements en boucle ouverte, pour laisser le châssis s'immobiliser ; 0 désactive
 target_recovery_window_seconds = 1.5  # durée après un alignement pendant laquelle une perte déclenche la manœuvre inverse ; doit être >= align_settle_seconds
 align_gain = 0.6  # fraction de la correction estimée appliquée par impulsion d'alignement (0 < gain <= 1)
 align_step_min_seconds = 0.03  # durée minimale d'une impulsion d'alignement proportionnelle

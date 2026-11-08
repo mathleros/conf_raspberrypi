@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from typing import TYPE_CHECKING
 
 from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
@@ -56,7 +57,7 @@ FOLLOW_INTENT_BY_TARGET = {
     "red_ball": "follow_red_ball",
 }
 
-def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Namespace) -> None:
+def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Namespace, settle_s: float = 0.0) -> None:
     """Boucle d'écoute : mot d'activation, puis commande (même phrase ou phrase suivante)."""
     # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
     from irobot.common.hardware.audio.audio_utils import resolve_input_device
@@ -82,7 +83,7 @@ def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Name
             if commands is None:
                 print("[ROBOT-TEST] commande non comprise (tout ou rien).", flush=True)
                 continue
-            _run_commands(registry, hardware, commands)
+            _run_commands(registry, hardware, commands, settle_s)
     finally:
         transcripts.close()
     raise RuntimeError("Flux audio terminé.")
@@ -234,10 +235,12 @@ RUNNERS = {
 }
 
 
-def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Command]) -> bool:
+def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Command], settle_s: float = 0.0) -> bool:
     """Exécute les commandes dans l'ordre ; s'arrête à la première qui échoue."""
     try:
         for index, command in enumerate(commands, start=1):
+            if index > 1 and settle_s > 0 and commands[index - 2].behavior == "move":
+                time.sleep(settle_s)
             label = f"{command.behavior}/{command.target}/{command.duration:g}s"
             if command.behavior != "move" and hardware["camera"] is None:
                 print(f"[ROBOT-TEST] {label} -> caméra indisponible : perception impossible.", flush=True)
@@ -267,8 +270,8 @@ def main(argv: list[str] | None = None) -> None:
         registry = SkillRegistry.default(settings)
         hardware["gallery"] = load_face_gallery(settings)
         if args.audio:
-            _listen_and_run(registry, hardware, args)
-        elif not _run_commands(registry, hardware, commands):
+            _listen_and_run(registry, hardware, args, settings.motion_settle_seconds)
+        elif not _run_commands(registry, hardware, commands, settings.motion_settle_seconds):
             sys.exit(1)
     except KeyboardInterrupt:
         print("\n[ROBOT-TEST] arrêt demandé.", flush=True)

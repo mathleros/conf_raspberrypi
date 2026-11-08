@@ -87,6 +87,7 @@ class RuntimeSettings:
     target_recovery_attempts: int = 1
     target_loss_wait_seconds: float = 2.0
     align_settle_seconds: float = 0.4
+    motion_settle_seconds: float = 0.3
     target_recovery_window_seconds: float = 1.5
     align_gain: float = 0.6
     align_step_min_seconds: float = 0.03
@@ -165,6 +166,9 @@ class RuntimeSettings:
         )
         _require_number(
             "align_settle_seconds", self.align_settle_seconds, "a finite non-negative number", non_negative=True,
+        )
+        _require_number(
+            "motion_settle_seconds", self.motion_settle_seconds, "a finite non-negative number", non_negative=True,
         )
         _require_number(
             "target_recovery_window_seconds", self.target_recovery_window_seconds,
@@ -269,7 +273,7 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         "obstacle_threshold_cm",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds", "target_recovery_attempts",
-        "target_loss_wait_seconds", "align_settle_seconds", "target_recovery_window_seconds",
+        "target_loss_wait_seconds", "align_settle_seconds", "motion_settle_seconds", "target_recovery_window_seconds",
         "align_gain", "align_step_min_seconds", "align_step_max_seconds",
     })
     backward: float | None = table.get("backward_cm_per_second", current.backward_cm_per_second)
@@ -296,6 +300,9 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         ),
         align_settle_seconds=_float(
             table, "align_settle_seconds", current.align_settle_seconds, "runtime.align_settle_seconds",
+        ),
+        motion_settle_seconds=_float(
+            table, "motion_settle_seconds", current.motion_settle_seconds, "runtime.motion_settle_seconds",
         ),
         target_recovery_window_seconds=_float(
             table, "target_recovery_window_seconds", current.target_recovery_window_seconds,

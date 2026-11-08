@@ -73,7 +73,9 @@ def _patch_audio(monkeypatch, transcripts):
 
 def test_listen_loop_requires_wake_word_then_runs_chain(monkeypatch):
     executed = []
-    monkeypatch.setattr(cli, "_run_commands", lambda registry, hardware, commands: executed.append(commands))
+    monkeypatch.setattr(
+        cli, "_run_commands", lambda registry, hardware, commands, settle_s=0.0: executed.append(commands),
+    )
     _patch_audio(
         monkeypatch,
         [
@@ -110,6 +112,21 @@ def test_run_commands_stops_at_first_failure(monkeypatch):
     assert cli._run_commands(None, {"camera": camera}, commands) is False
     assert calls == ["move"]
     assert released == [True]
+
+
+def test_run_commands_settles_only_after_move(monkeypatch):
+    pauses = []
+    monkeypatch.setattr(cli.time, "sleep", pauses.append)
+    ok = lambda registry, hardware, command: SimpleNamespace(status="success", message="", data={})  # noqa: E731
+    for behavior in ("move", "search", "approach", "follow"):
+        monkeypatch.setitem(cli.RUNNERS, behavior, ok)
+    camera = SimpleNamespace(release_target=lambda: None)
+    commands = [
+        Command("move", "forward"), Command("search", "marker"),
+        Command("approach", "red_ball"), Command("follow", "human"), Command("move", "left"),
+    ]
+    assert cli._run_commands(None, {"camera": camera}, commands, settle_s=0.5) is True
+    assert pauses == [0.5]
 
 
 def test_cli_builds_a_validated_command():

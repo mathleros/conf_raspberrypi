@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -14,6 +15,10 @@ from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.common.domain.numbers import to_float
 from irobot.common.domain.skills.behaviors.approach_target import ApproachTargetSkill
 from irobot.common.domain.skills.behaviors.target_tracking import FOLLOW_INTENTS
+
+
+_OPEN_LOOP_MOTIONS = frozenset({"move_forward", "move_backward", "turn_left", "turn_right"})
+# Mouvements en boucle ouverte : le châssis garde de l'élan après leur arrêt.
 
 
 @dataclass(frozen=True)
@@ -32,15 +37,30 @@ class _StepRunner:
 class MissionOrchestrator:
     """Runs compiled skill steps without depending on runtime or hardware interfaces."""
 
+    SETTLE_POLL_S = 0.05
+
     def __init__(
         self,
         settings: RuntimeSettings | None = None,
         state_machine: MissionStateMachine | None = None,
         time_fn: Callable[[], float] | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self.settings = settings or load_runtime_settings()
         self.state_machine = state_machine or MissionStateMachine()
         self.time_fn = time_fn or time.monotonic
+        self.sleep_fn = sleep_fn or time.sleep
+
+    def _settle(self, runner: _StepRunner) -> None:
+        """Laisse le châssis s'immobiliser entre deux mouvements ; une demande d'arrêt interrompt la pause."""
+        settle_s = float(self.settings.motion_settle_seconds)
+        if settle_s <= 0.0:
+            return
+        poll_s = min(self.SETTLE_POLL_S, settle_s)
+        for _ in range(math.ceil(settle_s / poll_s)):
+            if runner.stop_requested():
+                return
+            self.sleep_fn(poll_s)
 
     @staticmethod
     def _step_has_failure(step_result: dict[str, Any]) -> bool:
@@ -195,6 +215,7 @@ class MissionOrchestrator:
         mission_timeout = self._effective_mission_timeout(intents)
         steps: list[dict[str, Any]] = []
         global_status = "accepted"
+        previous: Intent | None = None
 
         for planned_step in planned_steps:
             intent = planned_step.intent
@@ -207,6 +228,9 @@ class MissionOrchestrator:
                 runner.emit({"event": "mission_timeout", "intent": intent})
                 break
 
+            if previous is not None and previous.name in _OPEN_LOOP_MOTIONS and intent.name != "stop":
+                self._settle(runner)
+            previous = intent
             step_result = self._execute_planned_step_with_retry(planned_step, runner)
             if step_result.get("status") == "stopped":
                 global_status = "stopped"

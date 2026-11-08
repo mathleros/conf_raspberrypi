@@ -4,29 +4,12 @@ Cette organisation vise à rendre visible la hiérarchie fonctionnelle du robot 
 
 ```text
 src/irobot/
-├── README.md
-├── __init__.py
-├── domain/
-│   ├── intent.py
-│   ├── perception.py
-│   ├── orchestrator/
-│   └── skills/
-│       ├── base_skill.py
-│       ├── primitives/
-│       │   ├── move_forward.py
-│       │   ├── move_backward.py
-│       │   ├── turn_left.py
-│       │   ├── turn_right.py
-│       │   └── stop_motion.py
-│       ├── perception/
-│       │   ├── detect_object.py
-│       │   └── detect_obstacle.py
-│       └── behaviors/
-│           ├── approach_target.py
-│           └── move_circle.py
-├── interfaces/
-├── hardware/
-└── ...
+├── common/        # noyau : config, domain (skills, orchestrator), hardware, interfaces
+├── app/           # application vocale `voice-runtime` : LLM + intents + missions
+└── tools/         # outillage développeur : dépend de common, jamais importé
+    ├── calibrate_distance.py
+    ├── vision_diagnostic.py
+    └── robot_test/    # `robot-test` : banc de test du noyau (sans LLM ni intents)
 ```
 
 ## Configuration
@@ -49,9 +32,16 @@ Le LLM produit une intention de haut niveau ; l'orchestrateur la transforme en
 plan de skills primitives, qui pilotent le robot via `RobotController`.
 Le LLM n'est jamais un pilote matériel.
 
+## Points d'entrée
+
+- `voice-runtime` (`app/app.py`) : application vocale, LLM + intents
+- `robot-test` (`tools/robot_test`) : banc de test du noyau (`--behavior`, `--text`, `--audio`, mot d'activation)
+- `calibrate-distance` et `vision-detect-live` : outils (`tools/`)
+- Dépendances : `common` ne dépend de rien ; `app` et `tools` dépendent de `common`, jamais l'un de l'autre.
+
 ## Organisation du runtime texte et vocal
 
-Le point d'entrée `voice-runtime` est [app.py](app.py) : il assemble le matériel
+Le point d'entrée `voice-runtime` est [app/app.py](app/app.py) : il assemble le matériel
 (`build_hardware_runtime`) puis le `VoiceRuntime` de
 [interfaces/voice_runtime.py](interfaces/voice_runtime.py), et ferme toujours le matériel
 (`close_hardware_runtime`) dans son `finally`.
@@ -213,7 +203,7 @@ et « tag » routent vers le marqueur ArUco, et « balle » vers les détecteurs
 sur la caméra 0 OV5647, avec affichage X11 et rotation habituelle de 90°.
 Il recherche simultanément l'ID ArUco `DICT_4X4_50 / 1`, le visage sélectionné
 par YuNet et la meilleure balle de chacune des couleurs rouge et jaune.
-Comme pour `app2`, la galerie configurée (par défaut `assets/face/`) est chargée
+Comme pour `robot-test`, la galerie configurée (par défaut `assets/face/`) est chargée
 au démarrage : chaque photo `.jpg`, `.jpeg` ou `.png` doit contenir un seul
 visage et son nom de fichier fournit le prénom. SFace compare le plus grand
 visage admissible à toutes les photos avec le seuil configuré. Le diagnostic
@@ -237,7 +227,7 @@ dernière boîte et ses anciennes mesures. Le diagnostic utilise les réglages
 caméra du TOML, ne commande aucun moteur et n'enregistre aucune image.
 Le modèle YuNet doit être disponible ; une erreur de détection n'est pas
 assimilée à une absence. Appuyer sur `q` ou Ctrl+C pour quitter.
-Pour le lancement Python direct, utiliser `python -m irobot.common.tools.vision_diagnostic`.
+Pour le lancement Python direct, utiliser `python -m irobot.tools.vision_diagnostic`.
 
 Dans `handle_transcript()`, toute occurrence du mot `stop`, `arrête`, `halte` ou
 `pause` (accents, casse et ponctuation normalisés) entraîne immédiatement

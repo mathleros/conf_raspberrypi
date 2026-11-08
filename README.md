@@ -31,7 +31,7 @@ compilées ; il ne parse pas de texte.
 
 Les modules sont organisés par responsabilité : `src/irobot/common/` (code partagé :
 `domain/`, `interfaces/`, `hardware/`, `config/`, `tools/`), `src/irobot/app/` (runtime
-vocal LLM) et `src/irobot/app2/` (app de test directe, sans LLM).
+vocal LLM) et `src/irobot/tools/robot_test/` (banc de test direct `robot-test`, sans LLM).
 Le [README du package](src/irobot/README.md) décrit les points d'entrée et
 les limites actuelles du runtime.
 
@@ -93,7 +93,7 @@ Depuis la racine du dépôt, utiliser les scripts selon le matériel et la plate
 Pour vérifier la vision sur le Pi avec affichage X11, lancer
 `uv run vision-detect-live` : ID ArUco 1, visage et balles rouge/jaune sont
 détectés simultanément, avec distances estimées et rectangles/coins.
-L'outil [vision_diagnostic.py](src/irobot/common/tools/vision_diagnostic.py) réutilise
+L'outil [vision_diagnostic.py](src/irobot/tools/vision_diagnostic.py) réutilise
 la correction du contre-jour et les détecteurs du runtime, sans moteur ni
 enregistrement. Quitter avec `q` ou Ctrl+C. Voir les [réglages et limites](src/irobot/README.md#diagnostic-vision).
 

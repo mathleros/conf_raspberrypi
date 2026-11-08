@@ -1,13 +1,13 @@
-"""Point d'entrée de test `app2` : appelle directement les skills (sans LLM ni orchestrateur).
+"""Point d'entrée `robot-test` : banc de test du noyau, appelle directement les skills (sans LLM ni orchestrateur).
 
 Exemples :
-    python -m irobot.app2.app2 --behavior move --target forward --duration 2
-    python -m irobot.app2.app2 --behavior search --target marker --duration 10
-    python -m irobot.app2.app2 --behavior approach --target red_ball --duration 8
-    python -m irobot.app2.app2 --behavior follow --target human --duration 20
-    python -m irobot.app2.app2 --behavior follow --target person:Mathieu --duration 20   # assets/face/Mathieu.jpg
-    python -m irobot.app2.app2 --text "avance deux secondes puis suis moi"   # sans micro
-    python -m irobot.app2.app2 --audio        # écoute en continu : « robot, avance puis suis moi »
+    uv run robot-test --behavior move --target forward --duration 2
+    uv run robot-test --behavior search --target marker --duration 10
+    uv run robot-test --behavior approach --target red_ball --duration 8
+    uv run robot-test --behavior follow --target human --duration 20
+    uv run robot-test --behavior follow --target person:Mathieu --duration 20   # assets/face/Mathieu.jpg
+    uv run robot-test --text "avance deux secondes puis suis moi"   # sans micro
+    uv run robot-test --audio        # écoute en continu : « robot, avance puis suis moi »
 """
 
 from __future__ import annotations
@@ -17,16 +17,6 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
-from irobot.app2.command_parser import (
-    BEHAVIORS,
-    DEFAULT_DURATION_S,
-    DEFAULT_VISION_DURATION_S,
-    MOVE_TARGETS,
-    PERSON_PREFIX,
-    VISION_TARGETS,
-    Command,
-    parse_command_chain,
-)
 from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
 from irobot.common.domain.orchestrator.executor import SkillExecutor
 from irobot.common.domain.orchestrator.registry import SkillRegistry
@@ -39,6 +29,16 @@ from irobot.common.hardware.runtime_factory import (
     load_face_gallery,
 )
 from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
+from irobot.tools.robot_test.command_parser import (
+    BEHAVIORS,
+    DEFAULT_DURATION_S,
+    DEFAULT_VISION_DURATION_S,
+    MOVE_TARGETS,
+    PERSON_PREFIX,
+    VISION_TARGETS,
+    Command,
+    parse_command_chain,
+)
 
 if TYPE_CHECKING:
     from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
@@ -64,23 +64,23 @@ def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Name
 
     transcripts = transcribe_loop(resolve_input_device(args.input_device))
     armed = False
-    print(f"[APP2] j'écoute : dites « {args.wake_word} » puis une commande (Ctrl+C pour quitter).", flush=True)
+    print(f"[ROBOT-TEST] j'écoute : dites « {args.wake_word} » puis une commande (Ctrl+C pour quitter).", flush=True)
     try:
         for text in transcripts:
-            print(f"[APP2] entendu : « {text} »", flush=True)
+            print(f"[ROBOT-TEST] entendu : « {text} »", flush=True)
             remainder = split_wake_word(text, args.wake_word)
             if remainder is None and not armed:
-                print(f"[APP2] mot d'activation « {args.wake_word} » absent : phrase ignorée.", flush=True)
+                print(f"[ROBOT-TEST] mot d'activation « {args.wake_word} » absent : phrase ignorée.", flush=True)
                 continue
             phrase = remainder if remainder is not None else text
             if not phrase:
                 armed = True
-                print("[APP2] oui ? j'attends votre commande.", flush=True)
+                print("[ROBOT-TEST] oui ? j'attends votre commande.", flush=True)
                 continue
             commands = parse_command_chain(phrase)
             armed = False
             if commands is None:
-                print("[APP2] commande non comprise (tout ou rien).", flush=True)
+                print("[ROBOT-TEST] commande non comprise (tout ou rien).", flush=True)
                 continue
             _run_commands(registry, hardware, commands)
     finally:
@@ -178,7 +178,7 @@ def _run_approach(registry: SkillRegistry, hardware: dict, command: Command) -> 
         canonical = gallery.resolve(name) if gallery is not None else None
         if gallery is None or canonical is None:
             message = f"Personne inconnue : {name}"
-            print(f"[APP2] {message}", flush=True)
+            print(f"[ROBOT-TEST] {message}", flush=True)
             return SkillResult(status="failed", message=message)
         face_target = canonical
     else:
@@ -206,7 +206,7 @@ def _run_follow_person(registry: SkillRegistry, hardware: dict, command: Command
     canonical = gallery.resolve(name) if gallery is not None else None
     if canonical is None:
         message = f"Personne inconnue : {name}"
-        print(f"[APP2] {message}", flush=True)
+        print(f"[ROBOT-TEST] {message}", flush=True)
         return SkillResult(status="failed", message=message)
     params = {"target_object": "human", "duration_s": command.duration}
     context = _build_context(hardware, "human", "follow_person", params)
@@ -240,12 +240,12 @@ def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Comman
         for index, command in enumerate(commands, start=1):
             label = f"{command.behavior}/{command.target}/{command.duration:g}s"
             if command.behavior != "move" and hardware["camera"] is None:
-                print(f"[APP2] {label} -> caméra indisponible : perception impossible.", flush=True)
+                print(f"[ROBOT-TEST] {label} -> caméra indisponible : perception impossible.", flush=True)
                 return False
-            print(f"[APP2] ({index}/{len(commands)}) {label}", flush=True)
+            print(f"[ROBOT-TEST] ({index}/{len(commands)}) {label}", flush=True)
             result = RUNNERS[command.behavior](registry, hardware, command)
-            print(f"[APP2] {label} -> {result.status} : {result.message}", flush=True)
-            print(f"[APP2] data={result.data}", flush=True)
+            print(f"[ROBOT-TEST] {label} -> {result.status} : {result.message}", flush=True)
+            print(f"[ROBOT-TEST] data={result.data}", flush=True)
             if result.status == "failed":
                 return False
         return True
@@ -271,7 +271,7 @@ def main(argv: list[str] | None = None) -> None:
         elif not _run_commands(registry, hardware, commands):
             sys.exit(1)
     except KeyboardInterrupt:
-        print("\n[APP2] arrêt demandé.", flush=True)
+        print("\n[ROBOT-TEST] arrêt demandé.", flush=True)
     except RuntimeError as exc:
         print(f"Erreur : {exc}")
         sys.exit(1)

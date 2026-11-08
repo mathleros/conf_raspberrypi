@@ -17,7 +17,7 @@ from irobot.common.domain.perception import PerceptionTarget
 from irobot.common.interfaces.perception_contracts import (
     ObjectDetection,
 )
-from irobot.common.tools.calibrate_distance import focal_from_known_distance
+from irobot.tools.calibrate_distance import focal_from_known_distance
 from tests.unit.perception_helpers import camera_target
 
 

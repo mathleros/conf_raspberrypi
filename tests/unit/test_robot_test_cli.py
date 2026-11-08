@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.app2 import app2
-from irobot.app2.command_parser import (
+from irobot.tools.robot_test import cli
+from irobot.tools.robot_test.command_parser import (
     Command,
     parse_command_chain,
     parse_voice_command,
@@ -73,7 +73,7 @@ def _patch_audio(monkeypatch, transcripts):
 
 def test_listen_loop_requires_wake_word_then_runs_chain(monkeypatch):
     executed = []
-    monkeypatch.setattr(app2, "_run_commands", lambda registry, hardware, commands: executed.append(commands))
+    monkeypatch.setattr(cli, "_run_commands", lambda registry, hardware, commands: executed.append(commands))
     _patch_audio(
         monkeypatch,
         [
@@ -85,7 +85,7 @@ def test_listen_loop_requires_wake_word_then_runs_chain(monkeypatch):
         ],
     )
     with pytest.raises(RuntimeError, match="Flux audio terminé"):
-        app2._listen_and_run(None, {}, _args())
+        cli._listen_and_run(None, {}, _args())
     assert executed == [
         [Command("move", "backward"), Command("move", "right")],
         [Command("follow", "person:Moi", 10.0)],
@@ -102,43 +102,43 @@ def test_run_commands_stops_at_first_failure(monkeypatch):
 
         return run
 
-    monkeypatch.setitem(app2.RUNNERS, "move", runner("move", "failed"))
-    monkeypatch.setitem(app2.RUNNERS, "follow", runner("follow", "success"))
+    monkeypatch.setitem(cli.RUNNERS, "move", runner("move", "failed"))
+    monkeypatch.setitem(cli.RUNNERS, "follow", runner("follow", "success"))
     commands = [Command("move", "forward"), Command("follow", "human")]
     released = []
     camera = SimpleNamespace(release_target=lambda: released.append(True))
-    assert app2._run_commands(None, {"camera": camera}, commands) is False
+    assert cli._run_commands(None, {"camera": camera}, commands) is False
     assert calls == ["move"]
     assert released == [True]
 
 
 def test_cli_builds_a_validated_command():
-    _, commands = app2._parse_args(["--behavior", "follow", "--target", "human", "--duration", "200"])
+    _, commands = cli._parse_args(["--behavior", "follow", "--target", "human", "--duration", "200"])
     assert commands == [Command("follow", "human", 200.0)]
     with pytest.raises(SystemExit):
-        app2._parse_args(["--behavior", "move", "--target", "marker"])
+        cli._parse_args(["--behavior", "move", "--target", "marker"])
 
 
 def test_cli_text_builds_a_chain_with_optional_wake_word():
     expected = [Command("move", "forward", 2.0), Command("follow", "person:Moi", 15.0)]
     for text in ("avance deux secondes puis suis moi", "robot avance deux secondes puis suis moi"):
-        assert app2._parse_args(["--text", text])[1] == expected
+        assert cli._parse_args(["--text", text])[1] == expected
 
 
 def test_cli_text_builds_named_search_and_approach_commands():
-    assert app2._parse_args(["--text", "cherche Quentin"])[1] == [
+    assert cli._parse_args(["--text", "cherche Quentin"])[1] == [
         Command("search", "person:Quentin", 15.0),
     ]
-    assert app2._parse_args(["--text", "approche toi de Quentin"])[1] == [
+    assert cli._parse_args(["--text", "approche toi de Quentin"])[1] == [
         Command("approach", "person:Quentin", 15.0),
     ]
 
 
 def test_cli_text_rejects_unknown_or_conflicting_input():
     with pytest.raises(SystemExit):
-        app2._parse_args(["--text", "blabla"])
+        cli._parse_args(["--text", "blabla"])
     with pytest.raises(SystemExit):
-        app2._parse_args(["--text", "avance", "--audio"])
+        cli._parse_args(["--text", "avance", "--audio"])
 
 
 def test_follow_named_person():
@@ -151,10 +151,10 @@ def test_follow_named_person():
 
 
 def test_cli_accepts_person_target():
-    _, commands = app2._parse_args(["--behavior", "follow", "--target", "person:Mathieu"])
+    _, commands = cli._parse_args(["--behavior", "follow", "--target", "person:Mathieu"])
     assert commands == [Command("follow", "person:Mathieu", 15.0)]
     for behavior in ("search", "approach", "follow"):
-        _, commands = app2._parse_args(["--behavior", behavior, "--target", "person:Bob"])
+        _, commands = cli._parse_args(["--behavior", behavior, "--target", "person:Bob"])
         assert commands == [Command(behavior, "person:Bob", 15.0)]
     for argv in (
         ["--behavior", "follow", "--target", "person:"],
@@ -162,14 +162,14 @@ def test_cli_accepts_person_target():
         ["--behavior", "move", "--target", "person:Bob"],
     ):
         with pytest.raises(SystemExit):
-            app2._parse_args(argv)
+            cli._parse_args(argv)
 
 
 def test_follow_unknown_person_fails_without_starting_the_skill():
     gallery = SimpleNamespace(resolve=lambda name: None)
     hardware = {"camera": SimpleNamespace(set_face_target=lambda *a: pytest.fail("camera touched")),
                 "gallery": gallery}
-    result = app2._run_follow(None, hardware, Command("follow", "person:Bob"))
+    result = cli._run_follow(None, hardware, Command("follow", "person:Bob"))
     assert result.status == "failed"
     assert "Personne inconnue : Bob" in result.message
 
@@ -189,10 +189,10 @@ def test_approach_named_person_targets_gallery_face_and_clears_it(monkeypatch):
             captured["skill"] = skill
             return SimpleNamespace(status="success", message="", data={})
 
-    monkeypatch.setattr(app2, "SkillExecutor", _Executor)
+    monkeypatch.setattr(cli, "SkillExecutor", _Executor)
     registry = SimpleNamespace(get=lambda name: name)
 
-    result = app2._run_approach(registry, hardware, Command("approach", "person:quentin"))
+    result = cli._run_approach(registry, hardware, Command("approach", "person:quentin"))
 
     assert result.status == "success"
     assert camera.calls == [("Quentin", embedding), (None,)]
@@ -205,7 +205,7 @@ def test_approach_unknown_person_fails_without_selecting_face():
     gallery = SimpleNamespace(resolve=lambda name: None)
     camera = SimpleNamespace(set_face_target=lambda *args: pytest.fail("camera touched"))
 
-    result = app2._run_approach(None, {"camera": camera, "gallery": gallery}, Command("approach", "person:Bob"))
+    result = cli._run_approach(None, {"camera": camera, "gallery": gallery}, Command("approach", "person:Bob"))
 
     assert result.status == "failed"
     assert "Personne inconnue : Bob" in result.message

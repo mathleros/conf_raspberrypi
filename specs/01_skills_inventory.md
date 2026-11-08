@@ -23,7 +23,7 @@ Le LLM ne choisit pas les commandes moteur : `Intent` -> validation/bornage -> p
 L'inventaire a été réalisé à partir des modules du dépôt :
 - `src/irobot/smart_car/smart_car.py`
 - `src/irobot/camera/color_detector.py`
-- `src/irobot/common/tools/vision_diagnostic.py`
+- `src/irobot/tools/vision_diagnostic.py`
 - `src/irobot/sensors/hc_sr04.py`
 - `src/irobot/voice_assistant/voice_assistant.py`
 - `scripts/install_llm.sh`

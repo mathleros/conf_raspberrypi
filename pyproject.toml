@@ -17,10 +17,10 @@ pythonpath = ["src"]
 
 [project.scripts]
 test = "irobot:main"
-vision-detect-live = "irobot.common.tools.vision_diagnostic:main"
-calibrate-distance = "irobot.common.tools.calibrate_distance:main"
+vision-detect-live = "irobot.tools.vision_diagnostic:main"
+calibrate-distance = "irobot.tools.calibrate_distance:main"
 voice-runtime = "irobot.app.app:main"
-robot-test = "irobot.app2.app2:main"
+robot-test = "irobot.tools.robot_test.cli:main"
 smart-car = "irobot.common.hardware.smart_car.cli:main"
 hc-sr04 = "irobot.common.hardware.sensors.hc_sr04:main"
 
@@ -49,7 +49,7 @@ max-statements = 62
 [tool.ruff.lint.per-file-ignores]
 "src/irobot/app/interfaces/voice_runtime.py" = ["PLR0913"]
 "src/irobot/common/hardware/**" = ["PLC0415"]
-"src/irobot/common/tools/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
+"src/irobot/tools/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 "tests/**" = ["SLF001", "ARG"]
 
 [tool.importlinter]
@@ -72,7 +72,7 @@ source_modules = ["irobot.common.interfaces", "irobot.app.interfaces"]
 forbidden_modules = ["irobot.common.hardware"]
 
 [[tool.importlinter.contracts]]
-name = "common ne dépend ni de app ni de app2"
+name = "common ne dépend ni de app ni de tools"
 type = "forbidden"
 source_modules = ["irobot.common"]
-forbidden_modules = ["irobot.app", "irobot.app2"]
+forbidden_modules = ["irobot.app", "irobot.tools"]

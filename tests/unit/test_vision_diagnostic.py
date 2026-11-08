@@ -11,9 +11,9 @@ from irobot.common.hardware.camera import camera_live_perception_pipeline
 from irobot.common.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
 from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
 from irobot.common.interfaces.perception_contracts import ObjectDetection
-from irobot.common.tools.vision_diagnostic import detect_balls, format_object_status
+from irobot.tools.vision_diagnostic import detect_balls, format_object_status
 from irobot.common.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
-from irobot.common.tools.vision_diagnostic import (
+from irobot.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,
     format_detection_status,
@@ -259,7 +259,7 @@ def test_face_identity_status_distinguishes_unavailable_absent_unknown_and_named
 
 
 def test_face_identity_overlay_fits_frame_and_removes_accents(monkeypatch):
-    from irobot.common.tools.vision_diagnostic import _draw_face_identity
+    from irobot.tools.vision_diagnostic import _draw_face_identity
 
     texts = []
     monkeypatch.setattr(cv2, "putText", lambda frame, text, *args: texts.append(text))
@@ -275,7 +275,7 @@ def test_face_identity_overlay_fits_frame_and_removes_accents(monkeypatch):
 def test_main_configures_reference_resolution_and_rotates_without_camera(
     monkeypatch, capsys, inference_error, identity, gallery_state,
 ):
-    from irobot.common.tools import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     calls = []
     texts = []
@@ -407,7 +407,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
 
 
 def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypatch, capsys):
-    from irobot.common.tools import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     calls = []
     windows = []
@@ -482,7 +482,7 @@ def test_both_balls_are_detected_independently_with_existing_distance_model():
 
 
 def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkeypatch):
-    from irobot.common.tools import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     monkeypatch.setattr(
         vision_diagnostic.ColorDetector,
@@ -494,7 +494,7 @@ def test_ball_without_bounding_box_is_reported_as_detector_contract_error(monkey
 
 
 def test_absent_balls_and_nonball_objects_are_not_reported_as_balls(monkeypatch):
-    from irobot.common.tools import vision_diagnostic
+    from irobot.tools import vision_diagnostic
 
     frame = np.zeros((ORIENTED_H, ORIENTED_W, 3), np.uint8)
     monkeypatch.setattr(

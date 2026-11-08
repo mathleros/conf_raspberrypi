@@ -1,4 +1,4 @@
-"""Parseur de commandes d'`app2` : règles et mots-clés uniquement, sans LLM ni hardware.
+"""Parseur de commandes de `robot-test` : règles et mots-clés uniquement, sans LLM ni hardware.
 
     "robot avance deux secondes puis suis moi pendant dix secondes"
         -> [Command("move", "forward", 2.0), Command("follow", "human", 10.0)]

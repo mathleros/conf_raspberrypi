@@ -1,14 +1,14 @@
 # Architecture simplifiée (proposition)
 
 Objectif : commander le robot avec un vocabulaire fermé (4 behaviors, 8 cibles,
-une durée) sans LLM ni orchestrateur. [app2](../src/irobot/app2/app2.py) en est
+une durée) sans LLM ni orchestrateur. [robot-test](../src/irobot/tools/robot_test/cli.py) en est
 la première réalisation.
 
 ## Pourquoi sans LLM
 
 - Le vocabulaire est petit : `parse_voice_command` le gère avec des mots-clés.
 - La couche LLM/Intent/Parser de `src/irobot/app/` représente environ 2 700 lignes,
-  contre 286 pour `app2`.
+  contre 286 pour `robot-test`.
 - Un LLM ajoute de la latence sur le Pi, du non-déterminisme et une dépendance
   lourde (modèle GGUF, serveur llama.cpp), pour un robot qui bouge.
 - Ce que le LLM apporterait : enchaînements (« avance puis tourne »), langage très
@@ -26,10 +26,10 @@ micro ──► STT (Vosk) ──► CommandParser (règles) ──► Command �
 
 | Brique | Rôle | Existant |
 |---|---|---|
-| Entrée | Texte (CLI) ou voix (STT) | `common/hardware/audio`, CLI de `app2` |
-| `CommandParser` | Texte → `Command(behavior, target, duration)` | `parse_voice_command` dans `app2` |
-| `Command` | Structure validée (énumérations fermées) | arguments de `app2` |
-| `Dispatcher` | `behavior` → skill (`move`, `search`, `approach`, `follow`) | `_run_*` de `app2` |
+| Entrée | Texte (CLI) ou voix (STT) | `common/hardware/audio`, CLI de `robot-test` |
+| `CommandParser` | Texte → `Command(behavior, target, duration)` | `parse_voice_command` dans `tools/robot_test` |
+| `Command` | Structure validée (énumérations fermées) | arguments de `robot-test` |
+| `Dispatcher` | `behavior` → skill (`move`, `search`, `approach`, `follow`) | `_run_*` de `robot-test` |
 | Skills et hardware | Exécution réelle | `common/domain`, `common/hardware` |
 
 ## Règles de conception
@@ -45,9 +45,9 @@ micro ──► STT (Vosk) ──► CommandParser (règles) ──► Command �
 
 ## Évolution par étapes
 
-1. **Maintenant** : `app2` fait tout, parser inclus.
+1. **Maintenant** : `robot-test` fait tout, parser inclus.
 2. Extraire `parse_voice_command` dans `common/` (`command_parser.py`) et créer un
-   type `Command`, utilisés par `app2` et les tests.
+   type `Command`, utilisés par `robot-test` et les tests.
 3. Boucle d'écoute continue (mot d'activation puis commande), toujours sans LLM.
 4. Enchaînements : accepter une liste de `Command` (séparateur « puis ») avant
    d'envisager un LLM.

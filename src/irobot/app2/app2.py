@@ -36,6 +36,7 @@ from irobot.common.domain.skills.blackboard_state import BlackboardState
 from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
+    load_face_gallery,
 )
 from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
 
@@ -254,19 +255,6 @@ def _run_commands(registry: SkillRegistry, hardware: dict, commands: list[Comman
 
 
 
-def _load_gallery(settings: RuntimeSettings) -> FaceGallery | None:
-    # Import paresseux : OpenCV n'est requis que sur le robot.
-    import cv2
-
-    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
-
-    try:
-        return FaceGallery.load(settings)
-    except (FileNotFoundError, cv2.error) as exc:
-        print(f"[APP2] galerie de visages indisponible : {exc}", flush=True)
-        return None
-
-
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(asctime)s %(name)s %(message)s")
     args, commands = _parse_args(argv)
@@ -277,7 +265,7 @@ def main(argv: list[str] | None = None) -> None:
         if hardware["robot"] is None:
             raise RuntimeError("Hardware indisponible (Raspberry Pi/Linux requis).")
         registry = SkillRegistry.default(settings)
-        hardware["gallery"] = _load_gallery(settings)
+        hardware["gallery"] = load_face_gallery(settings)
         if args.audio:
             _listen_and_run(registry, hardware, args)
         elif not _run_commands(registry, hardware, commands):

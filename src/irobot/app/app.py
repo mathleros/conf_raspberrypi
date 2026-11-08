@@ -12,6 +12,7 @@ from irobot.common.config.settings import load_runtime_settings
 from irobot.common.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
+    load_face_gallery,
 )
 from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD
 
@@ -57,19 +58,6 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_gallery(settings):
-    # Import paresseux : OpenCV n'est requis que sur le robot.
-    import cv2
-
-    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
-
-    try:
-        return FaceGallery.load(settings)
-    except (FileNotFoundError, cv2.error) as exc:
-        print(f"[APP] galerie de visages indisponible : {exc}", flush=True)
-        return None
-
-
 def main() -> None:
     args = _parse_args()
     runtime = None
@@ -88,7 +76,7 @@ def main() -> None:
             transcript_source=_microphone_transcripts,
             use_llm=not args.no_llm,
             settings=settings,
-            gallery=_load_gallery(settings),
+            gallery=load_face_gallery(settings),
         )
         runtime.command_service.warmup = warmup
         # Une seule commande : la vraie requête attend le préchauffage ; écoute continue : arrière-plan.

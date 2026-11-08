@@ -1391,7 +1391,7 @@ def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
     monkeypatch.setattr(voice_llm_transport.requests, "post", llm)
     monkeypatch.setattr(app, "build_hardware_runtime",
                         lambda settings: {"robot": FakeRobot(), "camera": None, "sensor": None})
-    monkeypatch.setattr(app, "_load_gallery", lambda settings: None)
+    monkeypatch.setattr(app, "load_face_gallery", lambda settings: None)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
 

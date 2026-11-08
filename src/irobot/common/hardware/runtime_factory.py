@@ -4,9 +4,26 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
+
+if TYPE_CHECKING:
+    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
+
+
+def load_face_gallery(settings: RuntimeSettings) -> FaceGallery | None:
+    """Charge la galerie de visages ; None si elle est indisponible (le robot fonctionne alors sans identification)."""
+    # Import paresseux : OpenCV n'est requis que sur le robot.
+    import cv2
+
+    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
+
+    try:
+        return FaceGallery.load(settings)
+    except (FileNotFoundError, cv2.error) as exc:
+        print(f"[RUNTIME] galerie de visages indisponible : {exc}", flush=True)
+        return None
 
 
 def _attempt_cleanup(errors: list[Exception], resource: Any, method: str, label: str) -> bool:

@@ -133,6 +133,6 @@ if hw['robot'] is not None:
 
 ### Test 3 : Test réel sur Raspberry Pi
 ```bash
-uv run voice-runtime --once --no-llm
+uv run robot --once --no-llm
 ```
 *Résultat attendu :* Aucun crash `GPIOPinInUse`. Sur la consigne *"avance de 20 cm"*, le robot avance puis s'arrête net.

@@ -45,7 +45,7 @@
   Dans `FollowTargetSkill._pulse_motion()`, le robot effectue des micro-déplacements de `0.08s` (rotation) et `0.12s` (avance) suivis systématiquement d'un arrêt complet (`self._stop_robot()`).
   Sur un châssis 2WD avec moteurs à courant continu et réducteurs, ces démarrages/arrêts répétés provoquent des à-coups mécaniques, des chutes de tension batterie et du patinage, dégradant la fluidité du suivi.
 * **Point d'entrée CLI non câblé sur le matériel :**
-  Dans `src/irobot/interfaces/voice_runtime.py:main()`, `runtime = VoiceRuntime(...)` est instancié avec `robot=None` et `perception=None`. Lancer `uv run voice-runtime` sur le Raspberry Pi n'actionne pas la voiture sans ajout d'une factory d'injection matérielle.
+  Dans `src/irobot/interfaces/voice_runtime.py:main()`, `runtime = VoiceRuntime(...)` est instancié avec `robot=None` et `perception=None`. Lancer `uv run robot` sur le Raspberry Pi n'actionne pas la voiture sans ajout d'une factory d'injection matérielle.
 
 ---
 
@@ -84,4 +84,4 @@
 | **P2** | **Lissage du suivi visuel (Asservissement proportionnel continu)** | Remplacer les micro-impulsions hachées (`_pulse_motion`) par une régulation continue des vitesses PWM gauche/droite (`set_speed` différentiel) sans couper les moteurs à chaque itération. | **Mécanique & Contrôle :** Supprime les à-coups violents, protège l'alimentation et stabilise la trajectoire de suivi. |
 | **P3** | **Gestion configurable de l'absence de capteur d'obstacle** | Dans `SmartCar2WD`, ajouter un drapeau `require_obstacle_sensor: bool = False` pour distinguer une défaillance de capteur (qui doit déclencher le Fail-Safe) d'un mode de test délibéré sans capteur. | **Exploitation :** Empêche le blocage total du robot lors des tests mécaniques ou des ateliers sans capteur ultrason. |
 | **P4** | **Purge de la dette technique legacy** | Supprimer `VoiceCarController` et `legacy_main` de `voice_assistant.py` ; isoler `os._exit(0)` derrière une option CLI stricte (`--force-exit`) pour préserver les tests et les appels modulaires. | **Qualité & Propreté :** Supprime plus de 150 lignes de code mort et fiabilise le cycle de vie du processus Python. |
-| **P5** | **Factory d'injection matérielle pour la CLI** | Dans `voice_runtime.py:main`, introduire une fonction `build_production_runtime()` instanciant automatiquement les vrais drivers (`SmartCar2WD`, `CameraLivePerceptionPipeline`, etc.) si exécuté sur Raspberry Pi. | **Usabilité :** Rend la commande `uv run voice-runtime` immédiatement opérationnelle sur le robot physique. |
+| **P5** | **Factory d'injection matérielle pour la CLI** | Dans `voice_runtime.py:main`, introduire une fonction `build_production_runtime()` instanciant automatiquement les vrais drivers (`SmartCar2WD`, `CameraLivePerceptionPipeline`, etc.) si exécuté sur Raspberry Pi. | **Usabilité :** Rend la commande `uv run robot` immédiatement opérationnelle sur le robot physique. |

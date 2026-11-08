@@ -112,7 +112,7 @@ Tu dois voir :
 ### 5. Lancer le test microphone Bluetooth
 
 ```bash
-uv run voice-runtime --once --input-device bluetooth
+uv run robot --once --input-device bluetooth
 ```
 
 ## Installation optionnelle du ReSpeaker
@@ -130,7 +130,7 @@ Puis tu peux tester :
 ```bash
 aplay -l
 arecord -l
-uv run voice-runtime --once --input-device wm8960
+uv run robot --once --input-device wm8960
 ```
 
 ## Installation du LLM local sur macOS (portable, sans Homebrew)

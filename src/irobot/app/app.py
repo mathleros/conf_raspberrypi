@@ -1,4 +1,4 @@
-"""Point d'entrée `voice-runtime` : assemble le matériel et le runtime vocal."""
+"""Point d'entrée `robot` : assemble le matériel et le runtime vocal."""
 
 from __future__ import annotations
 

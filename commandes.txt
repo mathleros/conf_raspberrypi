@@ -17,4 +17,4 @@ sudo reboot
 sudo ./install_llm.sh
 sudo systemctl start llm.service
 curl http://127.0.0.1:8080/v1/models
-uv run --project . voice-runtime --no-llm
+uv run --project . robot --no-llm

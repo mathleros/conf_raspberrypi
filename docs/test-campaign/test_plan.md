@@ -29,7 +29,7 @@ Documents de référence :
 - Les broches sont en **BCM** : moteurs IN1/IN2/IN3/IN4 = 5/6/16/24, ENA/ENB = 12/13 ; TRIG/ECHO = 17/27, sauf adaptation matérielle documentée.
 - Un seul programme propriétaire des GPIO/caméra/micro à la fois. Fermer chaque outil avant le suivant. Ne pas lancer un second `smart-car stop` pendant que le runtime détient les GPIO : ce n'est pas un arrêt d'urgence fiable.
 - Le recul n'a **aucun capteur arrière**. Les rotations peuvent être bloquées par le capteur frontal. Ne jamais neutraliser une sécurité pour obtenir un test vert.
-- Toutes les commandes `voice-runtime --text` ci-dessous peuvent piloter le matériel réel sur Linux. Il n'existe pas ici de mode CLI `--dry-run`.
+- Toutes les commandes `robot --text` ci-dessous peuvent piloter le matériel réel sur Linux. Il n'existe pas ici de mode CLI `--dry-run`.
 - Les limites temporelles du runtime ne sont pas un watchdog préemptif. En cas de blocage, ne pas attendre un timeout pour couper les moteurs.
 
 **À tout moment :** mouvement inattendu, arrêt inefficace, obstacle non pris en compte, collision imminente ou recul dangereux → coupure moteurs, arrêt de campagne, **NO-GO**. Garder les preuves et ouvrir une anomalie avant reprise.
@@ -215,7 +215,7 @@ Identifier le périphérique :
 arecord -l
 export MICRO=wm8960
 # Pour un casque Bluetooth configuré, utiliser plutôt : export MICRO=bluetooth
-run_case H04 uv run voice-runtime --no-llm --input-device "$MICRO"
+run_case H04 uv run robot --no-llm --input-device "$MICRO"
 ```
 
 Moteurs **hors tension**. Dire uniquement « stop », « arrête-toi », « halte », « pause », trois fois chacune, en attendant le résultat entre les phrases. Vérifier les lignes `[VOIX]`, la bonne transcription et le traitement local de l'arrêt. Tester à la distance habituelle d'utilisation et consigner distance/bruit. Ctrl+C pour fermer.
@@ -240,7 +240,7 @@ Une commande à la fois, observation avant de poursuivre. **PASS :** deux roues 
 
 Roues levées, surface plane et légère manipulée hors des roues :
 
-1. Surface loin devant (> 50 cm), lancer `run_case H06-r1 uv run voice-runtime --no-llm --text "avance pendant cinq secondes"` ; utiliser `H06-r2` et `H06-r3` aux répétitions pour ne pas écraser le journal précédent.
+1. Surface loin devant (> 50 cm), lancer `run_case H06-r1 uv run robot --no-llm --text "avance pendant cinq secondes"` ; utiliser `H06-r2` et `H06-r3` aux répétitions pour ne pas écraser le journal précédent.
 2. Pendant le mouvement, placer la surface à environ **10–15 cm du HC-SR04** (seuil livré : `< 20 cm`). Chronométrer introduction → arrêt physique.
 3. Retirer la surface après arrêt : le robot ne doit pas reprendre la commande. Répéter 3 fois.
 4. Relancer avec la surface déjà proche : aucun mouvement soutenu ne doit se produire ; noter toute impulsion.
@@ -258,7 +258,7 @@ Le seuil de 1 s est un maximum de recette sur support, **pas** une distance de f
 Roues levées, obstacle frontal retiré, caméra calibrée. Lancer l'écoute continue :
 
 ```bash
-run_case H07-local uv run voice-runtime --no-llm --input-device "$MICRO"
+run_case H07-local uv run robot --no-llm --input-device "$MICRO"
 ```
 
 1. Dire « suis la balle jaune à un mètre pendant trente secondes ». Déplacer la balle pour provoquer une rotation ou une correction de distance.
@@ -266,7 +266,7 @@ run_case H07-local uv run voice-runtime --no-llm --input-device "$MICRO"
 3. Pendant une impulsion visible, dire « stop ». Mesurer séparément fin de la parole → arrêt physique et ligne `[VOIX] stop` → arrêt physique (vidéo horodatée recommandée).
 4. Vérifier `aborted`, `emergency_stop`, pas de retry ni reprise. Attendre la fin du worker, puis redonner une commande courte pour vérifier la réutilisation après effacement de l'urgence.
 5. Répéter l'arrêt 3 fois ; fermer avec Ctrl+C.
-6. Refaire avec `run_case H07-llm uv run voice-runtime --input-device "$MICRO"` ; attendre le préchauffage avant les missions, 3 arrêts.
+6. Refaire avec `run_case H07-llm uv run robot --input-device "$MICRO"` ; attendre le préchauffage avant les missions, 3 arrêts.
 7. Pendant une nouvelle mission, faire Ctrl+C : arrêt physique ≤ 1 s et sortie sans reprise.
 
 **PASS :** tous les arrêts réussissent ; objectif de recette fin de parole → arrêt ≤ 2 s et transcription visible → arrêt ≤ 1 s. Noter les valeurs réelles, pas seulement une impression. Ces seuils ne sont pas des garanties de l'audit. Un stop prononcé pendant l'inférence initiale ne qualifie pas l'interruption d'une skill : mesurer aussi l'arrêt pendant le mouvement.
@@ -280,13 +280,13 @@ run_case H07-local uv run voice-runtime --no-llm --input-device "$MICRO"
 Zone dégagée, observateur prêt à couper, repères au sol et mètre/rapporteur. Vitesse runtime livrée : 0,5. Commencer par 10 cm ; ne passer aux distances suivantes qu'après arrêt conforme :
 
 ```bash
-run_case M01-10cm-r1 uv run voice-runtime --no-llm --text "avance de dix centimètres"
-run_case M01-20cm-r1 uv run voice-runtime --no-llm --text "avance de vingt centimètres"
-run_case M01-50cm-r1 uv run voice-runtime --no-llm --text "avance de cinquante centimètres"
-run_case M01-droite45-r1 uv run voice-runtime --no-llm --text "tourne à droite de quarante cinq degrés"
-run_case M01-droite90-r1 uv run voice-runtime --no-llm --text "tourne à droite de quatre vingt dix degrés"
-run_case M01-gauche90-r1 uv run voice-runtime --no-llm --text "tourne à gauche de quatre vingt dix degrés"
-run_case M01-recul10-r1 uv run voice-runtime --no-llm --text "recule de dix centimètres"
+run_case M01-10cm-r1 uv run robot --no-llm --text "avance de dix centimètres"
+run_case M01-20cm-r1 uv run robot --no-llm --text "avance de vingt centimètres"
+run_case M01-50cm-r1 uv run robot --no-llm --text "avance de cinquante centimètres"
+run_case M01-droite45-r1 uv run robot --no-llm --text "tourne à droite de quarante cinq degrés"
+run_case M01-droite90-r1 uv run robot --no-llm --text "tourne à droite de quatre vingt dix degrés"
+run_case M01-gauche90-r1 uv run robot --no-llm --text "tourne à gauche de quatre vingt dix degrés"
+run_case M01-recul10-r1 uv run robot --no-llm --text "recule de dix centimètres"
 ```
 
 Faire 3 essais par commande avec identifiants `r1/r2/r3`. Mesurer distance, angle, dérive latérale et arrêt final. Cibles de recette : erreur distance ≤ 20 %, angle ≤ 15° pour chaque essai ; noter aussi moyennes et dispersion.
@@ -300,10 +300,10 @@ Avec les anciens réglages (25 cm/s, 360°/s), le recul demandé de 10 cm donne 
 ### M02 — Commandes sans paramètre et séquence
 
 ```bash
-run_case M02-avance uv run voice-runtime --no-llm --text "avance"
-run_case M02-recule uv run voice-runtime --no-llm --text "recule"
-run_case M02-tourne uv run voice-runtime --no-llm --text "tourne à droite"
-run_case M02-plan uv run voice-runtime --no-llm \
+run_case M02-avance uv run robot --no-llm --text "avance"
+run_case M02-recule uv run robot --no-llm --text "recule"
+run_case M02-tourne uv run robot --no-llm --text "tourne à droite"
+run_case M02-plan uv run robot --no-llm \
   --text "avance de vingt centimètres puis tourne à droite de quatre vingt dix degrés"
 ```
 
@@ -319,10 +319,10 @@ Roues levées pour isoler les risques d'interprétation, puis reprendre au sol s
 sudo systemctl restart llm.service
 # Attendre /health = 200 avant la première commande.
 curl --fail --show-error --max-time 10 http://127.0.0.1:8080/health
-run_case L01-froid uv run voice-runtime --text "avance de vingt centimètres"
-run_case L01-chaud-r1 uv run voice-runtime --text "avance de vingt centimètres"
-run_case L01-angle uv run voice-runtime --text "tourne à droite de quatre vingt dix degrés"
-run_case L01-metres uv run voice-runtime --text "avance de un mètre"
+run_case L01-froid uv run robot --text "avance de vingt centimètres"
+run_case L01-chaud-r1 uv run robot --text "avance de vingt centimètres"
+run_case L01-angle uv run robot --text "tourne à droite de quatre vingt dix degrés"
+run_case L01-metres uv run robot --text "avance de un mètre"
 ```
 
 Répéter le cas chaud 5 fois (`r1` à `r5`). Pour chaque essai, relever `source`, `normalized_text`, plan validé, `warmup_status`, latence LLM, nombre de requêtes, format, tokens et erreur éventuelle. Distinguer durée totale du processus, attente de préchauffage, inférence et exécution. Le CLI recrée un préchauffage à chaque lancement ; « chaud » décrit ici le serveur/modèle déjà chargé, pas une session CLI persistante.
@@ -334,9 +334,9 @@ Répéter le cas chaud 5 fois (`r1` à `r5`). Pour chaque essai, relever `source
 Roues levées, exécuter séparément :
 
 ```bash
-run_case L02-meteo uv run voice-runtime --text "quelle est la météo demain"
-run_case L02-poeme uv run voice-runtime --text "raconte un poème"
-run_case L02-cafe uv run voice-runtime --text "prépare un café"
+run_case L02-meteo uv run robot --text "quelle est la météo demain"
+run_case L02-poeme uv run robot --text "raconte un poème"
+run_case L02-cafe uv run robot --text "prépare un café"
 ```
 
 **PASS :** 3/3 rejets, `steps` exécutées vide, aucun mouvement ; `plan_unsupported` si source `llm_unsupported` ou `llm_ungrounded`. Aucun repli local pour ces deux sources. Si une panne technique entraîne un repli, rétablir le service et rejouer : ce n'est pas une preuve de fonctionnement des gardes sur une réponse LLM.
@@ -349,8 +349,8 @@ Arrêter les autres runtimes, roues levées. Noter l'état initial du service ; 
 sudo systemctl stop llm.service
 # Échec de connexion attendu ; si une API répond encore, identifier le serveur avant de continuer.
 curl --fail --show-error --max-time 2 http://127.0.0.1:8080/health
-run_case L03-repli uv run voice-runtime --text "avance de vingt centimètres"
-run_case L03-stop uv run voice-runtime --text "stop"
+run_case L03-repli uv run robot --text "avance de vingt centimètres"
+run_case L03-stop uv run robot --text "stop"
 sudo systemctl start llm.service
 # Attendre de nouveau /health = 200 et confirmer /v1/models.
 ```
@@ -366,7 +366,7 @@ Reprendre la configuration calibrée, fusion ultrason désactivée. Commencer ch
 ### E01 — Recherche et approche seule
 
 ```bash
-run_case E01-r1 uv run voice-runtime --no-llm \
+run_case E01-r1 uv run robot --no-llm \
   --text "cherche la balle jaune puis approche-toi à un mètre"
 ```
 
@@ -379,7 +379,7 @@ Le timeout d'étape de recherche/approche couvre désormais la recherche, la pou
 ### E02 — Suivi court : 30 s
 
 ```bash
-run_case E02-r1 uv run voice-runtime --no-llm \
+run_case E02-r1 uv run robot --no-llm \
   --text "suis la balle jaune à un mètre pendant trente secondes"
 ```
 
@@ -393,7 +393,7 @@ Relancer E02 avec un identifiant E03 :
 
 1. Masquer brièvement la balle (environ 1 s) : arrêt de translation pendant la perte, puis reprise après détection.
 2. La masquer plus de 3 s puis la représenter avant épuisement du budget de recherche : balayage et reprise, pas de translation aveugle.
-3. Essai séparé : `run_case E03-absente uv run voice-runtime --no-llm --text "suis la balle jaune à un mètre pendant soixante secondes"` sans aucune balle.
+3. Essai séparé : `run_case E03-absente uv run robot --no-llm --text "suis la balle jaune à un mètre pendant soixante secondes"` sans aucune balle.
 
 **PASS :** jamais d'avance/recul sans cible exploitable ; perte prolongée → arrêt final, résultat non réussi (`incomplete`/`aborted` selon budget réellement atteint), pas de mouvement sans fin. Relever chaque tentative : 25 s est le budget de recherche par tentative, pas nécessairement la durée totale du processus avec retries et contrôles après exécution. Couper si le comportement devient dangereux.
 
@@ -402,7 +402,7 @@ Relancer E02 avec un identifiant E03 :
 Condition : E01–E03 et L01 PASS. Lancer **l'écoute continue**, pas `--text` ni `--once`, afin de conserver l'arrêt vocal pendant la mission :
 
 ```bash
-run_case E04-r1 uv run voice-runtime --input-device "$MICRO"
+run_case E04-r1 uv run robot --input-device "$MICRO"
 ```
 
 1. Attendre le préchauffage. Dire : **« Cherche la balle jaune, approche-toi à un mètre puis suis-la pendant cinq minutes. »**

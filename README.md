@@ -171,7 +171,7 @@ sudo systemctl restart llm.service
 sudo systemctl stop llm.service
 ```
 
-Le service est activé au démarrage par l'installateur. Pour essayer l'assistant vocal sur le Pi une fois le microphone configuré, lancer `uv run voice-runtime` depuis la racine du projet (Ctrl+C pour quitter).
+Le service est activé au démarrage par l'installateur. Pour essayer l'assistant vocal sur le Pi une fois le microphone configuré, lancer `uv run robot` depuis la racine du projet (Ctrl+C pour quitter).
 
 ### 6. Configurer le matériel et les paramètres du runtime
 
@@ -184,7 +184,7 @@ sudo reboot
 ./scripts/install/connect_jabra_bt.sh scan
 ./scripts/install/connect_jabra_bt.sh <ADRESSE_MAC_DU_CASQUE>
 bluetoothctl info <ADRESSE_MAC_DU_CASQUE>
-uv run voice-runtime --once --input-device bluetooth
+uv run robot --once --input-device bluetooth
 ```
 
 Pour le HAT **ReSpeaker 2-Mic** à la place du casque Bluetooth :
@@ -194,7 +194,7 @@ sudo ./scripts/install/install_respeaker.sh
 sudo reboot
 aplay -l
 arecord -l
-uv run voice-runtime --once --input-device wm8960
+uv run robot --once --input-device wm8960
 ```
 
 Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son overlay audio. Les scripts Bluetooth et ReSpeaker ne sont pas nécessaires pour le runtime texte/LLM.
@@ -295,8 +295,8 @@ uv run smart-car stop
 ### Assistant vocal / runtime
 
 ```bash
-uv run voice-runtime
-uv run voice-runtime --input-device bluetooth
+uv run robot
+uv run robot --input-device bluetooth
 ```
 
 En écoute continue sur le Pi, dire : **« cherche la balle jaune, approche-toi à 1 m puis suis-la pendant 5 min »**. Le runtime valide et borne un plan `search_and_approach_object` puis `follow_object`, avec cible `yellow`, `stand_off_cm=100` et `duration_s=300`. Le LLM ne pilote jamais le matériel : `Intent` -> validation/bornage -> skills -> `RobotController`.

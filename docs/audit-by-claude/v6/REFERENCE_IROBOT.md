@@ -67,7 +67,7 @@ src/irobot/
     └── audio/                      audio_utils (resolve_input_device), voice_assistant (legacy)
 ```
 
-Points d'entrée CLI (`pyproject.toml`) : `voice-runtime` (**principal**), `voice-assistant` (legacy), `smart-car`, `hc-sr04`, `camera-live`, `color-detector`, `test`.
+Points d'entrée CLI (`pyproject.toml`) : `robot` (**principal**), `voice-assistant` (legacy), `smart-car`, `hc-sr04`, `camera-live`, `color-detector`, `test`.
 
 ---
 
@@ -253,7 +253,7 @@ Appelle `left()` puis `forward()` : le second écrase le premier (commande moteu
 ### 🟡 R12 — Dérives de documentation
 - `docs/audit-v5` décrit **ROS2, PCA9685, encodeurs en quadrature, balises AruCo, Whisper, migration Qwen 1.5B** : seule la migration vers Qwen2.5-1.5B a été faite (étape 8) ; le reste n'existe pas dans le code (Vosk, GPIO direct). Traiter ses chiffres de performance comme **non vérifiés**.
 - `PROJECT_CONTEXT.md` cite `docs/audit-architecture-2026.md` (le fichier est désormais dans `docs/audit-v*/`), liste les chantiers P1–P5 comme non cochés alors que des fiches existent, et sa section « 3) Restant » est tronquée dans le dump.
-- `README` recommande `uv run voice-assistant` (legacy) alors que le point d'entrée actuel est `voice-runtime`.
+- `README` recommande `uv run voice-assistant` (legacy) alors que le point d'entrée actuel est `robot`.
 - Indentation : tabulations dans `settings.py`, 4 espaces ailleurs ; `calibration_helpers.py` semble inutilisé (dupliqué par `base_motion_primitive.py`).
 
 ---
@@ -282,7 +282,7 @@ bash scripts/scenarios/run_llm_runtime_mac.sh --text "va vers la balle rouge"
 bash scripts/scenarios/run_llm_runtime_mac.sh --stop
 bash scripts/scenarios/run_mission_mac.sh
 bash scripts/scenarios/replay_runtime_trace_mac.sh
-uv run voice-runtime [--once] [--no-llm] [--input-device auto|bluetooth|wm8960|default]
+uv run robot [--once] [--no-llm] [--input-device auto|bluetooth|wm8960|default]
 uv run smart-car forward --duration 1
 sudo systemctl start llm.service && curl http://127.0.0.1:8080/v1/models   # sur le Pi
 python3 scripts/scenarios/eval_prompt_plan.py --repeat 3                               # évaluation du prompt (serveur lancé)

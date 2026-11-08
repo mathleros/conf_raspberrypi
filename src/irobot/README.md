@@ -5,7 +5,7 @@ Cette organisation vise à rendre visible la hiérarchie fonctionnelle du robot 
 ```text
 src/irobot/
 ├── common/        # noyau : config, domain (skills, orchestrator), hardware, interfaces
-├── app/           # application vocale `voice-runtime` : LLM + intents + missions
+├── app/           # application vocale `robot` : LLM + intents + missions
 └── tools/         # outillage développeur : dépend de common, jamais importé
     ├── calibrate_distance.py
     ├── vision_diagnostic.py
@@ -34,14 +34,14 @@ Le LLM n'est jamais un pilote matériel.
 
 ## Points d'entrée
 
-- `voice-runtime` (`app/app.py`) : application vocale, LLM + intents
+- `robot` (`app/app.py`) : application vocale, LLM + intents
 - `robot-test` (`tools/robot_test`) : banc de test du noyau (`--behavior`, `--text`, `--audio`, mot d'activation)
 - `calibrate-distance` et `vision-detect-live` : outils (`tools/`)
 - Dépendances : `common` ne dépend de rien ; `app` et `tools` dépendent de `common`, jamais l'un de l'autre.
 
 ## Organisation du runtime texte et vocal
 
-Le point d'entrée `voice-runtime` est [app/app.py](app/app.py) : il assemble le matériel
+Le point d'entrée `robot` est [app/app.py](app/app.py) : il assemble le matériel
 (`build_hardware_runtime`) puis le `VoiceRuntime` de
 [interfaces/voice_runtime.py](interfaces/voice_runtime.py), et ferme toujours le matériel
 (`close_hardware_runtime`) dans son `finally`.

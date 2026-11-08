@@ -3,7 +3,7 @@
 **Origine :** Audit Architecture & Qualité V2  
 **Gravité :** Usabilité & Câblage Hardware (P5)  
 **Fichier cible :** `src/irobot/interfaces/voice_runtime.py`  
-**Objectif :** Instancier automatiquement les périphériques réels au lancement de la CLI `uv run voice-runtime` sur Linux.
+**Objectif :** Instancier automatiquement les périphériques réels au lancement de la CLI `uv run robot` sur Linux.
 
 ---
 

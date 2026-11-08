@@ -8,4 +8,4 @@ uv run robot-test --text "avance deux secondes puis suis moi"   # sans micro
 uv run robot-test --audio                                       # écoute « robot, ... »
 ```
 
-Différence avec `voice-runtime` (`app/`) : `robot-test` n'utilise ni LLM ni intents ni missions ; il exécute directement les commandes du parseur de règles.
+Différence avec `robot` (`app/`) : `robot-test` n'utilise ni LLM ni intents ni missions ; il exécute directement les commandes du parseur de règles.

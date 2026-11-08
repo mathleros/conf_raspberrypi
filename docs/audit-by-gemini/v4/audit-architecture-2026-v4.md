@@ -27,7 +27,7 @@ Toutes les dettes techniques critiques, conflits de ressources et risques d'emba
 ## 1. Synthèse par Passe d'Inspection
 
 ### Passe 1 : Packaging, CLI et Cycle de Vie
-* **Conformité des scripts `pyproject.toml` :** L'ensemble des commandes (`smart-car`, `camera-live`, `color-detector`, `voice-runtime`, `hc-sr04`) pointent vers leurs cibles réelles sous `irobot.hardware.*`.
+* **Conformité des scripts `pyproject.toml` :** L'ensemble des commandes (`smart-car`, `camera-live`, `color-detector`, `robot`, `hc-sr04`) pointent vers leurs cibles réelles sous `irobot.hardware.*`.
 * **Élimination du code zombie :** `voice_assistant.py` a été ramené à 85 lignes propres, sans classe divergente, et redirige directement vers `voice_runtime:main`.
 * **Arrêt standardisé :** Le dernier `os._exit(0)` dans `src/irobot/hardware/sensors/hc_sr04.py` a été supprimé. Le script se termine désormais par un retour propre de fonction.
 

@@ -9,7 +9,7 @@
 # Après installation :
 #   ./scripts/connect_jabra_bt.sh scan
 #   ./scripts/connect_jabra_bt.sh 08:C8:C2:38:FB:A0
-#   uv run voice-runtime --once --input-device bluetooth
+#   uv run robot --once --input-device bluetooth
 
 set -euo pipefail
 
@@ -94,7 +94,7 @@ echo "  1. sudo reboot"
 echo "  2. ./scripts/connect_jabra_bt.sh scan"
 echo "  3. ./scripts/connect_jabra_bt.sh <MAC_ADDRESS>"
 echo "  4. pactl list short sources"
-echo "  5. uv run voice-runtime --once --input-device bluetooth"
+echo "  5. uv run robot --once --input-device bluetooth"
 echo ""
 echo "Si le casque est visible mais le micro ne marche pas :"
 echo "  - vérifie que le casque est en mode audio / micro (HSP/HFP)"

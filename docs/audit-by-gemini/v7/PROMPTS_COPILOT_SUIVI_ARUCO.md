@@ -151,7 +151,7 @@ Une fois les 4 prompts appliqués :
    ```
 3. **Lancer le suivi complet sur le robot :**
    ```bash
-   uv run voice-runtime
+   uv run robot
    ```
    * Dites : **« Suis-moi »** ➔ Le robot vous détecte et avance derrière vous.
    * Dites : **« Stop »** ou **« Arrête »** ➔ Le robot coupe immédiatement ses moteurs.

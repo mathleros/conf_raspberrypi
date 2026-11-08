@@ -1393,7 +1393,7 @@ def _run_main_text(monkeypatch, tmp_path, llm, text: str = "recule") -> dict:
                         lambda settings: {"robot": FakeRobot(), "camera": None, "sensor": None})
     monkeypatch.setattr(app, "load_face_gallery", lambda settings: None)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sys.argv", ["voice-runtime", "--text", text])
+    monkeypatch.setattr("sys.argv", ["robot", "--text", text])
 
     app.main()
     traces = sorted((tmp_path / "target" / "logs").glob("runtime_trace_*.jsonl"))
@@ -1447,7 +1447,7 @@ def test_main_cleans_hardware_if_runtime_construction_fails(monkeypatch):
         "robot": Robot(), "camera": Camera(), "sensor": None,
     })
     monkeypatch.setattr(app, "VoiceRuntime", fail_runtime_construction)
-    monkeypatch.setattr("sys.argv", ["voice-runtime", "--no-llm"])
+    monkeypatch.setattr("sys.argv", ["robot", "--no-llm"])
 
     with pytest.raises(SystemExit):
         app.main()
@@ -1486,7 +1486,7 @@ def test_main_closes_hardware_even_if_runtime_close_fails(monkeypatch):
         "robot": Robot(), "camera": Camera(), "sensor": None,
     })
     monkeypatch.setattr(app, "VoiceRuntime", FailingRuntime)
-    monkeypatch.setattr("sys.argv", ["voice-runtime", "--no-llm", "--text", "avance"])
+    monkeypatch.setattr("sys.argv", ["robot", "--no-llm", "--text", "avance"])
 
     with pytest.raises(RuntimeError, match="abort impossible"):
         app.main()

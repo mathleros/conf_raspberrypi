@@ -165,7 +165,7 @@ uv run pytest -q tests/unit
 ### Test 2 : Relance successive sur Raspberry Pi sans blocage
 Exécutez deux fois de suite la commande :
 ```bash
-uv run voice-runtime --once --no-llm
-uv run voice-runtime --once --no-llm
+uv run robot --once --no-llm
+uv run robot --once --no-llm
 ```
 *Résultat attendu :* La caméra s'ouvre, se ferme proprement, et la seconde exécution démarre immédiatement sans erreur de ressource occupée.

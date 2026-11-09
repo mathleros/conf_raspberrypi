@@ -161,7 +161,7 @@ def test_hardware_factory_injects_sensor_and_cleans_resources_separately(monkeyp
             self.cleanup_calls += 1
 
     class Car:
-        def __init__(self, *, drive_speed):
+        def __init__(self, *, drive_speed, trim_a, trim_b):
             self.speed = drive_speed
 
         def cleanup(self):
@@ -216,7 +216,7 @@ def test_hardware_factory_cleans_up_if_camera_build_fails(monkeypatch):
             calls.append("sensor cleanup")
 
     class Car:
-        def __init__(self, *, drive_speed):
+        def __init__(self, *, drive_speed, trim_a, trim_b):
             self.speed = drive_speed
 
         def stop(self):

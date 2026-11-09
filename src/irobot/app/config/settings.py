@@ -79,6 +79,8 @@ class RuntimeSettings:
     cm_per_second: float = 33.0
     deg_per_second: float = 180.0
     drive_speed: float = 0.5
+    trim_a: float = 1.0
+    trim_b: float = 1.0
     turn_speed: float = 0.5
     obstacle_threshold_cm: float = 5.0
     step_timeout_seconds: float = 6.0
@@ -137,7 +139,7 @@ class RuntimeSettings:
                 raise ValueError(f"{name} must contain two positive integers")
         if self.obstacle_threshold_cm < 0:
             raise ValueError("obstacle_threshold_cm must be non-negative")
-        for name in ("stand_off_default_cm", "stand_off_tolerance_percent"):
+        for name in ("stand_off_default_cm", "stand_off_tolerance_percent", "trim_a", "trim_b"):
             _require_number(name, getattr(self, name), "a finite positive number", positive=True)
         if not self.min_stand_off_cm <= self.stand_off_default_cm <= self.max_stand_off_cm:
             raise ValueError("stand_off_default_cm must be between min_stand_off_cm and max_stand_off_cm")
@@ -269,7 +271,7 @@ def _size_px(table: Mapping[str, object], key: str, default: tuple[int, int], er
 
 def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -> RuntimeSettings:
     table = _table(raw, "runtime", {
-        "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "turn_speed",
+        "cm_per_second", "backward_cm_per_second", "deg_per_second", "drive_speed", "trim_a", "trim_b", "turn_speed",
         "obstacle_threshold_cm",
         "step_timeout_seconds", "mission_timeout_seconds", "max_step_retries",
         "search_timeout_seconds", "timeout_margin_seconds", "target_recovery_attempts",
@@ -285,6 +287,8 @@ def _load_runtime_section(raw: Mapping[str, object], current: RuntimeSettings) -
         backward_cm_per_second=backward,
         deg_per_second=_float(table, "deg_per_second", current.deg_per_second, "runtime.deg_per_second"),
         drive_speed=_float(table, "drive_speed", current.drive_speed, "runtime.drive_speed"),
+        trim_a=_float(table, "trim_a", current.trim_a, "runtime.trim_a"),
+        trim_b=_float(table, "trim_b", current.trim_b, "runtime.trim_b"),
         turn_speed=_float(table, "turn_speed", current.turn_speed, "runtime.turn_speed"),
         obstacle_threshold_cm=_float(
             table, "obstacle_threshold_cm", current.obstacle_threshold_cm, "runtime.obstacle_threshold_cm",

@@ -90,6 +90,8 @@ def test_load_runtime_settings_uses_packaged_calibration():
         "backward_cm_per_second": 25.0,
         "deg_per_second": 180.0,
         "drive_speed": 0.5,
+        "trim_a": 1.0,
+        "trim_b": 1.0,
         "turn_speed": 0.5,
         "obstacle_threshold_cm": 5.0,
         "step_timeout_seconds": 6.0,

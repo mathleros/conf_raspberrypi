@@ -66,7 +66,12 @@ def run_command(args: argparse.Namespace) -> None:
         if sensor is not None:
             cleanup.callback(sensor.cleanup)
 
-        car = SmartCar2WD(drive_speed=args.speed)
+        runtime_settings = load_runtime_settings()
+        car = SmartCar2WD(
+            drive_speed=args.speed,
+            trim_a=runtime_settings.trim_a,
+            trim_b=runtime_settings.trim_b,
+        )
         cleanup.callback(car.cleanup)
         controller = RobotController(
             car,

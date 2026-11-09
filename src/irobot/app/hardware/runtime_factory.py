@@ -74,6 +74,8 @@ def build_hardware_runtime(*, settings: RuntimeSettings | None = None) -> dict[s
 
             car = SmartCar2WD(
                 drive_speed=runtime_settings.drive_speed,
+                trim_a=runtime_settings.trim_a,
+                trim_b=runtime_settings.trim_b,
             )
             runtime["robot"] = RobotController(
                 car,

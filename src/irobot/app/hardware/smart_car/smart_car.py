@@ -10,10 +10,9 @@ from contextlib import ExitStack
 from typing import ClassVar
 
 try:
-    from gpiozero import DigitalOutputDevice, PWMOutputDevice
+    from gpiozero import Motor
 except ModuleNotFoundError:  # pragma: no cover - relevant on non-Pi hosts only
-    DigitalOutputDevice = None
-    PWMOutputDevice = None
+    Motor = None
 
 
 class SmartCar2WD:
@@ -41,16 +40,17 @@ class SmartCar2WD:
         ena=DEFAULT_PINS["ena"],
         enb=DEFAULT_PINS["enb"],
         drive_speed: float = 0.5,
+        trim_a: float = 1.0,
+        trim_b: float = 1.0,
     ):
-        self.pins = {
-            "in1": DigitalOutputDevice(in1),
-            "in2": DigitalOutputDevice(in2),
-            "in3": DigitalOutputDevice(in3),
-            "in4": DigitalOutputDevice(in4),
-        }
-        self.ena = PWMOutputDevice(ena, frequency=100)
-        self.enb = PWMOutputDevice(enb, frequency=100)
+        # trim_a / trim_b : facteur appliqué à la vitesse du moteur A / B pour
+        # compenser une dérive (1.0 = pas de correction, 0.95 = 5 % plus lent).
+        self.trim_a = trim_a
+        self.trim_b = trim_b
+        self.motor_a = Motor(forward=in1, backward=in2, enable=ena, pwm=True)
+        self.motor_b = Motor(forward=in3, backward=in4, enable=enb, pwm=True)
         self._closed = False
+        self._direction = (0, 0)
 
         self.speed = self.clamp_speed(drive_speed)
         self.stop()
@@ -60,56 +60,44 @@ class SmartCar2WD:
         """Limite la vitesse à l'intervalle [0.0, 1.0]."""
         return max(0.0, min(1.0, speed))
 
+    def _drive(self, direction_a: int, direction_b: int) -> None:
+        """Applique un sens (+1 avant, -1 arrière, 0 arrêt) à chaque moteur, avec trim."""
+        self._direction = (direction_a, direction_b)
+        self.motor_a.value = direction_a * self.clamp_speed(self.speed * self.trim_a)
+        self.motor_b.value = direction_b * self.clamp_speed(self.speed * self.trim_b)
+
     def set_speed(self, speed: float) -> None:
         """Applique une vitesse globale sur les deux moteurs."""
         self.speed = self.clamp_speed(speed)
-        self.ena.value = self.speed
-        self.enb.value = self.speed
-
-    def _set_motor_a(self, forward: bool) -> None:
-        """Configure le moteur A (roue gauche ou droite selon le schéma)."""
-        self.pins["in1"].value = 1 if forward else 0
-        self.pins["in2"].value = 0 if forward else 1
-        self.ena.value = self.speed
-
-    def _set_motor_b(self, forward: bool) -> None:
-        """Configure le moteur B."""
-        self.pins["in3"].value = 1 if forward else 0
-        self.pins["in4"].value = 0 if forward else 1
-        self.enb.value = self.speed
+        self._drive(*self._direction)
 
     def forward(self) -> None:
         """Avance en ligne droite."""
-        self._set_motor_a(True)
-        self._set_motor_b(True)
+        self._drive(1, 1)
 
     def backward(self) -> None:
         """Recule en ligne droite."""
-        self._set_motor_a(False)
-        self._set_motor_b(False)
+        self._drive(-1, -1)
 
     def left(self) -> None:
         """Tourne vers la gauche.
 
         Le moteur A est inversé tandis que le moteur B avance.
         """
-        self._set_motor_a(False)
-        self._set_motor_b(True)
+        self._drive(-1, 1)
 
     def right(self) -> None:
         """Tourne vers la droite.
 
         Le moteur A avance tandis que le moteur B est inversé.
         """
-        self._set_motor_a(True)
-        self._set_motor_b(False)
+        self._drive(1, -1)
 
     def stop(self) -> None:
         """Arrête les moteurs et met la vitesse PWM à zéro."""
-        for pin in self.pins.values():
-            pin.off()
-        self.ena.value = 0
-        self.enb.value = 0
+        self._direction = (0, 0)
+        self.motor_a.stop()
+        self.motor_b.stop()
 
     def cleanup(self) -> None:
         """Arrête le véhicule et libère ses GPIO."""
@@ -120,7 +108,5 @@ class SmartCar2WD:
             self.stop()
         finally:
             with ExitStack() as cleanup:
-                for pin in self.pins.values():
-                    cleanup.callback(pin.close)
-                cleanup.callback(self.ena.close)
-                cleanup.callback(self.enb.close)
+                cleanup.callback(self.motor_a.close)
+                cleanup.callback(self.motor_b.close)

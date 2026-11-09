@@ -29,6 +29,21 @@ class _Pin:
         pass
 
 
+class _Motor:
+    value = 0
+
+    def __init__(self, *a, **k):
+        self.stopped = False
+        self.closed = False
+
+    def stop(self):
+        self.stopped = True
+        self.value = 0
+
+    def close(self):
+        self.closed = True
+
+
 class _Sensor:
     def __init__(self, values):
         self.values = list(values)
@@ -62,8 +77,7 @@ class _Clock:
 
 
 def _car(monkeypatch, sensor, clock):
-    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "Motor", _Motor)
     return sc.SmartCar2WD()
 
 
@@ -98,10 +112,41 @@ def _mock_sensor_reads(sensor, clock, distances):
 
 
 def test_drive_speed_is_set_by_the_caller(monkeypatch):
-    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "Motor", _Motor)
     car = sc.SmartCar2WD(drive_speed=0.7)
     assert car.speed == 0.7
+
+
+def test_trims_scale_each_motor_speed(monkeypatch):
+    monkeypatch.setattr(sc, "Motor", _Motor)
+    car = sc.SmartCar2WD(drive_speed=0.5, trim_a=0.9, trim_b=1.0)
+
+    car.forward()
+
+    assert car.motor_a.value == pytest.approx(0.45)
+    assert car.motor_b.value == pytest.approx(0.5)
+
+
+def test_turn_directions_invert_one_motor(monkeypatch):
+    monkeypatch.setattr(sc, "Motor", _Motor)
+    car = sc.SmartCar2WD(drive_speed=0.5)
+
+    car.left()
+    assert (car.motor_a.value, car.motor_b.value) == (-0.5, 0.5)
+    car.right()
+    assert (car.motor_a.value, car.motor_b.value) == (0.5, -0.5)
+    car.backward()
+    assert (car.motor_a.value, car.motor_b.value) == (-0.5, -0.5)
+
+
+def test_set_speed_updates_current_motion(monkeypatch):
+    monkeypatch.setattr(sc, "Motor", _Motor)
+    car = sc.SmartCar2WD(drive_speed=0.5)
+
+    car.forward()
+    car.set_speed(0.8)
+
+    assert (car.motor_a.value, car.motor_b.value) == (0.8, 0.8)
 
 
 def test_smart_car_cli_threshold_defaults_to_runtime_settings(monkeypatch):
@@ -118,14 +163,14 @@ def test_smart_car_cli_threshold_defaults_to_runtime_settings(monkeypatch):
 
 
 def test_cleanup_releases_gpio_once(monkeypatch):
-    monkeypatch.setattr(sc, "DigitalOutputDevice", _Pin)
-    monkeypatch.setattr(sc, "PWMOutputDevice", _Pin)
+    monkeypatch.setattr(sc, "Motor", _Motor)
     car = sc.SmartCar2WD()
 
     car.cleanup()
     car.cleanup()
 
     assert car._closed is True
+    assert car.motor_a.closed and car.motor_b.closed
 
 
 def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
@@ -133,7 +178,7 @@ def test_smart_car_cli_builds_and_cleans_injected_sensor(monkeypatch):
     calls = []
 
     class Car:
-        def __init__(self, *, drive_speed):
+        def __init__(self, *, drive_speed, trim_a, trim_b):
             self.speed = drive_speed
 
         def stop(self):
@@ -166,7 +211,7 @@ def test_smart_car_cli_routes_obstacle_stop_through_controller(monkeypatch, caps
     calls = []
 
     class Car:
-        def __init__(self, *, drive_speed):
+        def __init__(self, *, drive_speed, trim_a, trim_b):
             self.speed = drive_speed
 
         def forward(self):

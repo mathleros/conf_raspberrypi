@@ -288,7 +288,7 @@ _RULES_AFTER_APPROACH: tuple[_Rule, ...] = (
         ),
     ),
     (
-        ("recule", "reculer", "go back", "backward", "move backward", "arriere", "arrière"),
+        ("recule", "recul", "reculer", "go back", "backward", "move backward", "arriere", "arrière"),
         lambda cleaned, text: Intent(
             name="move_backward", parameters=_motion_parameters(cleaned), confidence=0.88, raw_text=text,
         ),

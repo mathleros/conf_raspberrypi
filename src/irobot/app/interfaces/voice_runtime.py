@@ -10,11 +10,11 @@ from typing import Any
 
 from irobot.app.interfaces.command_service import CommandService
 from irobot.app.interfaces.plan_guards import is_pure_stop
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.interfaces.perception_contracts import ObjectPerceptionPipeline
-from irobot.common.interfaces.text_normalizer import fold
-from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.interfaces.perception_contracts import ObjectPerceptionPipeline
+from irobot.app.interfaces.text_normalizer import fold
+from irobot.app.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
 
 
 class VoiceRuntime:

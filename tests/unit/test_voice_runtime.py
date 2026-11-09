@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from irobot.common.config.settings import LLMSettings, RuntimeSettings, load_llm_settings
+from irobot.app.config.settings import LLMSettings, RuntimeSettings, load_llm_settings
 from irobot.app.domain.intent import Intent
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.skills import ApproachTargetSkill, FollowObjectSkill
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.app import app
 from irobot.app.interfaces.intent.llm_intent_parser import (
     LLMWarmup,
@@ -19,7 +19,7 @@ from irobot.app.interfaces.intent.llm_intent_parser import (
 )
 from irobot.app.interfaces.intent.text_intent_parser import TextIntentParser
 from irobot.app.interfaces.plan_guards import PLAN_SCHEMA, build_formats
-from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
+from irobot.app.interfaces.text_normalizer import fr_numbers_to_digits, preprocess
 from irobot.app.domain.orchestrator.mission_orchestrator import MissionOrchestrator
 from irobot.app.interfaces import voice_llm_transport
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
@@ -41,7 +41,7 @@ def test_approach_me_uses_llm_marker_target(tmp_path, fake_llm, use_llm):
             self.targets = []
 
         def detect(self, *, target):
-            from irobot.common.interfaces.perception_contracts import ObjectDetection
+            from irobot.app.interfaces.perception_contracts import ObjectDetection
 
             self.targets.append(target)
             return ObjectDetection(label="marker_1", position="center", distance_cm=25.0, confidence=1.0)
@@ -235,7 +235,7 @@ def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
     )
 
     def _mock_detect(_self, context):
-        from irobot.common.domain.skills.base_skill import SkillResult
+        from irobot.app.domain.skills.base_skill import SkillResult
 
         context.state["last_object_position"] = "centre"
         return SkillResult(
@@ -246,7 +246,7 @@ def test_voice_runtime_plan_normalizes_search_object_synonym(monkeypatch):
             next_action="align_to_target",
         )
 
-    from irobot.common.domain.skills.perception.detect_object import DetectObjectSkill
+    from irobot.app.domain.skills.perception.detect_object import DetectObjectSkill
 
     monkeypatch.setattr(DetectObjectSkill, "execute", _mock_detect)
 
@@ -373,9 +373,9 @@ def test_sanitize_normalizes_units():
 
 
 def test_primitive_resolves_unit_synonyms():
-    from irobot.common.domain.skills.base_skill import SkillContext
-    from irobot.common.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
-    from irobot.common.domain.skills.primitives.move_forward import MoveForwardSkill
+    from irobot.app.domain.skills.base_skill import SkillContext
+    from irobot.app.domain.skills.primitives.base_motion_primitive import normalize_distance_unit
+    from irobot.app.domain.skills.primitives.move_forward import MoveForwardSkill
 
     assert normalize_distance_unit("Metres") == "m"
     assert normalize_distance_unit("centimètres") == "cm"
@@ -562,7 +562,7 @@ def test_effective_mission_timeout_includes_approach_budget():
 def test_approach_retry_uses_its_own_timeout(
     monkeypatch, tmp_path, elapsed, skill_status, expected_status, attempts
 ):
-    from irobot.common.domain.skills.base_skill import SkillResult
+    from irobot.app.domain.skills.base_skill import SkillResult
 
     runtime = VoiceRuntime(robot=FakeRobot(), use_llm=False, trace_dir=str(tmp_path))
     runtime.command_service.settings = RuntimeSettings()

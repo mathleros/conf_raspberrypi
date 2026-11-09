@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from irobot.common.config.settings import (
+from irobot.app.config.settings import (
     MarkerIdentity,
     RuntimeSettings,
     load_runtime_settings,
 )
-from irobot.common.hardware.camera.detector import (
+from irobot.app.hardware.camera.detector import (
     MARKER_SIDE_CM,
     ArucoFrameDetection,
     ColorDetector,
@@ -16,11 +16,11 @@ from irobot.common.hardware.camera.detector import (
     ObservationDisposition,
     OpenCVMarkerDetector,
 )
-from irobot.common.hardware.camera.frame_enhancer import (
+from irobot.app.hardware.camera.frame_enhancer import (
     FrameEnhancer,
     configure_exposure,
 )
-from irobot.common.interfaces.perception_contracts import ObjectDetection
+from irobot.app.interfaces.perception_contracts import ObjectDetection
 
 TEST_MARKER_IDENTITY = MarkerIdentity("aruco", "DICT_4X4_50", "1")
 EXPECTED_CAMERA_MODEL = "ov5647"

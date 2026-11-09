@@ -8,9 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.common.hardware.smart_car import smart_car as sc
-from irobot.common.hardware.smart_car import cli
-from irobot.common.interfaces.robot_controller import RobotController
+from irobot.app.hardware.smart_car import smart_car as sc
+from irobot.app.hardware.smart_car import cli
+from irobot.app.interfaces.robot_controller import RobotController
 
 
 class _Pin:
@@ -73,7 +73,7 @@ def _hc_sr04(monkeypatch, clock):
         "gpiozero",
         SimpleNamespace(DigitalOutputDevice=_Pin, DigitalInputDevice=_Pin),
     )
-    module = importlib.import_module("irobot.common.hardware.sensors.hc_sr04")
+    module = importlib.import_module("irobot.app.hardware.sensors.hc_sr04")
     # Le module peut déjà être importé avec le vrai gpiozero (ex. via cli.py sur Raspberry Pi).
     monkeypatch.setattr(module, "DigitalOutputDevice", _Pin)
     monkeypatch.setattr(module, "DigitalInputDevice", _Pin)
@@ -105,7 +105,7 @@ def test_drive_speed_is_set_by_the_caller(monkeypatch):
 
 
 def test_smart_car_cli_threshold_defaults_to_runtime_settings(monkeypatch):
-    from irobot.common.config.settings import RuntimeSettings
+    from irobot.app.config.settings import RuntimeSettings
 
     monkeypatch.setattr(
         cli, "load_runtime_settings",

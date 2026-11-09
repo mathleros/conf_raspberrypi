@@ -18,18 +18,18 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
-from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
-from irobot.common.domain.orchestrator.executor import SkillExecutor
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.skills.base_skill import SkillContext, SkillResult
-from irobot.common.domain.skills.blackboard_state import BlackboardState
-from irobot.common.hardware.runtime_factory import (
+from irobot.app.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.app.domain.orchestrator.executor import SkillExecutor
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.skills.base_skill import SkillContext, SkillResult
+from irobot.app.domain.skills.blackboard_state import BlackboardState
+from irobot.app.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
     load_face_gallery,
 )
-from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
+from irobot.app.interfaces.wake_word import DEFAULT_WAKE_WORD, split_wake_word
 from irobot.tools.robot_test.command_parser import (
     BEHAVIORS,
     DEFAULT_DURATION_S,
@@ -42,7 +42,7 @@ from irobot.tools.robot_test.command_parser import (
 )
 
 if TYPE_CHECKING:
-    from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
+    from irobot.app.hardware.camera.detector.face_gallery import FaceGallery
 
 MOVE_SKILLS = {
     "forward": "move_forward",
@@ -60,8 +60,8 @@ FOLLOW_INTENT_BY_TARGET = {
 def _listen_and_run(registry: SkillRegistry, hardware: dict, args: argparse.Namespace, settle_s: float = 0.0) -> None:
     """Boucle d'écoute : mot d'activation, puis commande (même phrase ou phrase suivante)."""
     # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
-    from irobot.common.hardware.audio.audio_utils import resolve_input_device
-    from irobot.common.hardware.audio.voice_input import transcribe_loop
+    from irobot.app.hardware.audio.audio_utils import resolve_input_device
+    from irobot.app.hardware.audio.voice_input import transcribe_loop
 
     transcripts = transcribe_loop(resolve_input_device(args.input_device))
     armed = False

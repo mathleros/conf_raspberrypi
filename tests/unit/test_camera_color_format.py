@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 from irobot.tools import calibrate_distance
-from irobot.common.hardware.camera import camera_live_perception_pipeline
-from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.app.hardware.camera import camera_live_perception_pipeline
+from irobot.app.config.settings import RuntimeSettings, load_runtime_settings
 
-from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.app.hardware.camera.frame_enhancer import FrameEnhancer
 from tests.unit.perception_helpers import camera_target
 
 SETTINGS = load_runtime_settings()

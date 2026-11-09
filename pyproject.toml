@@ -21,8 +21,8 @@ vision-detect-live = "irobot.tools.vision_diagnostic:main"
 calibrate-distance = "irobot.tools.calibrate_distance:main"
 robot = "irobot.app.app:main"
 robot-test = "irobot.tools.robot_test.cli:main"
-smart-car = "irobot.common.hardware.smart_car.cli:main"
-hc-sr04 = "irobot.common.hardware.sensors.hc_sr04:main"
+smart-car = "irobot.app.hardware.smart_car.cli:main"
+hc-sr04 = "irobot.app.hardware.sensors.hc_sr04:main"
 
 # Les scripts de test sont désormais dans le dossier tests/ et s'exécutent via
 # python3 tests/<nom>.py ; ils ne sont pas exposés via uv run car ils ne font
@@ -48,7 +48,7 @@ max-statements = 62
 
 [tool.ruff.lint.per-file-ignores]
 "src/irobot/app/interfaces/voice_runtime.py" = ["PLR0913"]
-"src/irobot/common/hardware/**" = ["PLC0415"]
+"src/irobot/app/hardware/**" = ["PLC0415"]
 "src/irobot/tools/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 "tests/**" = ["SLF001", "ARG"]
 
@@ -58,21 +58,14 @@ root_package = "irobot"
 [[tool.importlinter.contracts]]
 name = "domain ne dépend ni d'interfaces ni de hardware"
 type = "forbidden"
-source_modules = ["irobot.common.domain", "irobot.app.domain"]
+source_modules = ["irobot.app.domain"]
 forbidden_modules = [
-    "irobot.common.interfaces",
     "irobot.app.interfaces",
-    "irobot.common.hardware",
+    "irobot.app.hardware",
 ]
 
 [[tool.importlinter.contracts]]
 name = "interfaces ne dépend pas de hardware"
 type = "forbidden"
-source_modules = ["irobot.common.interfaces", "irobot.app.interfaces"]
-forbidden_modules = ["irobot.common.hardware"]
-
-[[tool.importlinter.contracts]]
-name = "common ne dépend ni de app ni de tools"
-type = "forbidden"
-source_modules = ["irobot.common"]
-forbidden_modules = ["irobot.app", "irobot.tools"]
+source_modules = ["irobot.app.interfaces"]
+forbidden_modules = ["irobot.app.hardware"]

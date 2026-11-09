@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from irobot.common.interfaces import RobotController
-from irobot.common.domain.skills import SkillContext
-from irobot.common.domain.skills.primitives.move_backward import MoveBackwardSkill
-from irobot.common.domain.skills.primitives.move_forward import MoveForwardSkill
-from irobot.common.domain.skills.primitives.stop_motion import StopMotionSkill
-from irobot.common.domain.skills.primitives.turn_left import TurnLeftSkill
-from irobot.common.domain.skills.primitives.turn_right import TurnRightSkill
+from irobot.app.interfaces import RobotController
+from irobot.app.domain.skills import SkillContext
+from irobot.app.domain.skills.primitives.move_backward import MoveBackwardSkill
+from irobot.app.domain.skills.primitives.move_forward import MoveForwardSkill
+from irobot.app.domain.skills.primitives.stop_motion import StopMotionSkill
+from irobot.app.domain.skills.primitives.turn_left import TurnLeftSkill
+from irobot.app.domain.skills.primitives.turn_right import TurnRightSkill
 from tests.unit.fake_robot import FakeRobot
 
 

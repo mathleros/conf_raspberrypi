@@ -26,11 +26,11 @@ micro ──► STT (Vosk) ──► CommandParser (règles) ──► Command �
 
 | Brique | Rôle | Existant |
 |---|---|---|
-| Entrée | Texte (CLI) ou voix (STT) | `common/hardware/audio`, CLI de `robot-test` |
+| Entrée | Texte (CLI) ou voix (STT) | `app/hardware/audio`, CLI de `robot-test` |
 | `CommandParser` | Texte → `Command(behavior, target, duration)` | `parse_voice_command` dans `tools/robot_test` |
 | `Command` | Structure validée (énumérations fermées) | arguments de `robot-test` |
 | `Dispatcher` | `behavior` → skill (`move`, `search`, `approach`, `follow`) | `_run_*` de `robot-test` |
-| Skills et hardware | Exécution réelle | `common/domain`, `common/hardware` |
+| Skills et hardware | Exécution réelle | `app/domain`, `app/hardware` |
 
 ## Règles de conception
 
@@ -46,7 +46,7 @@ micro ──► STT (Vosk) ──► CommandParser (règles) ──► Command �
 ## Évolution par étapes
 
 1. **Maintenant** : `robot-test` fait tout, parser inclus.
-2. Extraire `parse_voice_command` dans `common/` (`command_parser.py`) et créer un
+2. Extraire `parse_voice_command` dans `app/` (`command_parser.py`) et créer un
    type `Command`, utilisés par `robot-test` et les tests.
 3. Boucle d'écoute continue (mot d'activation puis commande), toujours sans LLM.
 4. Enchaînements : accepter une liste de `Command` (séparateur « puis ») avant

@@ -4,12 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
+from irobot.app.config.settings import RuntimeSettings
 from irobot.app.domain.intent import Intent
 from irobot.app.domain.orchestrator.planner import SkillPlanner
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.skills import ApproachTargetSkill, FollowObjectSkill
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.skills import ApproachTargetSkill, FollowObjectSkill
 from irobot.app.domain.intent_validator import IntentValidator
 from irobot.app.interfaces.intent.text_intent_parser import (
     TextIntentParser,

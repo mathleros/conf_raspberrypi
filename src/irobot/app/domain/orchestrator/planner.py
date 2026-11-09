@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from irobot.app.domain.intent import Intent
-from irobot.common.config.settings import load_runtime_settings
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.domain.skills.base_skill import Skill
+from irobot.app.config.settings import load_runtime_settings
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.domain.skills.base_skill import Skill
 
 MAX_PLAN_STEPS = load_runtime_settings().max_plan_steps
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from irobot.common.domain.numbers import to_float
+from irobot.app.domain.numbers import to_float
 
 
 @pytest.mark.parametrize("value, expected", [("1.5", 1.5), (3, 3.0), (2.5, 2.5)])

@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from irobot.common.interfaces.text_normalizer import fold, fr_numbers_to_digits
+from irobot.app.interfaces.text_normalizer import fold, fr_numbers_to_digits
 
 STOP_WORDS = {"stop", "arrete", "arrete-toi", "halte", "pause", "robot", "toi", "vite",
               "s", "il", "te", "plait", "attends", "attend"}

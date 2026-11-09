@@ -4,10 +4,10 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.hardware.camera.detector import FaceDetector
-from irobot.common.hardware.camera.detector import face_gallery
-from irobot.common.hardware.camera.detector.face_gallery import FaceGallery, normalize_name
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.hardware.camera.detector import FaceDetector
+from irobot.app.hardware.camera.detector import face_gallery
+from irobot.app.hardware.camera.detector.face_gallery import FaceGallery, normalize_name
 
 
 def test_resolve_ignores_case_and_accents():
@@ -80,7 +80,7 @@ def detector(tmp_path, monkeypatch):
     net = SimpleNamespace(faces=None, setInputSize=lambda size: None)
     net.detect = lambda frame: (1, net.faces)
     monkeypatch.setattr(cv2, "FaceDetectorYN", SimpleNamespace(create=lambda *a, **k: net))
-    monkeypatch.setattr("irobot.common.hardware.camera.detector.face_detector.FaceEmbedder", lambda s: _Embedder())
+    monkeypatch.setattr("irobot.app.hardware.camera.detector.face_detector.FaceEmbedder", lambda s: _Embedder())
     return FaceDetector(settings), net
 
 

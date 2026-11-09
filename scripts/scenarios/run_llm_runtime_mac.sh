@@ -200,8 +200,8 @@ echo "Serveur LLM disponible sur http://127.0.0.1:8080"
 echo ""
 PYTHONPATH=src uv run python - "$TEXT" "$MOCK_OBJECT_POSITION" <<'PY'
 import sys
-from irobot.common.domain.skills.base_skill import SkillResult
-from irobot.common.domain.skills.perception.detect_object import DetectObjectSkill
+from irobot.app.domain.skills.base_skill import SkillResult
+from irobot.app.domain.skills.perception.detect_object import DetectObjectSkill
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 

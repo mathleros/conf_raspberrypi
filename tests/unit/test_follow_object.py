@@ -4,11 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings, load_runtime_settings
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.orchestrator.registry import SkillRegistry
-from irobot.common.domain.skills import SkillContext
-from irobot.common.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.app.config.settings import RuntimeSettings, load_runtime_settings
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.orchestrator.registry import SkillRegistry
+from irobot.app.domain.skills import SkillContext
+from irobot.app.domain.skills.behaviors.follow_object import FollowObjectSkill
 from tests.unit.fake_robot import FakeRobot
 
 

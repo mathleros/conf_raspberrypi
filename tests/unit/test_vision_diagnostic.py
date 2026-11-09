@@ -6,13 +6,13 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.common.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
-from irobot.common.hardware.camera import camera_live_perception_pipeline
-from irobot.common.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
-from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.common.interfaces.perception_contracts import ObjectDetection
+from irobot.app.config.settings import MarkerIdentity, RuntimeSettings, load_runtime_settings
+from irobot.app.hardware.camera import camera_live_perception_pipeline
+from irobot.app.hardware.camera.detector.aruco_detector import estimate_marker_distance_cm
+from irobot.app.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.app.interfaces.perception_contracts import ObjectDetection
 from irobot.tools.vision_diagnostic import detect_balls, format_object_status
-from irobot.common.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
+from irobot.app.hardware.camera.detector import ArucoFrameDetection, ObservationDisposition
 from irobot.tools.vision_diagnostic import (
     TEST_MARKER_IDENTITY,
     _draw_detection,

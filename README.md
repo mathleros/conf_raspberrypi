@@ -29,7 +29,7 @@ intents en étapes ; `MissionOrchestrator` pilote leur séquence, les retries,
 les délais et l'état de mission. `LanguageController` exécute les étapes
 compilées ; il ne parse pas de texte.
 
-Les modules sont organisés par responsabilité : `src/irobot/common/` (code partagé :
+Les modules sont organisés par responsabilité : `src/irobot/app/` (code partagé :
 `domain/`, `interfaces/`, `hardware/`, `config/`, `tools/`), `src/irobot/app/` (runtime
 vocal LLM) et `src/irobot/tools/robot_test/` (banc de test direct `robot-test`, sans LLM).
 Le [README du package](src/irobot/README.md) décrit les points d'entrée et
@@ -199,7 +199,7 @@ uv run robot --once --input-device wm8960
 
 Le ReSpeaker requiert le HAT connecté avant le redémarrage pour charger son overlay audio. Les scripts Bluetooth et ReSpeaker ne sont pas nécessaires pour le runtime texte/LLM.
 
-Les paramètres du robot et de la perception sont dans [runtime_settings.toml](src/irobot/common/config/runtime_settings.toml), à côté du module qui les charge. Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier.
+Les paramètres du robot et de la perception sont dans [runtime_settings.toml](src/irobot/app/config/runtime_settings.toml), à côté du module qui les charge. Après installation et branchement de la caméra, calibrer si nécessaire la focale avec `uv run calibrate-distance --known-distance-cm 100`, puis reporter la valeur `focal_px` affichée dans la section `[camera]` du fichier.
 
 Le raccordement logiciel SH-04 utilise la section `[human_follow]` du même
 fichier : `max_age_seconds = 0.2` et `announcement_timeout_seconds = 2.0`.
@@ -280,7 +280,7 @@ uv run calibrate-distance --color yellow --ball-diameter-cm 6.5 --known-distance
 uv run calibrate-distance --color yellow
 ```
 
-`calibrate-distance` prend 30 mesures par défaut (`--samples` pour changer ce nombre) et affiche la focale à reporter manuellement dans [runtime_settings.toml](src/irobot/common/config/runtime_settings.toml). Renseigner aussi le diamètre réel `ball_diameter_cm` dans ce fichier. La distance visuelle est estimée par `focal_px * ball_diameter_cm / diameter_px`, puis lissée dans la perception live. L'ultrason reste réservé aux mesures d'obstacles du robot et n'est pas utilisé pour estimer la distance de la cible visuelle.
+`calibrate-distance` prend 30 mesures par défaut (`--samples` pour changer ce nombre) et affiche la focale à reporter manuellement dans [runtime_settings.toml](src/irobot/app/config/runtime_settings.toml). Renseigner aussi le diamètre réel `ball_diameter_cm` dans ce fichier. La distance visuelle est estimée par `focal_px * ball_diameter_cm / diameter_px`, puis lissée dans la perception live. L'ultrason reste réservé aux mesures d'obstacles du robot et n'est pas utilisé pour estimer la distance de la cible visuelle.
 
 ### Smart Car
 
@@ -365,7 +365,7 @@ Le dépôt couvre plusieurs axes de test :
 - [Contexte technique du projet](PROJECT_CONTEXT.md)
 - [Vue d'ensemble des scripts](scripts/README.md)
 - [Structure du package irobot](src/irobot/README.md)
-- [Configuration du runtime](src/irobot/common/config/README.md)
+- [Configuration du runtime](src/irobot/app/config/README.md)
 
 ## Règles de structure
 

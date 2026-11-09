@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from irobot.common.interfaces import RobotController
-from irobot.common.domain.skills import SkillContext
-from irobot.common.domain.skills.perception.detect_object import DetectObjectSkill
-from irobot.common.domain.skills.perception.detect_obstacle import DetectObstacleSkill
+from irobot.app.interfaces import RobotController
+from irobot.app.domain.skills import SkillContext
+from irobot.app.domain.skills.perception.detect_object import DetectObjectSkill
+from irobot.app.domain.skills.perception.detect_obstacle import DetectObstacleSkill
 from tests.unit.fake_robot import FakeRobot
 
 

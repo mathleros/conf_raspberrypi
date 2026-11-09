@@ -22,9 +22,9 @@ from irobot.app.interfaces.voice_constants import (
     OBJECT_INTENTS,
     PLAN_INTENT_SYNONYMS,
 )
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.domain.numbers import to_float
-from irobot.common.domain.skills.primitives.base_motion_primitive import (
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.domain.numbers import to_float
+from irobot.app.domain.skills.primitives.base_motion_primitive import (
     normalize_distance_unit,
 )
 

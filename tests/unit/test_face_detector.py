@@ -7,14 +7,14 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.skills.base_skill import SkillContext
-from irobot.common.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.common.hardware.camera import camera_live_perception_pipeline
-from irobot.common.hardware.camera.detector import FaceDetector
-from irobot.common.hardware.camera.frame_enhancer import FrameEnhancer
-from irobot.common.interfaces.perception_contracts import (
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.skills.base_skill import SkillContext
+from irobot.app.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.app.hardware.camera import camera_live_perception_pipeline
+from irobot.app.hardware.camera.detector import FaceDetector
+from irobot.app.hardware.camera.frame_enhancer import FrameEnhancer
+from irobot.app.interfaces.perception_contracts import (
     ObjectDetection,
     ObjectPerceptionPipeline,
 )

@@ -18,7 +18,7 @@ from irobot.app.interfaces.plan_guards import (
     follow_request_refusal,
     named_follow_target,
 )
-from irobot.common.interfaces.text_normalizer import fold, fr_numbers_to_digits
+from irobot.app.interfaces.text_normalizer import fold, fr_numbers_to_digits
 
 _DECIMAL_RE = re.compile(r"(\d+)[.,](\d+)")
 _DECIMAL_MARK = "\ue000"

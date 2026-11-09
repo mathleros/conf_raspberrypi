@@ -10,7 +10,7 @@ from irobot.tools.robot_test.command_parser import (
     parse_voice_command,
 )
 
-from irobot.common.interfaces.wake_word import split_wake_word
+from irobot.app.interfaces.wake_word import split_wake_word
 
 
 def test_single_command_with_spoken_duration():
@@ -64,8 +64,8 @@ def _args(**kwargs):
 
 
 def _patch_audio(monkeypatch, transcripts):
-    import irobot.common.hardware.audio.audio_utils as audio_utils
-    import irobot.common.hardware.audio.voice_input as voice_input
+    import irobot.app.hardware.audio.audio_utils as audio_utils
+    import irobot.app.hardware.audio.voice_input as voice_input
 
     monkeypatch.setattr(audio_utils, "resolve_input_device", lambda device: device)
     monkeypatch.setattr(voice_input, "transcribe_loop", lambda device: (text for text in transcripts))

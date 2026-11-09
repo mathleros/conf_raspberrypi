@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "irobot"
-FORBIDDEN = {"common": ("irobot.app", "irobot.tools"), "app": ("irobot.tools",), "tools": ("irobot.app",)}
+FORBIDDEN = {"app": ("irobot.tools",)}
 
 
 def _imports(path: Path):

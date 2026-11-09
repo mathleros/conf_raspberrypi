@@ -26,8 +26,8 @@ from irobot.app.interfaces.voice_llm_transport import (
     post_llm_chat,
     select_formats,
 )
-from irobot.common.config.llm_settings import load_llm_settings
-from irobot.common.interfaces.text_normalizer import preprocess
+from irobot.app.config.llm_settings import load_llm_settings
+from irobot.app.interfaces.text_normalizer import preprocess
 
 
 def _llm_confidence(value: Any) -> float:

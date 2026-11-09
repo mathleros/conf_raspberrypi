@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from irobot.common.domain.perception import PerceptionTarget
+from irobot.app.domain.perception import PerceptionTarget
 
 
 @dataclass

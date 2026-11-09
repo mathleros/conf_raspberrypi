@@ -12,8 +12,8 @@ import cv2
 import numpy as np
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.hardware.camera.detector.face_gallery import FaceGallery
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.hardware.camera.detector.face_gallery import FaceGallery
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets" / "face_recognition"
 _DEFAULTS = RuntimeSettings()

@@ -8,19 +8,19 @@ from collections.abc import Iterable
 
 from irobot.app.interfaces.intent.llm_intent_parser import LLMWarmup
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
-from irobot.common.config.settings import load_runtime_settings
-from irobot.common.hardware.runtime_factory import (
+from irobot.app.config.settings import load_runtime_settings
+from irobot.app.hardware.runtime_factory import (
     build_hardware_runtime,
     close_hardware_runtime,
     load_face_gallery,
 )
-from irobot.common.interfaces.wake_word import DEFAULT_WAKE_WORD
+from irobot.app.interfaces.wake_word import DEFAULT_WAKE_WORD
 
 
 def _microphone_transcripts(input_device: str) -> Iterable[str]:
     # Import paresseux : la dépendance audio n'existe pas hors Raspberry Pi.
-    from irobot.common.hardware.audio.audio_utils import resolve_input_device
-    from irobot.common.hardware.audio.voice_input import transcribe_loop
+    from irobot.app.hardware.audio.audio_utils import resolve_input_device
+    from irobot.app.hardware.audio.voice_input import transcribe_loop
 
     return transcribe_loop(resolve_input_device(input_device))
 

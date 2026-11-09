@@ -5,11 +5,11 @@ import time
 
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
-from irobot.common.domain.perception import PerceptionTarget
-from irobot.common.domain.skills import SkillContext
-from irobot.common.domain.skills.behaviors.follow_object import FollowObjectSkill
-from irobot.common.interfaces.robot_controller import RobotController
+from irobot.app.config.settings import RuntimeSettings
+from irobot.app.domain.perception import PerceptionTarget
+from irobot.app.domain.skills import SkillContext
+from irobot.app.domain.skills.behaviors.follow_object import FollowObjectSkill
+from irobot.app.interfaces.robot_controller import RobotController
 from irobot.app.interfaces.voice_runtime import VoiceRuntime
 from tests.unit.fake_robot import FakeRobot
 from tests.unit.test_follow_object import World

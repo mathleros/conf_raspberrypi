@@ -14,10 +14,15 @@ def __getattr__(name):
         from irobot.app.interfaces.voice_runtime import VoiceRuntime
 
         return VoiceRuntime
+    if name == "RobotController":
+        from irobot.app.interfaces.robot_controller import RobotController
+
+        return RobotController
     raise AttributeError(name)
 
 __all__ = [
     "CommandService",
     "LanguageController",
+    "RobotController",
     "VoiceRuntime",
 ]

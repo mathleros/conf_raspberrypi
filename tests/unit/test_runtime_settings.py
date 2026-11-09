@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from irobot.common.config import settings
-from irobot.common.config.llm_settings import LLMSettings as SeparateLLMSettings
-from irobot.common.config.llm_settings import load_llm_settings as load_separate_llm_settings
+from irobot.app.config import settings
+from irobot.app.config.llm_settings import LLMSettings as SeparateLLMSettings
+from irobot.app.config.llm_settings import load_llm_settings as load_separate_llm_settings
 
 
 def test_runtime_recovery_attempts_default_and_loaded(tmp_path, monkeypatch):

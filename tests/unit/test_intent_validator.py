@@ -1,6 +1,6 @@
 import pytest
 
-from irobot.common.config.settings import RuntimeSettings
+from irobot.app.config.settings import RuntimeSettings
 from irobot.app.domain.intent import Intent
 from irobot.app.domain.intent_validator import IntentValidator
 from irobot.app.interfaces.intent.plan_validator import IntentPlanValidator

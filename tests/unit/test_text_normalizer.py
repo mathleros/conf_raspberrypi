@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from irobot.common.interfaces.text_normalizer import preprocess
+from irobot.app.interfaces.text_normalizer import preprocess
 
 CASES = [
     ('avance de un mètre', 'avance de 100 centimètres'),

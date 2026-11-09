@@ -17,9 +17,9 @@ import sys
 
 import cv2
 
-from irobot.common.config.settings import load_runtime_settings
-from irobot.common.hardware.camera.detector import ColorDetector
-from irobot.common.hardware.camera.frame_enhancer import (
+from irobot.app.config.settings import load_runtime_settings
+from irobot.app.hardware.camera.detector import ColorDetector
+from irobot.app.hardware.camera.frame_enhancer import (
     FrameEnhancer,
     configure_exposure,
 )

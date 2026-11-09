@@ -10,7 +10,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from irobot.common.interfaces.text_normalizer import fr_numbers_to_digits
+from irobot.app.interfaces.text_normalizer import fr_numbers_to_digits
 
 BEHAVIORS = ("move", "search", "approach", "follow")
 MOVE_TARGETS = ("forward", "backward", "left", "right")

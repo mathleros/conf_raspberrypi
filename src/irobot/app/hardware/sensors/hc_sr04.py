@@ -28,7 +28,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 class HC_SR04:
     """Mesure la distance à l'objet le plus proche devant le capteur."""
 
-    CACHE_TTL_S = 0.06
+    CACHE_TTL_S = 0.05
 
     def __init__(
         self,

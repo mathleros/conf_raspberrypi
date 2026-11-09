@@ -86,14 +86,14 @@ def test_load_runtime_settings_uses_packaged_calibration():
     assert settings._config_file().resolve() == calibration_path
     assert calibration_path.is_file()
     expected = {
-        "cm_per_second": 33.0,
+        "cm_per_second": 50.0,
         "backward_cm_per_second": 25.0,
-        "deg_per_second": 180.0,
+        "deg_per_second": 360.0,
         "drive_speed": 0.5,
         "trim_a": 1.0,
         "trim_b": 1.0,
         "turn_speed": 0.5,
-        "obstacle_threshold_cm": 5.0,
+        "obstacle_threshold_cm": 30.0,
         "step_timeout_seconds": 6.0,
         "mission_timeout_seconds": 45.0,
         "max_step_retries": 2,

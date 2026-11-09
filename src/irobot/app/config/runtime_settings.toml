@@ -1,13 +1,13 @@
 [runtime]
-cm_per_second = 33.0
+cm_per_second = 50.0
 backward_cm_per_second = 25.0
-deg_per_second = 180.0
+deg_per_second = 360.0
 drive_speed = 0.5
 # Compensation de dérive par moteur (1.0 = pas de correction). Ex. 0.95 ralentit le moteur A de 5 %.
 trim_a = 1.0
 trim_b = 1.0
 turn_speed = 0.5
-obstacle_threshold_cm = 5.0
+obstacle_threshold_cm = 30.0
 step_timeout_seconds = 6.0
 mission_timeout_seconds = 45.0
 max_step_retries = 2

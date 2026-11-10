@@ -167,7 +167,7 @@ class CameraLivePerceptionPipeline(ObjectPerceptionPipeline):
                     self._active_target = None
                     self._distance_smoother.reset()
                     processed_revision = revision
-                rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
+                rotated_frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_180)
                 detection = (
                     self._process_frame(rotated_frame_rgb, target=target)
                     if target is not None

@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         started = True
         while True:
             frame_rgb = camera.capture_array()
-            rotated_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
+            rotated_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_180)
             rotated_rgb = enhancer.apply(rotated_rgb)
             display_frame = cv2.cvtColor(rotated_rgb, cv2.COLOR_RGB2BGR)
             if args.preview_only:

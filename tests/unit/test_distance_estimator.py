@@ -143,7 +143,7 @@ def _synthetic_frame(radius: int, rotate: bool = False):
     import cv2
 
     cv2.circle(frame, (320, 240), radius, (255, 220, 0), -1)
-    return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate else frame
+    return cv2.rotate(frame, cv2.ROTATE_180) if rotate else frame
 
 
 def test_detector_diameter_is_rotation_invariant_and_selects_largest_ball():

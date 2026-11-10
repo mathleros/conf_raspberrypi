@@ -212,7 +212,7 @@ def live_pipeline(monkeypatch):
             frame = frames.get(timeout=3)
             if isinstance(frame, Exception):
                 raise frame
-            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            return cv2.rotate(frame, cv2.ROTATE_180)
 
         def stop(self):
             pass

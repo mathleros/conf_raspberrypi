@@ -321,7 +321,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
     def detect(frame_rgb):
         assert frame_rgb.shape == (ORIENTED_H, ORIENTED_W, 3)
         expected_rgb = FrameEnhancer(SETTINGS).apply(
-            cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(frame, cv2.ROTATE_180),
         )
         np.testing.assert_array_equal(frame_rgb, expected_rgb)
         return _project_marker((0, 0, 80))
@@ -342,7 +342,7 @@ def test_main_configures_reference_resolution_and_rotates_without_camera(
 
     def detect_face(frame_rgb):
         expected_rgb = FrameEnhancer(RuntimeSettings(camera_clahe_enabled=True)).apply(
-            cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(frame, cv2.ROTATE_180),
         )
         np.testing.assert_array_equal(frame_rgb, expected_rgb)
         if inference_error:
@@ -460,7 +460,7 @@ def test_main_preview_only_skips_detection_and_shows_unannotated_frame(monkeypat
 
     assert calls == ["configure", "exposure", "start", "stop", "camera_close", "close"]
     assert windows[0][0] == "Vision - Preview"
-    expected_rgb = FrameEnhancer(SETTINGS).apply(cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE))
+    expected_rgb = FrameEnhancer(SETTINGS).apply(cv2.rotate(frame, cv2.ROTATE_180))
     np.testing.assert_array_equal(windows[0][1], cv2.cvtColor(expected_rgb, cv2.COLOR_RGB2BGR))
     assert "Aperçu caméra uniquement" in capsys.readouterr().out
 

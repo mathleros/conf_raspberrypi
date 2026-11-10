@@ -39,7 +39,7 @@ tolerance_percent = 5.0
 
 [camera]
 capture_size_px = [1280, 720]
-oriented_frame_size_px = [720, 1280]
+oriented_frame_size_px = [1280, 720] # [720, 1280]
 ball_diameter_cm = 6.2
 # Focale en pixels (image 1280x720 tournée de 90°) : à calibrer avec `calibrate-distance --known-distance-cm 100`
 focal_px = 1394.2

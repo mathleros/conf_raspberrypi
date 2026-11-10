@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> None:
         camera.start()
         started = True
         while True:
-            frame = cv2.rotate(camera.capture_array(), cv2.ROTATE_90_CLOCKWISE)
+            frame = cv2.rotate(camera.capture_array(), cv2.ROTATE_180)
             frame = enhancer.apply(frame)
             detection = detector.detect(frame)
             if detection is None or not detection.label.endswith("_ball"):

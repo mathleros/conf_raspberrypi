@@ -55,7 +55,7 @@ face_score_threshold = 0.85
 # Tolérance en images traitées sans visage ; 0 désactive la mémoire.
 face_grace_frames = 8
 # Décalage horizontal (0 à 1, centre = 0) au-delà duquel le robot corrige son angle même à distance de consigne.
-edge_offset_threshold = 0.55
+edge_offset_threshold = 0.70
 
 [human_follow]
 # Budgets provisoires autorises, NON qualifies ; ne debloquent pas le suivi moteur.
